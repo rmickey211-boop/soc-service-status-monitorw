@@ -14,7 +14,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.4 (+manual operator initiated checks)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.4.1")
+app = FastAPI(title="SOC Service Status Monitor", version="1.4.2")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 

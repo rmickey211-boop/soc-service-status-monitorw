@@ -6,6 +6,17 @@ function ageInfo(s){if(!s.checked_at)return {text:s.status==="manual"?"Revisión
 function render(){const term=$("search").value.trim().toLowerCase(),cat=$("category").value,state=$("state").value,fresh=$("freshFilter").value;
  const rows=cache.filter(s=>{const a=ageInfo(s);return (!term||s.name.toLowerCase().includes(term)||s.category.toLowerCase().includes(term))&&(!cat||s.category===cat)&&(!state||s.status===state)&&(!fresh||a.kind===fresh)});
  $("services").innerHTML=rows.map(s=>{const a=ageInfo(s);return `<article class="service"><div class="service-top"><div><span class="service-name">${esc(s.name)}</span><div class="category">${esc(s.category||"General")}</div></div><span class="pill ${esc(s.status)}">${labels[s.status]||"SIN INFORMACIÓN"}</span></div><div class="service-desc">${esc(s.description||s.error||"Pendiente de consulta")}</div><div class="service-foot"><span class="age ${a.kind}">${esc(a.text)}</span><span class="portal-area"><a class="portal-btn" href="${esc(s.source_url||"#")}" target="_blank" rel="noopener noreferrer">${esc(s.portal_label||"Abrir portal oficial")} ↗</a></span></div>${s.error?`<div class="error-line">No se pudo consultar automáticamente: ${esc(s.error)}</div>`:""}</article>`}).join("")||'<div class="loading">No hay plataformas que coincidan con los filtros.</div>';
+ updateMetricSelection();
+}
+function updateMetricSelection(){
+ const selectedState=$("state").value;
+ const selectedFresh=$("freshFilter").value;
+ document.querySelectorAll(".metric-filter").forEach(card=>{
+   const key=card.dataset.filter;
+   const active=(key==="stale" ? selectedFresh==="stale" && !selectedState : selectedState===key && !selectedFresh);
+   card.classList.toggle("active",active);
+   card.setAttribute("aria-pressed",active?"true":"false");
+ });
 }
 function renderChecklistOptions(){const groups={};for(const s of catalog){const c=s.category||"General";(groups[c]??=[]).push(s)}$("checklistServices").innerHTML=Object.entries(groups).map(([cat,items])=>`<div class="check-group"><b>${esc(cat)}</b><div class="check-items">${items.map(s=>`<label class="check-item"><input type="checkbox" class="service-check" value="${esc(s.id)}"><span>${esc(s.name)}</span><small>${s.type==="manual"?"Manual":"Fuente pública"}</small></label>`).join("")}</div></div>`).join("");}
 async function load(){try{const [sr,er,cr,kr]=await Promise.all([fetch("/api/status"),fetch("/api/events?limit=100"),fetch("/api/config"),fetch("/api/checklist?limit=50")]);if(!sr.ok||!er.ok||!cr.ok||!kr.ok)throw new Error("API no disponible");const data=await sr.json(),events=await er.json(),config=await cr.json(),runs=await kr.json();cache=data.services;catalog=config.services;
@@ -18,6 +29,14 @@ async function load(){try{const [sr,er,cr,kr]=await Promise.all([fetch("/api/sta
  $("checkHistory").innerHTML=runs.length?runs.map(r=>{let ids=[];try{ids=JSON.parse(r.checked_services)}catch{};const names=ids.map(id=>catalog.find(s=>s.id===id)?.name||id);const cp={inicio:"Inicio",intermedio:"Intermedio",termino:"Término"}[r.checkpoint]||r.checkpoint;return `<tr><td>${date(r.created_at)}</td><td>${esc(r.analyst)}</td><td>${esc(r.shift_name)}</td><td>${esc(cp)}</td><td>${esc(names.slice(0,6).join(", ")+(names.length>6?` y ${names.length-6} más`:"")||"—")}</td><td>${esc(r.notes||"—")}</td></tr>`}).join(""):'<tr><td colspan="6">Sin revisiones registradas.</td></tr>';
  }catch(e){$("services").innerHTML='<div class="loading">No se pudo conectar con el backend. Intenta nuevamente.</div>';$("freshSummary").textContent="No fue posible cargar los datos."}}
 $("refresh").addEventListener("click",async()=>{$("refresh").disabled=true;$("refresh").textContent="Consultando fuentes…";try{const r=await fetch("/api/poll",{method:"POST"});const result=await r.json();if(!r.ok)throw new Error(result.detail||"Error");await load();toast(`Consulta finalizada: ${result.success} fuentes con respuesta, ${result.errors} sin información y ${result.manual} para revisar manualmente.`)}catch(e){toast("No se pudo completar la consulta: "+e.message)}finally{$("refresh").disabled=false;$("refresh").textContent="↻ Actualizar ahora"}});
+document.querySelectorAll(".metric-filter").forEach(card=>card.addEventListener("click",()=>{
+ const key=card.dataset.filter;
+ $("search").value="";
+ if(key==="stale"){ const already=$("freshFilter").value==="stale" && !$("state").value; $("state").value=""; $("freshFilter").value=already?"":"stale"; }
+ else { $("state").value=($("state").value===key && !$("freshFilter").value)?"":key; $("freshFilter").value=""; }
+ render();
+ document.querySelector("#services").scrollIntoView({behavior:"smooth",block:"start"});
+}));
 $("search").addEventListener("input",render);$("category").addEventListener("change",render);$("state").addEventListener("change",render);$("freshFilter").addEventListener("change",render);
 $("selectAll").addEventListener("click",()=>document.querySelectorAll(".service-check").forEach(x=>x.checked=true));$("clearAll").addEventListener("click",()=>document.querySelectorAll(".service-check").forEach(x=>x.checked=false));
 $("saveChecklist").addEventListener("click",async()=>{const analyst=$("analyst").value.trim(),shift_name=$("shift").value,checkpoint=$("checkpoint").value,checked_services=[...document.querySelectorAll(".service-check:checked")].map(x=>x.value),notes=$("checkNotes").value.trim();$("saveChecklist").disabled=true;$("saveChecklist").textContent="Guardando…";try{const r=await fetch("/api/checklist",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({analyst,shift_name,checkpoint,checked_services,notes})});const data=await r.json();if(!r.ok)throw new Error(data.detail||"No se pudo guardar");$("checkMsg").textContent=`Revisión registrada: ${data.total_services} plataformas · ${date(data.created_at)}`;$("checkMsg").className="check-msg ok";document.querySelectorAll(".service-check").forEach(x=>x.checked=false);$("checkNotes").value="";await load()}catch(e){$("checkMsg").textContent=e.message;$("checkMsg").className="check-msg error"}finally{$("saveChecklist").disabled=false;$("saveChecklist").textContent="Registrar revisión"}});

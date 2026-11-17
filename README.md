@@ -54,3 +54,12 @@ Se corrigieron dos defectos de la v1.4:
 Tras reemplazar los archivos y desplegar el commit, prueba:
 - `GET /api/status`: debe devolver todas las plataformas habilitadas.
 - `POST /api/poll`: debe responder JSON con `checked`, `success`, `errors`, `manual` y resultados por plataforma.
+
+
+## Mejora v1.4.2 — tarjetas KPI interactivas
+Las ocho tarjetas superiores son ahora filtros interactivos:
+- Operativos, avisos, degradados, indisponibles, mantenimientos, consulta manual y sin información filtran por estado.
+- Datos antiguos (+60 min) filtra por antigüedad.
+- Al seleccionar una tarjeta se limpia el texto de búsqueda, se conserva la categoría elegida, se actualiza el filtro y la lista se desplaza a las plataformas.
+- Al volver a pulsar la tarjeta activa se quita ese filtro.
+- Se actualiza `aria-pressed` y se añade foco visible para teclado.

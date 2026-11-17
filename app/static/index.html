@@ -8,14 +8,14 @@
 <section class="hero"><div><div class="eyebrow">CENTRO DE VISIBILIDAD DE SERVICIOS</div><h1>Estado de plataformas</h1><p>Consulta las fuentes públicas oficiales durante el checklist de inicio, intermedio y término de turno.</p></div>
 <button id="refresh" class="refresh">↻ Actualizar ahora</button></section>
 <section class="metrics">
-<article class="metric"><span>OPERATIVOS</span><strong id="operational">—</strong><i class="green"></i></article>
-<article class="metric"><span>AVISOS</span><strong id="info">—</strong><i class="blue"></i></article>
-<article class="metric"><span>DEGRADADOS</span><strong id="degraded">—</strong><i class="yellow"></i></article>
-<article class="metric"><span>INDISPONIBLES</span><strong id="outage">—</strong><i class="red"></i></article>
-<article class="metric"><span>MANTENIMIENTOS</span><strong id="maintenance">—</strong><i class="blue"></i></article>
-<article class="metric"><span>CONSULTA MANUAL</span><strong id="manual">—</strong><i class="gray"></i></article>
-<article class="metric"><span>SIN INFORMACIÓN</span><strong id="unknown">—</strong><i class="gray"></i></article>
-<article class="metric"><span>DATOS ANTIGUOS (+60 MIN)</span><strong id="stale">—</strong><i class="yellow"></i></article>
+<button type="button" class="metric metric-filter" data-filter="operational" aria-pressed="false" title="Filtrar plataformas operativas"><span>OPERATIVOS</span><strong id="operational">—</strong><i class="green"></i></button>
+<button type="button" class="metric metric-filter" data-filter="info" aria-pressed="false" title="Filtrar plataformas con avisos"><span>AVISOS</span><strong id="info">—</strong><i class="blue"></i></button>
+<button type="button" class="metric metric-filter" data-filter="degraded" aria-pressed="false" title="Filtrar plataformas degradadas"><span>DEGRADADOS</span><strong id="degraded">—</strong><i class="yellow"></i></button>
+<button type="button" class="metric metric-filter" data-filter="outage" aria-pressed="false" title="Filtrar plataformas indisponibles"><span>INDISPONIBLES</span><strong id="outage">—</strong><i class="red"></i></button>
+<button type="button" class="metric metric-filter" data-filter="maintenance" aria-pressed="false" title="Filtrar plataformas en mantenimiento"><span>MANTENIMIENTOS</span><strong id="maintenance">—</strong><i class="blue"></i></button>
+<button type="button" class="metric metric-filter" data-filter="manual" aria-pressed="false" title="Filtrar plataformas de consulta manual"><span>CONSULTA MANUAL</span><strong id="manual">—</strong><i class="gray"></i></button>
+<button type="button" class="metric metric-filter" data-filter="unknown" aria-pressed="false" title="Filtrar plataformas sin información"><span>SIN INFORMACIÓN</span><strong id="unknown">—</strong><i class="gray"></i></button>
+<button type="button" class="metric metric-filter" data-filter="stale" aria-pressed="false" title="Filtrar plataformas con datos antiguos"><span>DATOS ANTIGUOS (+60 MIN)</span><strong id="stale">—</strong><i class="yellow"></i></button>
 </section>
 <section class="freshness"><div><span class="eyebrow">FRESCURA DE DATOS</span><b id="updated">Aún no consultado</b></div><div class="freshness-right"><span id="freshSummary">Presiona «Actualizar ahora» para consultar las fuentes.</span><span class="muted">La antigüedad se calcula desde la última respuesta exitosa.</span></div></section>
 <section class="section-head"><div><h2>Plataformas monitoreadas</h2><p>Las fuentes manuales requieren abrir el portal oficial; no se presentan como operativas.</p></div></section>
@@ -38,5 +38,5 @@
 <section class="table-wrap"><table><thead><tr><th>FECHA / HORA</th><th>ANALISTA</th><th>TURNO</th><th>MOMENTO</th><th>PLATAFORMAS REVISADAS</th><th>OBSERVACIONES</th></tr></thead><tbody id="checkHistory"><tr><td colspan="6">Sin revisiones registradas.</td></tr></tbody></table></section>
 <section class="section-head history-head"><div><h2>Historial de cambios de estado</h2><p>Transiciones detectadas entre consultas manuales.</p></div></section>
 <section class="table-wrap"><table><thead><tr><th>FECHA (UTC)</th><th>PLATAFORMA</th><th>CAMBIO</th><th>DETALLE</th></tr></thead><tbody id="events"><tr><td colspan="4">Sin cambios de estado registrados.</td></tr></tbody></table></section>
-<footer><span>SOC SERVICE STATUS MONITOR · FASE 1.4.1</span><span>Consulta manual · Fuentes públicas · Checklist MDR piloto</span></footer>
+<footer><span>SOC SERVICE STATUS MONITOR · FASE 1.4.2</span><span>Consulta manual · Fuentes públicas · Checklist MDR piloto</span></footer>
 </main><div id="toast" class="toast"></div><script src="/static/app.js"></script></body></html>
