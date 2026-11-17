@@ -18,7 +18,7 @@ def test_catalog_automatic_sources():
     assert by_id["watchguard"]["type"] == "watchguard"
     assert by_id["fortinet"]["type"] == "statuspage"
     assert by_id["zoom"]["type"] == "statuspage"
-    assert by_id["webex"]["type"] == "statuspage"
+    assert "webex" not in by_id
     assert by_id["microsoft-azure"]["type"] == "microsoft_public"
     assert by_id["power-platform"]["type"] == "microsoft_public"
     assert by_id["microsoft-365-public"]["type"] == "microsoft_public"

@@ -30,6 +30,12 @@ def test_statuspage_detail_returns_components_incidents():
 
 def test_manual_service_detail_explains_manual_validation():
     with TestClient(app) as client:
-        response = client.get("/api/services/wazuh/detail")
+        response = client.get("/api/services/gurucul/detail")
     assert response.status_code == 200
     assert response.json()["live"]["status"] == "manual"
+
+
+def test_requested_platforms_are_removed_from_catalog():
+    from app.main import load_config
+    ids = {service["id"] for service in load_config()["services"]}
+    assert not {"digitalocean", "wazuh", "webex", "datadog"}.intersection(ids)

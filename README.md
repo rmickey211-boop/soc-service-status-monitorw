@@ -107,3 +107,14 @@ El criterio de inclusión es disponer de API/feed público legible sin credencia
 - Al final del detalle se muestra una captura del portal mediante WordPress.com mShots (`s.wordpress.com/mshots/v1`). Es un servicio externo sin API key; su disponibilidad y tiempo de actualización dependen de ese proveedor y del portal capturado. Si falla, se mantiene el enlace oficial para abrir el sitio.
 - La captura puede tener caché y no se garantiza que sea una reproducción en tiempo real exacta. La información estructurada de la API/feed es la fuente primaria para el estado.
 - No se requiere una nueva variable de entorno ni un nuevo servicio Render.
+
+
+## Versión 1.6.1 — depuración del catálogo
+
+Se retiraron del catálogo las siguientes plataformas, según solicitud:
+- DigitalOcean
+- Wazuh
+- Cisco Webex
+- Datadog US1
+
+El catálogo queda con 32 plataformas. No se modificaron los conectores ni la lógica de las demás fuentes. No requiere variables de entorno nuevas ni cambios en la configuración del servicio Render.

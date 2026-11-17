@@ -146,16 +146,6 @@
       "notes": "Statuspage público; integración JSON sin API Key."
     },
     {
-      "id": "wazuh",
-      "name": "Wazuh",
-      "category": "Seguridad / SIEM",
-      "type": "manual",
-      "base_url": "https://wazuh.com/",
-      "enabled": true,
-      "portal_label": "Abrir sitio oficial",
-      "notes": "No se identificó una página pública oficial de estado con feed verificable; validar disponibilidad directamente con Wazuh/soporte."
-    },
-    {
       "id": "gurucul",
       "name": "Gurucul",
       "category": "Seguridad / SIEM",
@@ -343,16 +333,6 @@
       "notes": "Portal oficial de estado de productos Cisco Cloud y seguridad."
     },
     {
-      "id": "digitalocean",
-      "name": "DigitalOcean",
-      "category": "Cloud / Hosting",
-      "type": "statuspage",
-      "base_url": "https://status.digitalocean.com",
-      "enabled": true,
-      "portal_label": "Abrir portal de estado",
-      "notes": "Statuspage público oficial con API JSON v2."
-    },
-    {
       "id": "gitlab",
       "name": "GitLab.com",
       "category": "Desarrollo / Repositorios",
@@ -361,26 +341,6 @@
       "enabled": true,
       "portal_label": "Abrir portal de estado",
       "notes": "Portal público oficial de GitLab.com; no representa instalaciones self-managed."
-    },
-    {
-      "id": "datadog",
-      "name": "Datadog US1",
-      "category": "Observabilidad / Seguridad",
-      "type": "statuspage",
-      "base_url": "https://status.datadoghq.com",
-      "enabled": true,
-      "portal_label": "Abrir portal de estado",
-      "notes": "Portal público de estado de Datadog US1; otras regiones de Datadog pueden tener páginas distintas."
-    },
-    {
-      "id": "webex",
-      "name": "Cisco Webex",
-      "category": "Comunicación",
-      "type": "statuspage",
-      "base_url": "https://status.webex.com",
-      "enabled": true,
-      "portal_label": "Abrir Webex Status",
-      "notes": "Consulta automática mediante API pública Statuspage."
     }
   ]
 }
