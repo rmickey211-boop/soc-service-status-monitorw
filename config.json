@@ -266,11 +266,11 @@
       "id": "google-cloud",
       "name": "Google Cloud Platform",
       "category": "Cloud",
-      "type": "manual",
+      "type": "google_cloud",
       "base_url": "https://status.cloud.google.com/",
       "enabled": true,
-      "portal_label": "Abrir Google Cloud Status",
-      "notes": "Panel público de estado; la vista de eventos que afectan proyectos puede requerir iniciar sesión."
+      "portal_label": "Abrir Google Cloud Service Health",
+      "notes": "Fuente oficial JSON/RSS de Google Cloud Service Health. Resume incidentes públicos amplios; eventos específicos de proyecto pueden requerir Personalized Service Health."
     },
     {
       "id": "google-chat",
@@ -327,6 +327,36 @@
       "enabled": true,
       "portal_label": "Abrir Cisco Cloud Status",
       "notes": "Portal oficial de estado de productos Cisco Cloud y seguridad."
+    },
+    {
+      "id": "digitalocean",
+      "name": "DigitalOcean",
+      "category": "Cloud / Hosting",
+      "type": "statuspage",
+      "base_url": "https://status.digitalocean.com",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "Statuspage público oficial con API JSON v2."
+    },
+    {
+      "id": "gitlab",
+      "name": "GitLab.com",
+      "category": "Desarrollo / Repositorios",
+      "type": "statuspage",
+      "base_url": "https://status.gitlab.com",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "Portal público oficial de GitLab.com; no representa instalaciones self-managed."
+    },
+    {
+      "id": "datadog",
+      "name": "Datadog US1",
+      "category": "Observabilidad / Seguridad",
+      "type": "statuspage",
+      "base_url": "https://status.datadoghq.com",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "Portal público de estado de Datadog US1; otras regiones de Datadog pueden tener páginas distintas."
     }
   ]
 }
