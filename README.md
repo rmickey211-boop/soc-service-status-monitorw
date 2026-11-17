@@ -63,3 +63,35 @@ Las ocho tarjetas superiores son ahora filtros interactivos:
 - Al seleccionar una tarjeta se limpia el texto de búsqueda, se conserva la categoría elegida, se actualiza el filtro y la lista se desplaza a las plataformas.
 - Al volver a pulsar la tarjeta activa se quita ese filtro.
 - Se actualiza `aria-pressed` y se añade foco visible para teclado.
+
+
+## Versión 1.5.0 — ampliación de fuentes automáticas
+
+### Nuevas fuentes automáticas
+- WatchGuard: consulta del resumen público Statuspage; fallback al feed Atom oficial `https://status.watchguard.com/history.atom`.
+- FortiGuard: hub público Statuspage `https://status.fortiguard.net`.
+- Zoom: API pública Statuspage `https://www.zoomstatus.com`.
+- Cisco Webex: API pública Statuspage `https://status.webex.com`.
+- Microsoft Azure: endpoint público JSON `https://status.cloud.microsoft/api/posts/azure`.
+- Microsoft Power Platform: endpoint público JSON `https://status.cloud.microsoft/api/posts/ppac`.
+- Microsoft 365 Admin Center: avisos públicos JSON `https://status.cloud.microsoft/api/posts/mac`.
+
+### Fuentes que permanecen manuales por una razón técnica
+- Exchange Online, Teams, SharePoint, OneDrive, Entra ID y Defender XDR: el estado detallado para clientes empresariales es tenant-specific y se consulta en el Microsoft 365 Admin Center / Service Health autenticado. Las fuentes públicas añadidas no deben confundirse con el estado detallado del tenant.
+- AWS: el panel público muestra eventos generales, mientras que el estado específico de cuenta requiere AWS Health autenticado; feeds públicos pueden ser por servicio/región y no representan un resumen global completo.
+- Okta: el portal público presenta datos, pero no se integró scraping de una estructura no documentada como si fuera API estable.
+- Cisco Umbrella y Cisco Cloud Status: se mantienen manuales hasta confirmar un endpoint/feed público estable y soportado para las vistas actuales.
+- CrowdStrike: el enlace configurado requiere acceso al portal de soporte; no se identificó una fuente pública anónima estable.
+- Wazuh y Gurucul: no se identificó un feed público oficial de estado verificable.
+
+### Consideraciones
+Las consultas muestran el estado público del proveedor, no la disponibilidad de la instancia específica del cliente. Un fallo de conexión a la fuente se registra como `unknown`/sin información, nunca como indisponibilidad del proveedor.
+No se ejecutan consultas en segundo plano; el analista sigue iniciando cada ciclo con «Actualizar ahora».
+Microsoft `api/posts/*` es una fuente pública global de avisos y no reemplaza el Microsoft Graph Service Communications API, que requiere autenticación y permisos.
+
+
+## Inventario de automatización v1.5.0
+Total configurado: 36 entradas; automáticas: 23; revisión manual: 13.
+Automáticas: Google Workspace (6), Google Cloud (1), Slack (1), Statuspage (11), Microsoft public posts (3) y WatchGuard (1).
+Manual: Microsoft Exchange/Teams/SharePoint/OneDrive/Entra/Defender, Wazuh, Gurucul, CrowdStrike, Okta, Cisco Umbrella, AWS y Cisco Cloud Status.
+El criterio de inclusión es disponer de API/feed público legible sin credenciales y con semántica suficiente para evitar inferir falsos estados. No se usa scraping HTML frágil para sustituir APIs no documentadas.

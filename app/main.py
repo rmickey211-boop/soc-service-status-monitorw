@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from datetime import datetime, timezone
 import sqlite3, json, os, re
+import xml.etree.ElementTree as ET
 import requests
 from dotenv import load_dotenv
 
@@ -13,8 +14,8 @@ load_dotenv(BASE / ".env")
 CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
-HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.4 (+manual operator initiated checks)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.4.2")
+HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.5 (+public vendor status checks)"}
+app = FastAPI(title="SOC Service Status Monitor", version="1.5.0")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -187,6 +188,90 @@ def fetch_google_cloud(service):
     return worst, " | ".join(desc for _, desc in active[:4]), service["base_url"], f"{len(active)} incidentes activos"
 
 
+def fetch_microsoft_public(service):
+    """
+    Reads Microsoft's public, unauthenticated status-post JSON endpoints.
+    This is public/global information only; it is NOT tenant-specific Service Health.
+    """
+    endpoint = service.get("api_url")
+    if not endpoint:
+        raise ValueError("Falta api_url para la fuente pública de Microsoft.")
+    response = requests.get(endpoint, timeout=TIMEOUT, headers=HEADERS)
+    response.raise_for_status()
+    payload = response.json()
+    posts = payload if isinstance(payload, list) else [payload]
+    if not posts:
+        return "operational", "Microsoft no publica avisos activos en esta fuente.", service["base_url"], "empty"
+    # Endpoint usually returns a current status object; if it returns a list, inspect newest first.
+    post = posts[0]
+    raw_status = str(post.get("Status") or post.get("status") or "").strip()
+    title = str(post.get("Title") or post.get("title") or service["name"]).strip()
+    message = re.sub(r"<[^>]+>", " ", str(post.get("Message") or post.get("message") or ""))
+    message = re.sub(r"\s+", " ", message).strip()
+    token = raw_status.casefold().replace("_", " ")
+    if token in {"available", "operational", "resolved", "none", "healthy"}:
+        status = "operational"
+    elif any(x in token for x in ("interruption", "outage", "critical", "unavailable")):
+        status = "outage"
+    elif any(x in token for x in ("degrad", "disruption", "investigat", "identified", "monitoring", "service issue")):
+        status = "degraded"
+    elif any(x in token for x in ("maintenance", "scheduled")):
+        status = "maintenance"
+    elif any(x in token for x in ("information", "advisory", "notice")):
+        status = "info"
+    else:
+        # Do not infer an outage from unknown Microsoft status strings.
+        status = "unknown"
+    timestamp = post.get("LastUpdatedTime") or post.get("AuthoredDateTime") or ""
+    description = (f"{title}: " if title else "") + (message or raw_status or "Estado público recibido de Microsoft.")
+    if timestamp:
+        description += f" | Actualización del fabricante: {timestamp}"
+    return status, description[:900], service["base_url"], raw_status or "unknown"
+
+
+def fetch_watchguard(service):
+    """
+    WatchGuard publishes a public Statuspage and official Atom/RSS incident feeds.
+    Prefer the structured Statuspage summary (components + incidents); fall back to
+    its official Atom feed if the summary endpoint is unavailable.
+    """
+    base = service["base_url"].rstrip("/")
+    try:
+        return fetch_statuspage(service)
+    except Exception as summary_error:
+        feed_url = service.get("feed_url") or (base + "/history.atom")
+        response = requests.get(feed_url, timeout=TIMEOUT, headers=HEADERS)
+        response.raise_for_status()
+        root = ET.fromstring(response.content)
+        entries = []
+        for node in root.iter():
+            tag = node.tag.rsplit("}", 1)[-1].lower()
+            if tag in {"entry", "item"}:
+                title = ""
+                body = ""
+                for child in node.iter():
+                    ctag = child.tag.rsplit("}", 1)[-1].lower()
+                    if ctag == "title" and not title:
+                        title = "".join(child.itertext()).strip()
+                    elif ctag in {"content", "summary", "description", "encoded"}:
+                        body += " " + " ".join(child.itertext())
+                entries.append((title, re.sub(r"\s+", " ", body).strip()))
+        active = []
+        for title, body in entries[:30]:
+            text = (title + " " + body).casefold()
+            if any(x in text for x in ("resolved", "fully restored", "operating normally", "returned to normal", "no longer impacted")):
+                continue
+            if any(x in text for x in ("investigating", "identified", "monitoring", "degraded", "service disruption", "service outage", "experiencing issues")):
+                status = "outage" if any(x in text for x in ("major outage", "service outage", "unavailable to all")) else "degraded"
+                active.append((status, title or "Incidente WatchGuard", body[:420]))
+        if not active:
+            return "operational", "El feed público de WatchGuard no muestra actualizaciones activas de incidentes.", base + "/", "feed_no_active_incidents"
+        rank = {"operational": 0, "info": 1, "maintenance": 2, "degraded": 3, "outage": 4}
+        worst = max((x[0] for x in active), key=lambda x: rank.get(x, 0))
+        detail = " | ".join(f"{title}: {body}" for _, title, body in active[:4])
+        return worst, detail[:900], base + "/", f"atom_fallback (summary error: {str(summary_error)[:100]})"
+
+
 def fetch_service(service, google_payload=None):
     kind = service.get("type")
     if kind == "statuspage": return fetch_statuspage(service)
@@ -195,6 +280,8 @@ def fetch_service(service, google_payload=None):
         if google_payload is None: raise RuntimeError("No se pudo obtener el feed oficial de Google Workspace.")
         return fetch_google_workspace(service, google_payload)
     if kind == "google_cloud": return fetch_google_cloud(service)
+    if kind == "microsoft_public": return fetch_microsoft_public(service)
+    if kind == "watchguard": return fetch_watchguard(service)
     if kind == "manual": return "manual", service.get("notes") or "Revisión manual en el portal oficial.", service["base_url"], "manual"
     raise RuntimeError(f"Tipo de fuente no soportado: {kind}")
 

@@ -44,21 +44,34 @@
       "id": "microsoft-azure",
       "name": "Microsoft Azure",
       "category": "Cloud",
-      "type": "manual",
-      "base_url": "https://status.azure.com/en-us/status",
+      "type": "microsoft_public",
+      "base_url": "https://status.cloud.microsoft/",
       "enabled": true,
-      "portal_label": "Abrir Azure Status",
-      "notes": "Portal público de estado de Azure; la vista por suscripción/recursos se revisa en Azure Service Health."
+      "portal_label": "Abrir Microsoft Azure Status",
+      "notes": "Consulta automática de avisos públicos globales de Azure. No reemplaza Azure Service Health por suscripción.",
+      "api_url": "https://status.cloud.microsoft/api/posts/azure"
     },
     {
       "id": "power-platform",
       "name": "Microsoft Power Platform",
       "category": "Colaboración y aplicaciones",
-      "type": "manual",
+      "type": "microsoft_public",
       "base_url": "https://status.cloud.microsoft/",
       "enabled": true,
-      "portal_label": "Consultar estado Microsoft",
-      "notes": "El portal público de Microsoft presenta información general; los detalles empresariales pueden requerir autenticación."
+      "portal_label": "Abrir Microsoft Service Health",
+      "notes": "Consulta automática de avisos públicos del Power Platform Admin Center. El detalle de tenant puede requerir autenticación.",
+      "api_url": "https://status.cloud.microsoft/api/posts/ppac"
+    },
+    {
+      "id": "microsoft-365-public",
+      "name": "Microsoft 365 · Avisos públicos",
+      "category": "Colaboración y correo",
+      "type": "microsoft_public",
+      "base_url": "https://status.cloud.microsoft/",
+      "api_url": "https://status.cloud.microsoft/api/posts/mac",
+      "enabled": true,
+      "portal_label": "Abrir Microsoft Service Health",
+      "notes": "Avisos públicos del Microsoft 365 Admin Center. No ofrece estado por tenant ni desglose garantizado por producto."
     },
     {
       "id": "gmail",
@@ -154,23 +167,24 @@
     },
     {
       "id": "fortinet",
-      "name": "Fortinet / FortiGuard",
+      "name": "FortiGuard Service Status",
       "category": "Seguridad / Firewall",
-      "type": "manual",
-      "base_url": "https://www.fortiguard.com/services/status",
+      "type": "statuspage",
+      "base_url": "https://status.fortiguard.net",
       "enabled": true,
-      "portal_label": "Abrir estado de servicios",
-      "notes": "Portal público de servicios FortiGuard. La consulta automática aún no está integrada."
+      "portal_label": "Abrir estado FortiGuard",
+      "notes": "Consulta automática del hub público FortiGuard basado en Statuspage. No representa todos los servicios Fortinet locales ni el estado de cada firewall."
     },
     {
       "id": "watchguard",
       "name": "WatchGuard",
       "category": "Seguridad / Firewall",
-      "type": "manual",
-      "base_url": "https://status.watchguard.com/",
+      "type": "watchguard",
+      "base_url": "https://status.watchguard.com",
       "enabled": true,
-      "portal_label": "Abrir portal de estado",
-      "notes": "Portal oficial de estado de WatchGuard con información de interrupciones, mantenimiento y productos/regiones."
+      "portal_label": "Abrir estado WatchGuard",
+      "notes": "Consulta automática mediante resumen público Statuspage y fallback al feed Atom oficial. Incluye servicios y componentes por región.",
+      "feed_url": "https://status.watchguard.com/history.atom"
     },
     {
       "id": "crowdstrike",
@@ -246,11 +260,11 @@
       "id": "zoom",
       "name": "Zoom",
       "category": "Comunicación",
-      "type": "manual",
-      "base_url": "https://www.zoomstatus.com/",
+      "type": "statuspage",
+      "base_url": "https://www.zoomstatus.com",
       "enabled": true,
-      "portal_label": "Abrir portal de estado",
-      "notes": "Portal oficial actual de Zoom; reemplazó a status.zoom.us en agosto de 2025."
+      "portal_label": "Abrir Zoom Status",
+      "notes": "Consulta automática mediante API pública Statuspage."
     },
     {
       "id": "aws",
@@ -357,6 +371,16 @@
       "enabled": true,
       "portal_label": "Abrir portal de estado",
       "notes": "Portal público de estado de Datadog US1; otras regiones de Datadog pueden tener páginas distintas."
+    },
+    {
+      "id": "webex",
+      "name": "Cisco Webex",
+      "category": "Comunicación",
+      "type": "statuspage",
+      "base_url": "https://status.webex.com",
+      "enabled": true,
+      "portal_label": "Abrir Webex Status",
+      "notes": "Consulta automática mediante API pública Statuspage."
     }
   ]
 }
