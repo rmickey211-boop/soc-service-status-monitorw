@@ -44,3 +44,13 @@ Para actualizar el servicio actual: subir el contenido de esta carpeta al mismo 
 - En Render Free el servicio puede dormir por inactividad y el filesystem local no es almacenamiento persistente garantizado. SQLite puede perder registros al reiniciar, suspender o redeplegar. El checklist v1.4 es piloto, no evidencia formal de auditoría.
 - La aplicación no tiene autenticación: cualquier persona con la URL puede ver los registros y enviar entradas al checklist. No ingresar información sensible, datos de clientes, tickets confidenciales ni detalles internos. Antes de uso formal, añadir autenticación/autorización y almacenamiento persistente.
 - El recolector consulta únicamente cuando un analista pulsa «Actualizar ahora».
+
+
+## Corrección v1.4.1 (hotfix)
+Se corrigieron dos defectos de la v1.4:
+1. El frontend llamaba a `POST /api/poll`, pero la ruta no estaba implementada en el backend. El botón «Actualizar ahora» recibía HTTP 404 y no ejecutaba las consultas.
+2. `GET /api/status` devolvía solo filas existentes en SQLite, por lo que el catálogo aparecía vacío antes de la primera consulta. Ahora combina `config.json` con los resultados guardados y muestra todas las plataformas habilitadas desde el primer acceso.
+
+Tras reemplazar los archivos y desplegar el commit, prueba:
+- `GET /api/status`: debe devolver todas las plataformas habilitadas.
+- `POST /api/poll`: debe responder JSON con `checked`, `success`, `errors`, `manual` y resultados por plataforma.
