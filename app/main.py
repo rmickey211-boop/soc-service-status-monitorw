@@ -15,7 +15,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.5 (+public vendor status checks)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.5.0")
+app = FastAPI(title="SOC Service Status Monitor", version="1.6.0")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -387,6 +387,287 @@ def manual_poll():
         return poll_once()
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"No se pudo completar la consulta: {str(exc)[:300]}")
+
+
+
+def _clean_html(value):
+    value = re.sub(r"<[^>]+>", " ", str(value or ""))
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _statuspage_detail(service):
+    base = service["base_url"].rstrip("/")
+    response = requests.get(base + "/api/v2/summary.json", timeout=TIMEOUT, headers=HEADERS)
+    response.raise_for_status()
+    payload = response.json()
+    rollup = payload.get("status") or {}
+    components = []
+    for item in payload.get("components") or []:
+        components.append({
+            "name": item.get("name", "Componente"),
+            "status": normalize_statuspage(item.get("status")),
+            "description": item.get("description") or "",
+            "updated_at": item.get("updated_at") or ""
+        })
+    incidents = []
+    for item in payload.get("incidents") or []:
+        updates = []
+        for update in (item.get("incident_updates") or [])[:10]:
+            updates.append({
+                "status": update.get("status") or "",
+                "body": _clean_html(update.get("body")),
+                "created_at": update.get("created_at") or "",
+                "display_at": update.get("display_at") or ""
+            })
+        incidents.append({
+            "name": item.get("name") or "Incidente",
+            "status": item.get("status") or "",
+            "impact": normalize_statuspage(item.get("impact")),
+            "created_at": item.get("created_at") or "",
+            "updated_at": item.get("updated_at") or "",
+            "shortlink": item.get("shortlink") or "",
+            "updates": updates
+        })
+    maintenances = []
+    for item in (payload.get("scheduled_maintenances") or [])[:10]:
+        maintenances.append({
+            "name": item.get("name") or "Mantenimiento",
+            "status": item.get("status") or "",
+            "scheduled_for": item.get("scheduled_for") or "",
+            "scheduled_until": item.get("scheduled_until") or "",
+            "updates": [{
+                "status": u.get("status") or "",
+                "body": _clean_html(u.get("body")),
+                "created_at": u.get("created_at") or ""
+            } for u in (item.get("incident_updates") or [])[:5]]
+        })
+    return {
+        "source_kind": "statuspage",
+        "source_status": rollup.get("description") or rollup.get("indicator") or "Estado no informado",
+        "status": normalize_statuspage(rollup.get("indicator")),
+        "components": components,
+        "incidents": incidents,
+        "maintenances": maintenances
+    }
+
+
+def _microsoft_detail(service):
+    endpoint = service.get("api_url")
+    if not endpoint:
+        raise ValueError("La fuente pública no tiene endpoint configurado.")
+    response = requests.get(endpoint, timeout=TIMEOUT, headers=HEADERS)
+    response.raise_for_status()
+    payload = response.json()
+    posts = payload if isinstance(payload, list) else [payload]
+    items = []
+    for post in posts[:15]:
+        raw_status = str(post.get("Status") or post.get("status") or "unknown")
+        title = str(post.get("Title") or post.get("title") or service["name"])
+        body = _clean_html(post.get("Message") or post.get("message") or "")
+        updated = post.get("LastUpdatedTime") or post.get("AuthoredDateTime") or ""
+        token = raw_status.casefold().replace("_", " ")
+        if token in {"available", "operational", "resolved", "none", "healthy"}:
+            state = "operational"
+        elif any(x in token for x in ("interruption", "outage", "critical", "unavailable")):
+            state = "outage"
+        elif any(x in token for x in ("degrad", "disruption", "investigat", "identified", "monitoring", "service issue")):
+            state = "degraded"
+        elif any(x in token for x in ("maintenance", "scheduled")):
+            state = "maintenance"
+        elif any(x in token for x in ("information", "advisory", "notice")):
+            state = "info"
+        else:
+            state = "unknown"
+        items.append({"name": title, "status": state, "source_status": raw_status, "body": body, "updated_at": updated})
+    return {
+        "source_kind": "microsoft_public",
+        "source_status": "Avisos públicos globales de Microsoft; no es Service Health específico del tenant.",
+        "status": items[0]["status"] if items else "operational",
+        "components": [],
+        "incidents": items,
+        "maintenances": []
+    }
+
+
+def _google_workspace_detail(service):
+    response = requests.get("https://www.google.com/appsstatus/dashboard/incidents.json", timeout=TIMEOUT, headers=HEADERS)
+    response.raise_for_status()
+    payload = response.json()
+    wanted = {x.casefold() for x in service.get("product_names", [])}
+    incidents = []
+    for item in payload if isinstance(payload, list) else []:
+        products = item.get("affected_products") or []
+        names = {str(p.get("current_title") or p.get("title") or "").casefold() for p in products}
+        if not names:
+            names = {str(item.get("service_name") or "").casefold()}
+        if wanted and not wanted.intersection(names):
+            continue
+        update = item.get("most_recent_update") or {}
+        incidents.append({
+            "name": item.get("service_name") or service["name"],
+            "status": item.get("status_impact") or update.get("status") or "",
+            "impact": str(item.get("status_impact") or "").lower(),
+            "created_at": item.get("begin") or "",
+            "updated_at": update.get("when") or "",
+            "body": _clean_html(update.get("text") or item.get("external_desc") or "")
+        })
+    impact_map = {"SERVICE_OUTAGE": "outage", "SERVICE_DISRUPTION": "degraded", "SERVICE_INFORMATION": "info"}
+    for item in incidents:
+        item["status"] = impact_map.get(str(item.get("impact") or "").upper(), "unknown")
+    rank = {"operational": 0, "info": 1, "degraded": 2, "outage": 3, "unknown": -1}
+    current = max((x["status"] for x in incidents), key=lambda x: rank.get(x, -1), default="operational")
+    return {
+        "source_kind": "google_workspace",
+        "source_status": "Feed público oficial de incidentes activos de Google Workspace.",
+        "status": current,
+        "components": [],
+        "incidents": incidents,
+        "maintenances": []
+    }
+
+
+def _google_cloud_detail(service):
+    response = requests.get("https://status.cloud.google.com/incidents.json", timeout=TIMEOUT, headers=HEADERS)
+    response.raise_for_status()
+    payload = response.json()
+    incidents = []
+    for item in payload if isinstance(payload, list) else []:
+        if item.get("end"):
+            continue
+        update = item.get("most_recent_update") or {}
+        incidents.append({
+            "name": item.get("external_desc") or item.get("service_name") or "Google Cloud incident",
+            "status": update.get("status") or "",
+            "impact": item.get("severity") or "",
+            "created_at": item.get("begin") or "",
+            "updated_at": update.get("when") or "",
+            "body": _clean_html(update.get("text") or ""),
+            "locations": ", ".join(str(x.get("title") or x.get("id") or "") for x in (item.get("currently_affected_locations") or []) if isinstance(x, dict))
+        })
+    rank = {"operational": 0, "info": 1, "degraded": 2, "outage": 3, "unknown": -1}
+    for item in incidents:
+        sev = str(item.get("impact") or "").lower()
+        state = str(item.get("status") or "").upper()
+        item["status"] = ("outage" if state in {"SERVICE_OUTAGE", "OUTAGE"} or sev in {"high", "critical"}
+                          else "degraded" if state in {"SERVICE_DISRUPTION", "DISRUPTION"} or sev in {"medium", "moderate"}
+                          else "info" if state in {"SERVICE_INFORMATION", "INFORMATIONAL"} or sev == "low"
+                          else "unknown")
+    current = max((x["status"] for x in incidents), key=lambda x: rank.get(x, -1), default="operational")
+    return {
+        "source_kind": "google_cloud",
+        "source_status": "Feed público general de Google Cloud; no sustituye Personalized Service Health.",
+        "status": current,
+        "components": [],
+        "incidents": incidents[:20],
+        "maintenances": []
+    }
+
+
+def _slack_detail(service):
+    response = requests.get("https://slack-status.com/api/v2.0.0/current", timeout=TIMEOUT, headers=HEADERS)
+    response.raise_for_status()
+    payload = response.json()
+    incidents = []
+    for item in payload.get("active_incidents") or []:
+        incidents.append({
+            "name": item.get("title") or "Slack incident",
+            "status": item.get("status") or "",
+            "impact": item.get("type") or "",
+            "created_at": item.get("date_created") or "",
+            "updated_at": item.get("date_updated") or "",
+            "body": _clean_html(item.get("title") or "")
+        })
+    rank = {"operational": 0, "info": 1, "maintenance": 2, "degraded": 3, "outage": 4}
+    if payload.get("status") == "ok":
+        current = "operational"
+    elif incidents:
+        current = "outage" if any("outage" in str(x.get("impact", "")).lower() for x in incidents) else "degraded"
+    else:
+        current = "unknown"
+    return {
+        "source_kind": "slack",
+        "source_status": payload.get("status") or "Estado no informado",
+        "status": current,
+        "components": [],
+        "incidents": incidents,
+        "maintenances": []
+    }
+
+
+def build_service_detail(service):
+    kind = service.get("type")
+    if kind in {"statuspage", "watchguard"}:
+        try:
+            return _statuspage_detail(service)
+        except Exception:
+            if kind != "watchguard":
+                raise
+            # If the Statuspage summary endpoint is unavailable, expose the official Atom feed.
+            feed_url = service.get("feed_url") or service["base_url"].rstrip("/") + "/history.atom"
+            response = requests.get(feed_url, timeout=TIMEOUT, headers=HEADERS)
+            response.raise_for_status()
+            root = ET.fromstring(response.content)
+            incidents = []
+            for node in root.iter():
+                if node.tag.rsplit("}", 1)[-1].lower() not in {"entry", "item"}:
+                    continue
+                title, body, updated = "", "", ""
+                for child in node.iter():
+                    tag = child.tag.rsplit("}", 1)[-1].lower()
+                    if tag == "title" and not title:
+                        title = _clean_html("".join(child.itertext()))
+                    elif tag in {"content", "summary", "description", "encoded"}:
+                        body += " " + " ".join(child.itertext())
+                    elif tag in {"updated", "pubdate"} and not updated:
+                        updated = "".join(child.itertext()).strip()
+                incidents.append({"name": title or "WatchGuard update", "status": "feed update", "impact": "", "created_at": updated, "updated_at": updated, "body": _clean_html(body)})
+            return {"source_kind":"watchguard_atom","source_status":"Official WatchGuard Atom feed (fallback)", "status":"unknown","components":[],"incidents":incidents[:20],"maintenances":[]}
+    if kind == "microsoft_public": return _microsoft_detail(service)
+    if kind == "google_workspace": return _google_workspace_detail(service)
+    if kind == "google_cloud": return _google_cloud_detail(service)
+    if kind == "slack": return _slack_detail(service)
+    return {
+        "source_kind": "manual",
+        "source_status": "Esta plataforma requiere validación en el portal oficial o en el portal autenticado del cliente.",
+        "status": "manual",
+        "components": [],
+        "incidents": [],
+        "maintenances": []
+    }
+
+
+@app.get("/api/services/{service_id}/detail")
+def get_service_detail(service_id: str):
+    service = next((s for s in load_config().get("services", []) if s.get("id") == service_id and s.get("enabled", True)), None)
+    if not service:
+        raise HTTPException(404, "Plataforma no encontrada.")
+    with db() as c:
+        row = c.execute("SELECT * FROM services WHERE id=?", (service_id,)).fetchone()
+    saved = dict(row) if row else {}
+    try:
+        live = build_service_detail(service)
+        detail_error = None
+    except Exception as exc:
+        live = {"source_kind": service.get("type", "manual"), "source_status": "No fue posible consultar el detalle en vivo.", "status": "unknown", "components": [], "incidents": [], "maintenances": []}
+        detail_error = str(exc)[:250]
+    return {
+        "service": {
+            "id": service["id"], "name": service["name"], "category": service.get("category", "General"),
+            "type": service.get("type", "manual"), "base_url": service.get("base_url", ""),
+            "portal_label": service.get("portal_label", "Abrir portal oficial"),
+            "notes": service.get("notes", "")
+        },
+        "latest": {
+            "status": saved.get("status") or ("manual" if service.get("type") == "manual" else "unknown"),
+            "description": saved.get("description") or service.get("notes", ""),
+            "checked_at": saved.get("checked_at"),
+            "source_status": saved.get("source_status"),
+            "error": saved.get("error")
+        },
+        "live": live,
+        "detail_error": detail_error,
+        "retrieved_at": now()
+    }
 
 
 @app.get("/api/events")

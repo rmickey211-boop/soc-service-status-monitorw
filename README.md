@@ -95,3 +95,15 @@ Total configurado: 36 entradas; automáticas: 23; revisión manual: 13.
 Automáticas: Google Workspace (6), Google Cloud (1), Slack (1), Statuspage (11), Microsoft public posts (3) y WatchGuard (1).
 Manual: Microsoft Exchange/Teams/SharePoint/OneDrive/Entra/Defender, Wazuh, Gurucul, CrowdStrike, Okta, Cisco Umbrella, AWS y Cisco Cloud Status.
 El criterio de inclusión es disponer de API/feed público legible sin credenciales y con semántica suficiente para evitar inferir falsos estados. No se usa scraping HTML frágil para sustituir APIs no documentadas.
+
+
+## Versión 1.6.0 — detalle de plataforma y captura del portal
+
+- Las tarjetas de plataforma abren una ventana de detalle accesible con ratón o teclado.
+- Endpoint `GET /api/services/{service_id}/detail` obtiene información estructurada en vivo cuando el proveedor ofrece una fuente pública compatible.
+- Statuspage: componentes, incidentes, actualizaciones y mantenimientos.
+- Microsoft public posts, Google Workspace, Google Cloud y Slack: detalle de avisos/incidentes según la fuente pública disponible.
+- Fuentes manuales: se explica por qué requieren validación en el portal oficial.
+- Al final del detalle se muestra una captura del portal mediante WordPress.com mShots (`s.wordpress.com/mshots/v1`). Es un servicio externo sin API key; su disponibilidad y tiempo de actualización dependen de ese proveedor y del portal capturado. Si falla, se mantiene el enlace oficial para abrir el sitio.
+- La captura puede tener caché y no se garantiza que sea una reproducción en tiempo real exacta. La información estructurada de la API/feed es la fuente primaria para el estado.
+- No se requiere una nueva variable de entorno ni un nuevo servicio Render.
