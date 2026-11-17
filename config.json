@@ -1,0 +1,332 @@
+{
+  "services": [
+    {
+      "id": "exchange-online",
+      "name": "Microsoft Exchange Online",
+      "category": "Colaboración y correo",
+      "type": "manual",
+      "base_url": "https://status.cloud.microsoft/m365",
+      "enabled": true,
+      "portal_label": "Consultar estado Microsoft 365",
+      "notes": "El portal público puede mostrar avisos generales. El detalle por servicio/tenant (incluido Exchange Online) se consulta en el Centro de administración de Microsoft 365."
+    },
+    {
+      "id": "microsoft-teams",
+      "name": "Microsoft Teams",
+      "category": "Colaboración y correo",
+      "type": "manual",
+      "base_url": "https://status.cloud.microsoft/m365",
+      "enabled": true,
+      "portal_label": "Consultar estado Microsoft 365",
+      "notes": "El portal público puede mostrar avisos generales. El detalle por servicio/tenant (incluido Exchange Online) se consulta en el Centro de administración de Microsoft 365."
+    },
+    {
+      "id": "sharepoint-online",
+      "name": "SharePoint Online",
+      "category": "Colaboración y correo",
+      "type": "manual",
+      "base_url": "https://status.cloud.microsoft/m365",
+      "enabled": true,
+      "portal_label": "Consultar estado Microsoft 365",
+      "notes": "El portal público puede mostrar avisos generales. El detalle por servicio/tenant (incluido Exchange Online) se consulta en el Centro de administración de Microsoft 365."
+    },
+    {
+      "id": "onedrive",
+      "name": "OneDrive for Business",
+      "category": "Colaboración y correo",
+      "type": "manual",
+      "base_url": "https://status.cloud.microsoft/m365",
+      "enabled": true,
+      "portal_label": "Consultar estado Microsoft 365",
+      "notes": "El portal público puede mostrar avisos generales. El detalle por servicio/tenant (incluido Exchange Online) se consulta en el Centro de administración de Microsoft 365."
+    },
+    {
+      "id": "microsoft-azure",
+      "name": "Microsoft Azure",
+      "category": "Cloud",
+      "type": "manual",
+      "base_url": "https://status.azure.com/en-us/status",
+      "enabled": true,
+      "portal_label": "Abrir Azure Status",
+      "notes": "Portal público de estado de Azure; la vista por suscripción/recursos se revisa en Azure Service Health."
+    },
+    {
+      "id": "power-platform",
+      "name": "Microsoft Power Platform",
+      "category": "Colaboración y aplicaciones",
+      "type": "manual",
+      "base_url": "https://status.cloud.microsoft/",
+      "enabled": true,
+      "portal_label": "Consultar estado Microsoft",
+      "notes": "El portal público de Microsoft presenta información general; los detalles empresariales pueden requerir autenticación."
+    },
+    {
+      "id": "gmail",
+      "name": "Google Workspace · Gmail",
+      "category": "Correo y colaboración",
+      "type": "google_workspace",
+      "base_url": "https://www.google.com/appsstatus/dashboard/",
+      "enabled": true,
+      "portal_label": "Abrir Google Workspace Status",
+      "notes": "Consulta el feed JSON público oficial de incidentes activos y filtra por producto.",
+      "product_names": [
+        "Gmail"
+      ]
+    },
+    {
+      "id": "google-drive",
+      "name": "Google Workspace · Drive",
+      "category": "Correo y colaboración",
+      "type": "google_workspace",
+      "base_url": "https://www.google.com/appsstatus/dashboard/",
+      "enabled": true,
+      "portal_label": "Abrir Google Workspace Status",
+      "notes": "Consulta el feed JSON público oficial de incidentes activos y filtra por producto.",
+      "product_names": [
+        "Google Drive"
+      ]
+    },
+    {
+      "id": "google-meet",
+      "name": "Google Workspace · Meet",
+      "category": "Correo y colaboración",
+      "type": "google_workspace",
+      "base_url": "https://www.google.com/appsstatus/dashboard/",
+      "enabled": true,
+      "portal_label": "Abrir Google Workspace Status",
+      "notes": "Consulta el feed JSON público oficial de incidentes activos y filtra por producto.",
+      "product_names": [
+        "Google Meet"
+      ]
+    },
+    {
+      "id": "google-calendar",
+      "name": "Google Workspace · Calendar",
+      "category": "Correo y colaboración",
+      "type": "google_workspace",
+      "base_url": "https://www.google.com/appsstatus/dashboard/",
+      "enabled": true,
+      "portal_label": "Abrir Google Workspace Status",
+      "notes": "Consulta el feed JSON público oficial de incidentes activos y filtra por producto.",
+      "product_names": [
+        "Google Calendar"
+      ]
+    },
+    {
+      "id": "exabeam",
+      "name": "Exabeam",
+      "category": "Seguridad / SIEM",
+      "type": "statuspage",
+      "base_url": "https://exabeam.statuspage.io",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "Statuspage público; integración JSON sin API Key."
+    },
+    {
+      "id": "tenable",
+      "name": "Tenable",
+      "category": "Seguridad / Vulnerabilidades",
+      "type": "statuspage",
+      "base_url": "https://status.tenable.com",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "Statuspage público; integración JSON sin API Key."
+    },
+    {
+      "id": "wazuh",
+      "name": "Wazuh",
+      "category": "Seguridad / SIEM",
+      "type": "manual",
+      "base_url": "https://wazuh.com/",
+      "enabled": true,
+      "portal_label": "Abrir sitio oficial",
+      "notes": "No se identificó una página pública oficial de estado con feed verificable; validar disponibilidad directamente con Wazuh/soporte."
+    },
+    {
+      "id": "gurucul",
+      "name": "Gurucul",
+      "category": "Seguridad / SIEM",
+      "type": "manual",
+      "base_url": "https://gurucul.com/",
+      "enabled": true,
+      "portal_label": "Abrir sitio oficial",
+      "notes": "No se identificó una página pública independiente de estado; enlace al sitio oficial."
+    },
+    {
+      "id": "fortinet",
+      "name": "Fortinet / FortiGuard",
+      "category": "Seguridad / Firewall",
+      "type": "manual",
+      "base_url": "https://www.fortiguard.com/services/status",
+      "enabled": true,
+      "portal_label": "Abrir estado de servicios",
+      "notes": "Portal público de servicios FortiGuard. La consulta automática aún no está integrada."
+    },
+    {
+      "id": "watchguard",
+      "name": "WatchGuard",
+      "category": "Seguridad / Firewall",
+      "type": "manual",
+      "base_url": "https://status.watchguard.com/",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "Portal oficial de estado de WatchGuard con información de interrupciones, mantenimiento y productos/regiones."
+    },
+    {
+      "id": "crowdstrike",
+      "name": "CrowdStrike",
+      "category": "Seguridad / EDR",
+      "type": "manual",
+      "base_url": "https://supportportal.crowdstrike.com/s/",
+      "enabled": true,
+      "portal_label": "Abrir Falcon Status (requiere acceso)",
+      "notes": "El Falcon Status se consulta desde el portal de soporte para clientes; requiere autenticación y no se integra como feed público."
+    },
+    {
+      "id": "okta",
+      "name": "Okta",
+      "category": "Identidad / SSO",
+      "type": "manual",
+      "base_url": "https://status.okta.com/",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "Portal público de estado. Su formato no es Statuspage estándar; integración automática pendiente."
+    },
+    {
+      "id": "cisco-umbrella",
+      "name": "Cisco Umbrella",
+      "category": "Seguridad / DNS",
+      "type": "manual",
+      "base_url": "https://status.umbrella.cisco.com/",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "Portal oficial actual de Cisco Umbrella; Cisco anunció la migración desde status.umbrella.com."
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare",
+      "category": "Infraestructura / CDN / DNS",
+      "type": "statuspage",
+      "base_url": "https://www.cloudflarestatus.com",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "Statuspage público; integración JSON sin API Key."
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "category": "Desarrollo / Repositorios",
+      "type": "statuspage",
+      "base_url": "https://www.githubstatus.com",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "Statuspage público; integración JSON sin API Key."
+    },
+    {
+      "id": "atlassian",
+      "name": "Atlassian Cloud · Jira",
+      "category": "Colaboración / ITSM",
+      "type": "statuspage",
+      "base_url": "https://jira-software.status.atlassian.com",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "Portal de estado oficial de Jira Software, enlazado desde el hub de Atlassian; Statuspage público."
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "category": "Comunicación",
+      "type": "slack",
+      "base_url": "https://status.slack.com/",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "API oficial pública y no autenticada de Slack."
+    },
+    {
+      "id": "zoom",
+      "name": "Zoom",
+      "category": "Comunicación",
+      "type": "manual",
+      "base_url": "https://www.zoomstatus.com/",
+      "enabled": true,
+      "portal_label": "Abrir portal de estado",
+      "notes": "Portal oficial actual de Zoom; reemplazó a status.zoom.us en agosto de 2025."
+    },
+    {
+      "id": "aws",
+      "name": "Amazon Web Services (AWS)",
+      "category": "Cloud",
+      "type": "manual",
+      "base_url": "https://health.aws.amazon.com/health/status",
+      "enabled": true,
+      "portal_label": "Abrir AWS Health",
+      "notes": "Dashboard público de AWS Health. Los eventos específicos de cuenta requieren iniciar sesión."
+    },
+    {
+      "id": "google-cloud",
+      "name": "Google Cloud Platform",
+      "category": "Cloud",
+      "type": "manual",
+      "base_url": "https://status.cloud.google.com/",
+      "enabled": true,
+      "portal_label": "Abrir Google Cloud Status",
+      "notes": "Panel público de estado; la vista de eventos que afectan proyectos puede requerir iniciar sesión."
+    },
+    {
+      "id": "google-chat",
+      "name": "Google Workspace · Chat",
+      "category": "Correo y colaboración",
+      "type": "google_workspace",
+      "base_url": "https://www.google.com/appsstatus/dashboard/",
+      "enabled": true,
+      "portal_label": "Abrir Google Workspace Status",
+      "notes": "Consulta el feed JSON público oficial de incidentes activos y filtra por producto.",
+      "product_names": [
+        "Google Chat"
+      ]
+    },
+    {
+      "id": "google-admin",
+      "name": "Google Workspace · Admin Console",
+      "category": "Correo y colaboración",
+      "type": "google_workspace",
+      "base_url": "https://www.google.com/appsstatus/dashboard/",
+      "enabled": true,
+      "portal_label": "Abrir Google Workspace Status",
+      "notes": "Consulta el feed JSON público oficial de incidentes activos y filtra por producto.",
+      "product_names": [
+        "Admin Console"
+      ]
+    },
+    {
+      "id": "entra-id",
+      "name": "Microsoft Entra ID",
+      "category": "Identidad / SSO",
+      "type": "manual",
+      "base_url": "https://status.cloud.microsoft/m365",
+      "enabled": true,
+      "portal_label": "Consultar estado Microsoft 365",
+      "notes": "Estado público general de Microsoft; los incidentes detallados de identidad/tenant pueden requerir el centro de administración."
+    },
+    {
+      "id": "defender-xdr",
+      "name": "Microsoft Defender XDR",
+      "category": "Seguridad / EDR",
+      "type": "manual",
+      "base_url": "https://status.cloud.microsoft/m365",
+      "enabled": true,
+      "portal_label": "Consultar estado Microsoft 365",
+      "notes": "Estado público general de Microsoft; el detalle de Defender XDR se consulta en el centro de administración/portal de seguridad."
+    },
+    {
+      "id": "cisco-cloud",
+      "name": "Cisco Cloud Status",
+      "category": "Infraestructura / Red",
+      "type": "manual",
+      "base_url": "https://status.cisco.com/",
+      "enabled": true,
+      "portal_label": "Abrir Cisco Cloud Status",
+      "notes": "Portal oficial de estado de productos Cisco Cloud y seguridad."
+    }
+  ]
+}
