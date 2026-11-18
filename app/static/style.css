@@ -53,3 +53,59 @@
 .detail-footer{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-top:16px;padding-top:13px;border-top:1px solid var(--line)}
 .detail-footer>span{font-size:9px;line-height:1.5;color:#8193ab;max-width:65%}
 @media(max-width:700px){.detail-shell{padding:14px}.detail-summary{grid-template-columns:1fr}.screenshot-heading,.detail-footer{align-items:flex-start;flex-direction:column}.detail-footer>span{max-width:100%}.detail-header h2{font-size:18px}}
+
+
+/* SOC Global Threat Intelligence — Part 1 */
+.intel-module{margin:34px 0 28px;padding:20px;border:1px solid #2d415b;border-radius:13px;background:linear-gradient(155deg,#111f31,#0e1928);box-shadow:0 12px 30px #03091630}
+.intel-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
+.intel-heading h2{margin:5px 0 6px;font-size:21px}
+.intel-heading p{margin:0;color:#9db0c8;font-size:11px;line-height:1.5}
+.intel-refresh{white-space:nowrap}
+.intel-toolbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:17px}
+.intel-period{display:inline-flex;gap:4px;padding:4px;border:1px solid #2c4059;border-radius:9px;background:#0b1523}
+.intel-period-btn,.intel-category{border:1px solid transparent;border-radius:7px;padding:8px 11px;background:transparent;color:#aebed1;font-size:10px;font-weight:700;cursor:pointer}
+.intel-period-btn.active{background:#1c3858;color:#c9e3ff;border-color:#3c6591}
+.intel-last-refresh{font-size:10px;color:#8da3bd}
+.intel-categories{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.intel-category{background:#14243a;border-color:#283d56}
+.intel-category:hover{border-color:#5079a8;color:#e0edfa}
+.intel-category.active{background:#17415b;border-color:#2785a8;color:#d6f2ff}
+.intel-meta{display:flex;justify-content:space-between;gap:12px;margin:13px 0 10px;color:#8fa4bd;font-size:10px}
+.intel-news-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.intel-news-card{min-width:0;padding:13px 14px;border:1px solid #293d56;border-radius:9px;background:#111e2e}
+.intel-card-top{display:flex;justify-content:space-between;gap:12px;color:#8ca4c0;font-size:9px}
+.intel-source-name{font-weight:800;color:#8fc4ff;letter-spacing:.3px}
+.intel-card-top time{white-space:nowrap}
+.intel-news-card h3{margin:10px 0 7px;font-size:13px;line-height:1.4;color:#e6eef8;overflow-wrap:anywhere}
+.intel-news-card p{margin:0;color:#aebed0;font-size:10px;line-height:1.55;max-height:62px;overflow:hidden}
+.intel-card-bottom{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-top:12px;padding-top:9px;border-top:1px solid #26384d}
+.intel-card-bottom>a{white-space:nowrap;color:#8fc4ff;font-size:9px;font-weight:700;text-decoration:none}
+.intel-card-bottom>a:hover{text-decoration:underline}
+.intel-tags{display:flex;flex-wrap:wrap;gap:4px}
+.intel-tag{display:inline-flex;padding:4px 6px;border-radius:20px;background:#26364b;color:#bdcde0;font-size:8px;font-weight:800}
+.tag-ransomware{background:#4a292a;color:#ffc0b8}
+.tag-espionage{background:#3a2f55;color:#d4c4ff}
+.tag-leaks{background:#4a3a24;color:#f3d2a0}
+.tag-ddos{background:#1f3e50;color:#a9dcf6}
+.tag-malware{background:#4b2e42;color:#ffc0dc}
+.tag-global{background:#26364b;color:#bdcde0}
+.intel-empty{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;min-height:125px;padding:22px;border:1px dashed #38516d;border-radius:9px;color:#a8bbd1;text-align:center}
+.intel-empty b{font-size:12px;color:#dce9f7}
+.intel-empty span{font-size:10px;color:#8da3bd}
+.intel-source-panel{margin-top:13px;border-top:1px solid #283c54;padding-top:10px}
+.intel-source-panel>summary{cursor:pointer;color:#9bb5d1;font-size:10px;font-weight:700}
+.intel-sources{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:10px}
+.intel-source-row{display:flex;justify-content:space-between;align-items:center;gap:10px;min-width:0;padding:8px 10px;border-radius:6px;background:#0e1928;font-size:9px}
+.intel-source-row>b{color:#bdcce0}
+.intel-source-ok{color:#63d9a5;white-space:nowrap}
+.intel-source-fail{color:#ff9c91;overflow-wrap:anywhere;text-align:right}
+.intel-disclaimer{margin-top:12px;color:#7188a3;font-size:9px;line-height:1.45}
+@media(max-width:760px){
+ .intel-module{padding:14px}
+ .intel-heading{flex-direction:column}
+ .intel-toolbar{align-items:flex-start;flex-direction:column}
+ .intel-news-grid{grid-template-columns:1fr}
+ .intel-sources{grid-template-columns:1fr}
+ .intel-card-bottom{align-items:flex-start;flex-direction:column}
+ .intel-meta{flex-direction:column}
+}

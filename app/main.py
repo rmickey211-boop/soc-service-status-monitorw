@@ -3,7 +3,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from email.utils import parsedate_to_datetime
+import hashlib
+import html as html_lib
 import sqlite3, json, os, re
 import xml.etree.ElementTree as ET
 import requests
@@ -15,7 +18,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.5 (+public vendor status checks)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.6.2")
+app = FastAPI(title="SOC Service Status Monitor", version="1.8.0-part1")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -43,6 +46,12 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT, analyst TEXT NOT NULL, shift_name TEXT NOT NULL,
             checkpoint TEXT NOT NULL, checked_services TEXT NOT NULL, total_services INTEGER NOT NULL,
             notes TEXT, created_at TEXT NOT NULL)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS threat_news (
+            id TEXT PRIMARY KEY, title TEXT NOT NULL, summary TEXT, link TEXT NOT NULL,
+            source TEXT NOT NULL, published_at TEXT NOT NULL, categories TEXT NOT NULL,
+            cached_at TEXT NOT NULL)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS threat_news_meta (
+            key TEXT PRIMARY KEY, value TEXT)""")
         cols = {r[1] for r in c.execute("PRAGMA table_info(services)").fetchall()}
         for name, typ in [("category", "TEXT"), ("portal_label", "TEXT"), ("source_status", "TEXT"), ("error", "TEXT")]:
             if name not in cols:
@@ -418,6 +427,220 @@ def manual_poll():
 
 
 
+
+# ---------------------------------------------------------------------------
+# SOC Global Threat Intelligence — Part 1: Public cyber news feeds
+# Fixed public feeds only; no customer data, credentials or internal APIs.
+# ---------------------------------------------------------------------------
+NEWS_FEEDS = [
+    {"id": "therecord", "name": "The Record", "url": "https://therecord.media/feed/"},
+    {"id": "bleepingcomputer", "name": "BleepingComputer", "url": "https://www.bleepingcomputer.com/feed/"},
+    {"id": "cisa", "name": "CISA", "url": "https://www.cisa.gov/rss.xml"},
+    {"id": "talos", "name": "Cisco Talos", "url": "https://blog.talosintelligence.com/rss/"},
+    {"id": "google-ti", "name": "Google Threat Intelligence", "url": "https://feeds.feedburner.com/threatintelligence/pvexyqv7v0v"},
+]
+
+NEWS_CATEGORIES = {
+    "global": "Noticias mundiales",
+    "ransomware": "Ransomware",
+    "espionage": "Espionaje",
+    "leaks": "Filtraciones",
+    "ddos": "DDoS",
+    "malware": "Malware",
+}
+
+
+def _news_clean(value):
+    value = html_lib.unescape(str(value or ""))
+    value = re.sub(r"<script\b[^>]*>.*?</script>", " ", value, flags=re.I | re.S)
+    value = re.sub(r"<style\b[^>]*>.*?</style>", " ", value, flags=re.I | re.S)
+    value = re.sub(r"<[^>]+>", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _news_parse_date(value):
+    if not value:
+        return None
+    value = str(value).strip()
+    try:
+        parsed = parsedate_to_datetime(value)
+    except Exception:
+        parsed = None
+    if parsed is None:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except Exception:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _news_parse_feed(xml_bytes):
+    """Parse RSS 2.0 or Atom. Return safe, short article metadata only."""
+    root = ET.fromstring(xml_bytes)
+    results = []
+    for node in root.iter():
+        if node.tag.rsplit("}", 1)[-1].lower() not in {"item", "entry"}:
+            continue
+        item = {"title": "", "summary": "", "link": "", "published": ""}
+        for child in node:
+            ctag = child.tag.rsplit("}", 1)[-1].lower()
+            content = " ".join(child.itertext()).strip()
+            if ctag == "title" and not item["title"]:
+                item["title"] = _news_clean(content)
+            elif ctag in {"description", "summary", "content", "encoded"} and not item["summary"]:
+                item["summary"] = _news_clean(content)
+            elif ctag == "link" and not item["link"]:
+                item["link"] = child.attrib.get("href") or content
+            elif ctag in {"pubdate", "published", "updated", "date"} and not item["published"]:
+                item["published"] = content
+        if not item["link"]:
+            for child in node:
+                if child.tag.rsplit("}", 1)[-1].lower() == "guid":
+                    candidate = (child.text or "").strip()
+                    if candidate.startswith("https://"):
+                        item["link"] = candidate
+                        break
+        published = _news_parse_date(item["published"])
+        if not item["title"] or not item["link"].startswith("https://") or not published:
+            continue
+        item["published_at"] = published.isoformat()
+        item["summary"] = item["summary"][:420]
+        results.append(item)
+    return results
+
+
+def _news_classify(title, summary):
+    text = f"{title} {summary}".casefold()
+    patterns = {
+        "ransomware": [
+            "ransomware", "ransomware gang", "ransom group", "double extortion",
+            "lockbit", "cl0p", "clop", "akira", "alphv", "blackcat",
+            "play ransomware", "safepay", "medusa ransomware",
+        ],
+        "espionage": [
+            "cyber espionage", "cyberespionage", "espionage", "state-sponsored",
+            "nation-state", "nation state", "advanced persistent threat",
+            "government-linked hackers", "spying campaign",
+        ],
+        "leaks": [
+            "data breach", "data leak", "leaked data", "stolen data", "exposed data",
+            "data stolen", "breach exposes", "records exposed", "database leak",
+        ],
+        "ddos": [
+            "ddos", "denial-of-service", "denial of service", "distributed denial",
+            "botnet attack", "traffic-flooding",
+        ],
+        "malware": [
+            "malware", "trojan", "infostealer", "infostealing", "botnet", "wiper",
+            "spyware", "rootkit", "backdoor", "loader", "malicious", "phishing campaign",
+            "zero-day exploit",
+        ],
+    }
+    matched = [category for category, terms in patterns.items() if any(term in text for term in terms)]
+    # "Noticias mundiales" is the global view; topical tags remain additive.
+    return ["global"] + matched
+
+
+def _fetch_news_feed(feed):
+    response = requests.get(feed["url"], timeout=TIMEOUT, headers=HEADERS)
+    response.raise_for_status()
+    return _news_parse_feed(response.content)
+
+
+def refresh_threat_news():
+    init_db()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=8)
+    fetched, source_results = [], []
+
+    with ThreadPoolExecutor(max_workers=len(NEWS_FEEDS)) as pool:
+        futures = {pool.submit(_fetch_news_feed, feed): feed for feed in NEWS_FEEDS}
+        for future in as_completed(futures):
+            feed = futures[future]
+            try:
+                items = future.result()
+                count = 0
+                for item in items[:60]:
+                    published = _news_parse_date(item["published_at"])
+                    if not published or published < cutoff:
+                        continue
+                    stable_link = item["link"].split("#", 1)[0].rstrip("/")
+                    item_id = hashlib.sha256(stable_link.encode("utf-8")).hexdigest()
+                    categories = _news_classify(item["title"], item["summary"])
+                    fetched.append((
+                        item_id, item["title"][:300], item["summary"][:420],
+                        stable_link, feed["name"], item["published_at"],
+                        json.dumps(categories), now()
+                    ))
+                    count += 1
+                source_results.append({"source": feed["name"], "ok": True, "items": count})
+            except Exception as exc:
+                source_results.append({"source": feed["name"], "ok": False, "error": str(exc)[:180]})
+
+    refreshed_at = now()
+    with db() as c:
+        if fetched:
+            c.executemany("""INSERT INTO threat_news
+                (id,title,summary,link,source,published_at,categories,cached_at)
+                VALUES(?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET
+                title=excluded.title, summary=excluded.summary, link=excluded.link,
+                source=excluded.source, published_at=excluded.published_at,
+                categories=excluded.categories, cached_at=excluded.cached_at""", fetched)
+        c.execute(
+            "DELETE FROM threat_news WHERE published_at < ?",
+            ((datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),)
+        )
+        c.execute("""INSERT INTO threat_news_meta(key,value) VALUES('last_refresh',?)
+                     ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (refreshed_at,))
+        c.execute("""INSERT INTO threat_news_meta(key,value) VALUES('source_results',?)
+                     ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+                  (json.dumps(source_results, ensure_ascii=False),))
+        total = c.execute("SELECT COUNT(*) FROM threat_news").fetchone()[0]
+
+    return {
+        "ok": True, "fetched": len(fetched), "cache_total": total,
+        "last_refresh": refreshed_at, "sources": source_results,
+        "successful_sources": sum(1 for x in source_results if x["ok"]),
+        "failed_sources": sum(1 for x in source_results if not x["ok"])
+    }
+
+
+def get_cached_threat_news(period="7d"):
+    init_db()
+    hours = 24 if period == "24h" else 24 * 7
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    with db() as c:
+        rows = c.execute("SELECT * FROM threat_news ORDER BY published_at DESC LIMIT 500").fetchall()
+        meta = {row["key"]: row["value"] for row in c.execute("SELECT key,value FROM threat_news_meta")}
+    items = []
+    for row in rows:
+        published = _news_parse_date(row["published_at"])
+        if not published or published < cutoff:
+            continue
+        try:
+            categories = json.loads(row["categories"])
+        except Exception:
+            categories = ["global"]
+        items.append({
+            "id": row["id"], "title": row["title"], "summary": row["summary"],
+            "link": row["link"], "source": row["source"],
+            "published_at": row["published_at"], "categories": categories,
+            "cached_at": row["cached_at"]
+        })
+    try:
+        source_results = json.loads(meta.get("source_results", "[]"))
+    except Exception:
+        source_results = []
+    return {
+        "period": period, "items": items, "count": len(items),
+        "last_refresh": meta.get("last_refresh"),
+        "sources": source_results, "available_categories": NEWS_CATEGORIES
+    }
+
+
+
 def _clean_html(value):
     value = re.sub(r"<[^>]+>", " ", str(value or ""))
     return re.sub(r"\s+", " ", value).strip()
@@ -741,6 +964,22 @@ def create_checklist(payload: dict):
         run_id = cur.lastrowid
     return {"ok": True, "id": run_id, "analyst": analyst, "shift_name": shift_name,
             "checkpoint": checkpoint, "total_services": len(clean_ids), "created_at": created}
+
+
+
+@app.get("/api/threat-intel/news")
+def api_threat_news(period: str = "7d"):
+    if period not in {"24h", "7d"}:
+        raise HTTPException(400, "El período debe ser 24h o 7d.")
+    return get_cached_threat_news(period)
+
+
+@app.post("/api/threat-intel/news/refresh")
+def api_refresh_threat_news():
+    try:
+        return refresh_threat_news()
+    except Exception as exc:
+        raise HTTPException(502, f"No se pudo actualizar la inteligencia externa: {str(exc)[:220]}")
 
 
 @app.get("/api/config")

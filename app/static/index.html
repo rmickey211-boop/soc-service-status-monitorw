@@ -21,6 +21,51 @@
 <section class="section-head"><div><h2>Plataformas monitoreadas</h2><p>Las fuentes manuales requieren abrir el portal oficial; no se presentan como operativas.</p></div></section>
 <div class="toolbar"><input id="search" type="search" placeholder="Buscar plataforma…" aria-label="Buscar plataforma"><select id="category" aria-label="Filtrar categoría"><option value="">Todas las categorías</option></select><select id="state" aria-label="Filtrar estado"><option value="">Todos los estados</option><option value="operational">Operativo</option><option value="info">Aviso</option><option value="degraded">Degradado</option><option value="outage">Indisponibilidad</option><option value="maintenance">Mantenimiento</option><option value="manual">Consulta manual</option><option value="unknown">Sin información</option></select><select id="freshFilter" aria-label="Filtrar antigüedad"><option value="">Cualquier antigüedad</option><option value="fresh">Actualizados (menos de 60 min)</option><option value="stale">Antiguos (60 min o más)</option><option value="never">Nunca consultados</option></select></div>
 <section id="services" class="services"><div class="loading">Aún no se ha realizado una consulta. Presiona «Actualizar ahora».</div></section>
+
+<section class="intel-module" id="global-threat-intel">
+ <div class="intel-heading">
+  <div>
+   <div class="eyebrow">SOC GLOBAL THREAT INTELLIGENCE · PARTE 1</div>
+   <h2>Ataques y amenazas publicados</h2>
+   <p>Noticias externas de ciberseguridad, campañas y alertas de fuentes públicas. No utiliza información corporativa.</p>
+  </div>
+  <button id="refreshIntel" class="refresh intel-refresh">↻ Actualizar inteligencia</button>
+ </div>
+ <div class="intel-toolbar">
+  <div class="intel-period" role="group" aria-label="Período de publicaciones">
+   <button type="button" class="intel-period-btn" data-period="24h">Últimas 24 horas</button>
+   <button type="button" class="intel-period-btn active" data-period="7d">Últimos 7 días</button>
+  </div>
+  <div class="intel-last-refresh" id="intelLastRefresh">Sin actualización registrada</div>
+ </div>
+ <div class="intel-categories" role="group" aria-label="Categorías de inteligencia">
+  <button type="button" class="intel-category active" data-intel-category="all">Todas</button>
+  <button type="button" class="intel-category" data-intel-category="global">Noticias mundiales</button>
+  <button type="button" class="intel-category" data-intel-category="ransomware">Ransomware</button>
+  <button type="button" class="intel-category" data-intel-category="espionage">Espionaje</button>
+  <button type="button" class="intel-category" data-intel-category="leaks">Filtraciones</button>
+  <button type="button" class="intel-category" data-intel-category="ddos">DDoS</button>
+  <button type="button" class="intel-category" data-intel-category="malware">Malware</button>
+ </div>
+ <div class="intel-meta">
+  <span id="intelCount">0 publicaciones</span>
+  <span id="intelSourceSummary">La actualización es manual; los resultados se conservan en caché.</span>
+ </div>
+ <div id="intelNewsList" class="intel-news-grid">
+  <div class="intel-empty">
+   <b>Aún no hay noticias en caché</b>
+   <span>Presiona «Actualizar inteligencia» para consultar las fuentes públicas.</span>
+  </div>
+ </div>
+ <details class="intel-source-panel">
+  <summary>Estado de las fuentes consultadas</summary>
+  <div id="intelSources" class="intel-sources">
+   <span class="muted">Todavía no se ha ejecutado una actualización.</span>
+  </div>
+ </details>
+ <div class="intel-disclaimer">Los titulares y extractos proceden de publicaciones externas. La clasificación temática es automática y orientativa; no confirma por sí sola que un incidente haya ocurrido ni atribuye responsabilidad.</div>
+</section>
+
 <section class="section-head history-head"><div><h2>Checklist MDR</h2><p>Registra las verificaciones realizadas en inicio, intermedio y término de turno.</p></div></section>
 <section class="checklist-panel">
  <div class="checklist-grid">
@@ -38,7 +83,7 @@
 <section class="table-wrap"><table><thead><tr><th>FECHA / HORA</th><th>ANALISTA</th><th>TURNO</th><th>MOMENTO</th><th>PLATAFORMAS REVISADAS</th><th>OBSERVACIONES</th></tr></thead><tbody id="checkHistory"><tr><td colspan="6">Sin revisiones registradas.</td></tr></tbody></table></section>
 <section class="section-head history-head"><div><h2>Historial de cambios de estado</h2><p>Transiciones detectadas entre consultas manuales.</p></div></section>
 <section class="table-wrap"><table><thead><tr><th>FECHA (UTC)</th><th>PLATAFORMA</th><th>CAMBIO</th><th>DETALLE</th></tr></thead><tbody id="events"><tr><td colspan="4">Sin cambios de estado registrados.</td></tr></tbody></table></section>
-<footer><span>SOC SERVICE STATUS MONITOR · FASE 1.6.2</span><span>Consulta manual · Fuentes públicas · Checklist MDR piloto</span></footer>
+<footer><span>SOC SERVICE STATUS MONITOR · FASE 1.8.0 · PARTE 1</span><span>Consulta manual · Fuentes públicas · Checklist MDR piloto</span></footer>
 </main><dialog id="detailDialog" class="detail-dialog" aria-labelledby="detailTitle">
  <div class="detail-shell">
   <div class="detail-header"><div><span class="eyebrow">DETALLE DE PLATAFORMA</span><h2 id="detailTitle">Plataforma</h2><p id="detailSubtitle"></p></div><button id="closeDetail" class="close-detail" aria-label="Cerrar detalle">×</button></div>

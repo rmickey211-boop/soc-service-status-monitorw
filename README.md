@@ -130,3 +130,63 @@ Se corrigió la divergencia entre las tarjetas y la ventana de detalle:
 - La ventana de detalle conserva y muestra el estado global original y explica cuándo el estado efectivo cambia por un componente o incidente activo.
 
 La lógica no afirma que toda la plataforma esté caída por un incidente regional menor: clasifica el estado efectivo como degradado y muestra el nombre/impacto del incidente para contexto.
+
+
+# SOC Global Threat Intelligence — v1.8.0 · Parte 1
+
+## Alcance de esta entrega
+
+Se agrega un panel independiente de noticias y publicaciones públicas de ciberseguridad. El monitor de disponibilidad, el detalle de plataformas, el checklist y el historial existentes se mantienen.
+
+### Fuentes integradas
+
+| Fuente | Feed público | Enfoque |
+|---|---|---|
+| The Record | `https://therecord.media/feed/` | Ciberataques, ransomware, espionaje y filtraciones |
+| BleepingComputer | `https://www.bleepingcomputer.com/feed/` | Malware, brechas, ransomware y vulnerabilidades |
+| CISA | `https://www.cisa.gov/rss.xml` | Alertas y avisos oficiales |
+| Cisco Talos | `https://blog.talosintelligence.com/rss/` | Malware y campañas de amenazas |
+| Google Threat Intelligence | `https://feeds.feedburner.com/threatintelligence/pvexyqv7v0v` | Actores, campañas y análisis de amenazas |
+
+Los feeds se consultan solo al pulsar «Actualizar inteligencia». Los resultados se guardan en SQLite y sobreviven a recargas mientras el almacenamiento de Render siga disponible. Se conservan hasta 30 días en la base local; la consulta de pantalla permite filtrar las últimas 24 horas o los últimos 7 días.
+
+### Categorías
+
+Cada publicación recibe una clasificación temática automática:
+- Noticias mundiales (vista global que incluye todas las publicaciones).
+- Ransomware.
+- Espionaje.
+- Filtraciones.
+- DDoS.
+- Malware.
+
+Una publicación puede pertenecer a más de una categoría. La clasificación se basa en palabras clave del título y resumen RSS; es orientativa y no sustituye el análisis de un investigador.
+
+### Caché y consulta manual
+
+- `GET /api/threat-intel/news?period=24h`
+- `GET /api/threat-intel/news?period=7d`
+- `POST /api/threat-intel/news/refresh`
+
+La pantalla carga la caché al abrirse y no ejecuta llamadas externas automáticamente. El botón de actualización consulta las cinco fuentes en paralelo y actualiza el almacén local. Si una fuente falla, las demás siguen procesándose y se muestra el estado individual de cada fuente.
+
+### Privacidad y costos
+
+- Solo se consultan feeds de acceso público.
+- No se capturan ni transmiten datos de la empresa, clientes o plataformas internas.
+- No se requieren API Keys, credenciales internas ni nuevos servicios.
+- Se utilizan las dependencias estándar ya presentes (FastAPI, requests, SQLite y ElementTree).
+- El diseño no agrega un servicio de pago. Render Free mantiene sus limitaciones de suspensión por inactividad y almacenamiento efímero.
+
+### Presentación y copyright
+
+El portal muestra titulares, extractos limitados a 420 caracteres, fuente, fecha y enlace al artículo original. No republica artículos completos.
+
+### Límites de esta parte
+
+Esta entrega aún no incluye:
+- Mapa geográfico de víctimas.
+- Feed estructurado de reclamos ransomware.
+- CISA KEV, EPSS o NVD como módulo CVE.
+
+Esas funciones se incorporarán en las siguientes partes de la versión 1.8.

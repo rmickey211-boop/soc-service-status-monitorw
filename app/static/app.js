@@ -100,3 +100,114 @@ $("selectAll").addEventListener("click",()=>document.querySelectorAll(".service-
 $("saveChecklist").addEventListener("click",async()=>{const analyst=$("analyst").value.trim(),shift_name=$("shift").value,checkpoint=$("checkpoint").value,checked_services=[...document.querySelectorAll(".service-check:checked")].map(x=>x.value),notes=$("checkNotes").value.trim();$("saveChecklist").disabled=true;$("saveChecklist").textContent="Guardando…";try{const r=await fetch("/api/checklist",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({analyst,shift_name,checkpoint,checked_services,notes})});const data=await r.json();if(!r.ok)throw new Error(data.detail||"No se pudo guardar");$("checkMsg").textContent=`Revisión registrada: ${data.total_services} plataformas · ${date(data.created_at)}`;$("checkMsg").className="check-msg ok";document.querySelectorAll(".service-check").forEach(x=>x.checked=false);$("checkNotes").value="";await load()}catch(e){$("checkMsg").textContent=e.message;$("checkMsg").className="check-msg error"}finally{$("saveChecklist").disabled=false;$("saveChecklist").textContent="Registrar revisión"}});
 function toast(t){$("toast").textContent=t;$("toast").classList.add("show");setTimeout(()=>$("toast").classList.remove("show"),4500)}
 function tick(){$("clock").textContent=new Date().toLocaleTimeString("es-CL",{hour12:false})}tick();setInterval(tick,1000);load();
+
+// ---------------------------------------------------------------------------
+// SOC Global Threat Intelligence — Part 1: manually refreshed public news
+// ---------------------------------------------------------------------------
+let intelPeriod = "7d";
+let intelCategory = "all";
+let intelItems = [];
+const intelCategoryNames = {
+  global: "Noticias mundiales",
+  ransomware: "Ransomware",
+  espionage: "Espionaje",
+  leaks: "Filtraciones",
+  ddos: "DDoS",
+  malware: "Malware"
+};
+
+function renderIntelNews() {
+  const visible = intelItems.filter(item =>
+    intelCategory === "all" || (item.categories || []).includes(intelCategory)
+  );
+  $("intelCount").textContent = `${visible.length} publicaciones`;
+  $("intelNewsList").innerHTML = visible.length ? visible.map(item => {
+    const tags = (item.categories || []).map(key =>
+      `<span class="intel-tag tag-${esc(key)}">${esc(intelCategoryNames[key] || key)}</span>`
+    ).join("");
+    const published = item.published_at ? date(item.published_at) : "Fecha no informada";
+    return `<article class="intel-news-card">
+      <div class="intel-card-top"><span class="intel-source-name">${esc(item.source)}</span><time>${esc(published)}</time></div>
+      <h3>${esc(item.title)}</h3>
+      <p>${esc(item.summary || "La fuente no publicó un extracto.")}</p>
+      <div class="intel-card-bottom"><div class="intel-tags">${tags}</div>
+      <a href="${esc(item.link)}" target="_blank" rel="noopener noreferrer">Leer fuente original ↗</a></div>
+    </article>`;
+  }).join("") : `<div class="intel-empty"><b>No hay publicaciones para este filtro</b><span>Prueba otra categoría o amplía el período a 7 días.</span></div>`;
+
+  document.querySelectorAll(".intel-category").forEach(button => {
+    const active = button.dataset.intelCategory === intelCategory;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+  document.querySelectorAll(".intel-period-btn").forEach(button => {
+    const active = button.dataset.period === intelPeriod;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+}
+
+function renderIntelSources(sources) {
+  if (!sources || !sources.length) {
+    $("intelSources").innerHTML = '<span class="muted">Todavía no se ha ejecutado una actualización.</span>';
+    return;
+  }
+  $("intelSources").innerHTML = sources.map(source => `
+    <div class="intel-source-row">
+      <b>${esc(source.source)}</b>
+      ${source.ok
+        ? `<span class="intel-source-ok">Consultada · ${Number(source.items || 0)} entradas</span>`
+        : `<span class="intel-source-fail">Sin respuesta · ${esc(source.error || "Error de consulta")}</span>`}
+    </div>`).join("");
+}
+
+async function loadIntelNews() {
+  try {
+    const response = await fetch(`/api/threat-intel/news?period=${encodeURIComponent(intelPeriod)}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || "No se pudo leer la caché");
+    intelItems = data.items || [];
+    $("intelLastRefresh").textContent = data.last_refresh
+      ? `Última consulta: ${date(data.last_refresh)}`
+      : "Sin actualización registrada";
+    $("intelSourceSummary").textContent = `${data.sources?.filter(x => x.ok).length || 0} de 5 fuentes respondieron en la última consulta`;
+    renderIntelSources(data.sources || []);
+    renderIntelNews();
+  } catch (error) {
+    $("intelNewsList").innerHTML = `<div class="intel-empty"><b>No se pudo cargar la inteligencia</b><span>${esc(error.message)}</span></div>`;
+  }
+}
+
+$("refreshIntel").addEventListener("click", async () => {
+  const button = $("refreshIntel");
+  button.disabled = true;
+  button.textContent = "Consultando fuentes…";
+  $("intelSourceSummary").textContent = "Consultando cinco fuentes públicas en paralelo…";
+  try {
+    const response = await fetch("/api/threat-intel/news/refresh", { method: "POST" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "Error al actualizar");
+    await loadIntelNews();
+    toast(`Inteligencia actualizada: ${result.fetched} publicaciones nuevas/actualizadas · ${result.successful_sources}/5 fuentes disponibles.`);
+  } catch (error) {
+    toast("No se pudo actualizar la inteligencia: " + error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "↻ Actualizar inteligencia";
+  }
+});
+
+document.querySelectorAll(".intel-period-btn").forEach(button => {
+  button.addEventListener("click", () => {
+    intelPeriod = button.dataset.period;
+    loadIntelNews();
+  });
+});
+document.querySelectorAll(".intel-category").forEach(button => {
+  button.addEventListener("click", () => {
+    intelCategory = button.dataset.intelCategory;
+    renderIntelNews();
+  });
+});
+
+loadIntelNews();
