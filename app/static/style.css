@@ -220,3 +220,61 @@
 .detail-update{border-top:1px solid var(--line);margin-top:8px;padding-top:8px}
 .detail-row small{display:block;max-width:600px;color:var(--muted);font-size:11px}
 @media(max-width:700px){.module-home{padding:30px 0}.module-home-heading{align-items:flex-start;flex-direction:column}.module-cards{grid-template-columns:1fr}.module-card{min-height:155px;padding:20px}.module-view .intel-news-grid{grid-template-columns:1fr}.module-view .rw-map-layout{grid-template-columns:1fr}}
+
+/* v1.8.2 — expandable vulnerability detail sheet */
+.vuln-click-row{cursor:pointer;transition:background .15s}
+.vuln-click-row:hover,.vuln-click-row:focus{background:#1a2a40;outline:1px solid #365b80;outline-offset:-1px}
+.vuln-open{background:none;border:0;color:#80c7ff;padding:0;font:inherit;font-weight:700;text-align:left;cursor:pointer}
+.vuln-row-hint{display:inline-block;margin-top:5px;color:#75b5ed;font-size:9px;letter-spacing:.3px}
+.vuln-detail-dialog{width:min(1000px,94vw);max-width:1000px;max-height:90vh;padding:0;border:1px solid #344861;border-radius:14px;background:#0d1624;color:var(--text);box-shadow:0 25px 90px #000a}
+.vuln-detail-dialog::backdrop{background:#020711d9;backdrop-filter:blur(3px)}
+.vuln-detail-shell{display:flex;flex-direction:column;max-height:90vh}
+.vuln-detail-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:20px 24px;border-bottom:1px solid var(--line);background:linear-gradient(120deg,#172a42,#101a29)}
+.vuln-detail-header h2{font-size:20px;line-height:1.35;margin:7px 0 3px;overflow-wrap:anywhere}
+.vuln-detail-header p{margin:0;color:var(--muted);font-size:11px}
+.vuln-detail-body{padding:20px 24px 26px;overflow:auto}
+.close-detail{background:#1c2d43;color:#dce7f5;border:1px solid #3a526d;border-radius:7px;font-size:22px;width:34px;height:34px;line-height:1;flex:0 0 auto}
+.vuln-detail-top{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
+.vuln-detail-top>div{min-width:0}
+.vuln-detail-top p{max-width:720px;color:#c8d4e3;font-size:13px;line-height:1.65;margin:12px 0 7px}
+.vuln-detail-date{font-size:10px;color:var(--muted)}
+.vuln-tags{display:flex;gap:8px;flex-wrap:wrap}
+.vuln-tag{display:inline-flex;align-items:center;padding:5px 9px;border-radius:6px;font-size:10px;font-weight:800}
+.vuln-tag.severity{background:#352d1b;color:#ffd17b}
+.vuln-tag.danger{background:#3f202b;color:#ff8798}
+.vuln-tag.neutral{background:#1c3045;color:#a9bdd5}
+.vuln-detail-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0 24px}
+.vuln-detail-kpis>div{display:flex;flex-direction:column;gap:3px;padding:13px;background:#131f30;border:1px solid #2b3c52;border-radius:9px;min-width:0}
+.vuln-detail-kpis small{color:#8ea4be;font-size:9px;text-transform:uppercase;letter-spacing:.7px}
+.vuln-detail-kpis b{font-size:21px;overflow-wrap:anywhere}
+.vuln-detail-kpis span{font-size:10px;color:#aabbd0}
+.vuln-detail-section{margin-top:22px}
+.vuln-detail-section h3{font-size:14px;margin:0 0 10px;color:#dce9f8}
+.vuln-detail-table-wrap{border:1px solid #293a50;border-radius:8px;overflow:auto}
+.vuln-detail-table{width:100%;min-width:500px;border-collapse:collapse}
+.vuln-detail-table th,.vuln-detail-table td{padding:9px 12px;border-bottom:1px solid #25354a;font-size:10px;vertical-align:top}
+.vuln-detail-table th{width:220px;color:#94a9c2;text-transform:none;letter-spacing:0;background:#121f30}
+.vuln-detail-table td{color:#d4deea;overflow-wrap:anywhere}
+.vuln-detail-table code{font-size:9px;overflow-wrap:anywhere;color:#9bc9ff}
+.vuln-official-action{padding:13px 15px;border:1px solid #72572b;background:#2a2318;border-radius:8px}
+.vuln-official-action b{font-size:11px;color:#ffd48a}
+.vuln-official-action p{margin:6px 0 0;color:#f0dfc2;font-size:12px;line-height:1.55}
+.vuln-guidance{margin:9px 0;padding:13px 15px;border:1px solid #2c415a;background:#121f30;border-radius:8px}
+.vuln-guidance h4{font-size:12px;margin:0 0 6px}
+.vuln-guidance p,.vuln-guidance li{font-size:11px;color:#bfccdc;line-height:1.55}
+.vuln-guidance p{margin:5px 0}
+.vuln-guidance ol,.vuln-guidance ul{padding-left:20px;margin:8px 0}
+.vuln-guidance.official{border-color:#72572b;background:#2a2318}
+.vuln-guidance.official h4{color:#ffda9b}
+.vuln-guidance.official_refs{border-color:#315a79}
+.vuln-guidance.caution{border-color:#574d32}
+.vuln-guidance small{font-size:9px;color:#90a4bb}
+.vuln-reference-list{padding-left:19px}
+.vuln-reference-list li{padding:4px 0;color:#aebdd0;font-size:11px;overflow-wrap:anywhere}
+.vuln-reference-list a,.vuln-guidance a{color:#85c4ff;text-decoration:none}
+.vuln-reference-list a:hover,.vuln-guidance a:hover{text-decoration:underline}
+.vuln-reference-list small{display:block;color:#8094ac;font-size:9px}
+.vuln-detail-disclaimer{margin-top:22px;padding:12px;border-radius:7px;background:#111e2c;color:#8ea2ba;font-size:10px;line-height:1.55}
+.vuln-detail-error{padding:20px;border:1px solid #74404b;background:#2a1a22;color:#ffb9c1;border-radius:8px}
+.vuln-detail-lookup-note{padding:9px 12px;margin:8px 0;border:1px solid #67542c;border-radius:7px;color:#e8c98e;background:#282316;font-size:10px}
+@media(max-width:650px){.vuln-detail-header{padding:16px}.vuln-detail-body{padding:16px}.vuln-detail-kpis{grid-template-columns:1fr}.vuln-detail-top{flex-direction:column}.vuln-detail-top .portal-btn{align-self:flex-start}.vuln-detail-header h2{font-size:16px}}

@@ -20,7 +20,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.8 (+public status and ransomware metadata)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.8.0-part2")
+app = FastAPI(title="SOC Service Status Monitor", version="1.8.2")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -65,13 +65,16 @@ def init_db():
             cve TEXT PRIMARY KEY, title TEXT, vendor TEXT, product TEXT, description TEXT,
             published TEXT, modified TEXT, cvss REAL, severity TEXT, kev INTEGER,
             kev_date TEXT, ransomware_use TEXT, epss REAL, epss_percentile REAL,
-            source_url TEXT, cached_at TEXT)""")
+            source_url TEXT, cached_at TEXT, details_json TEXT)""")
         c.execute("""CREATE TABLE IF NOT EXISTS vulnerability_meta (
             key TEXT PRIMARY KEY, value TEXT)""")
         cols = {r[1] for r in c.execute("PRAGMA table_info(services)").fetchall()}
         for name, typ in [("category", "TEXT"), ("portal_label", "TEXT"), ("source_status", "TEXT"), ("error", "TEXT")]:
             if name not in cols:
                 c.execute(f"ALTER TABLE services ADD COLUMN {name} {typ}")
+        vuln_cols = {r[1] for r in c.execute("PRAGMA table_info(vulnerability_items)").fetchall()}
+        if "details_json" not in vuln_cols:
+            c.execute("ALTER TABLE vulnerability_items ADD COLUMN details_json TEXT")
 
 
 def load_config():
@@ -912,6 +915,89 @@ def _vuln_meta(key, value=None):
         c.execute("INSERT INTO vulnerability_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, str(value)))
     return str(value)
 
+
+def _nvd_vulnerability_detail(cve):
+    metrics = cve.get("metrics") or {}
+    cvss_detail = {}
+    for key in ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+        entries = metrics.get(key) or []
+        if not entries:
+            continue
+        entry = entries[0] or {}
+        data = entry.get("cvssData") or {}
+        cvss_detail = {
+            "version": data.get("version"), "base_score": data.get("baseScore"),
+            "severity": data.get("baseSeverity") or entry.get("baseSeverity"),
+            "vector": data.get("vectorString"), "attack_vector": data.get("attackVector"),
+            "attack_complexity": data.get("attackComplexity"),
+            "privileges_required": data.get("privilegesRequired"),
+            "user_interaction": data.get("userInteraction"), "scope": data.get("scope"),
+            "confidentiality_impact": data.get("confidentialityImpact"),
+            "integrity_impact": data.get("integrityImpact"),
+            "availability_impact": data.get("availabilityImpact"),
+            "exploit_maturity": data.get("exploitMaturity"),
+            "source": entry.get("source"), "type": entry.get("type")
+        }
+        break
+    weaknesses = []
+    for weakness in cve.get("weaknesses") or []:
+        for desc in weakness.get("description") or []:
+            value = desc.get("value")
+            if value and value not in weaknesses:
+                weaknesses.append(value)
+    affected = []
+    def walk_node(node):
+        if not isinstance(node, dict): return
+        for match in node.get("cpeMatch") or []:
+            criteria = match.get("criteria") or match.get("cpe23Uri")
+            if criteria:
+                affected.append({
+                    "criteria": criteria, "vulnerable": bool(match.get("vulnerable", True)),
+                    "version_start_including": match.get("versionStartIncluding"),
+                    "version_start_excluding": match.get("versionStartExcluding"),
+                    "version_end_including": match.get("versionEndIncluding"),
+                    "version_end_excluding": match.get("versionEndExcluding")
+                })
+        for child in node.get("children") or []: walk_node(child)
+    for config in cve.get("configurations") or []:
+        for node in config.get("nodes") or []: walk_node(node)
+        if config.get("cpeMatch"): walk_node(config)
+    references = []
+    for ref in cve.get("references") or []:
+        if ref.get("url"):
+            references.append({"url":ref["url"],"source":ref.get("source") or "","tags":ref.get("tags") or []})
+    return {
+        "cvss":cvss_detail,"weaknesses":weaknesses[:20],"affected_products":affected[:50],
+        "references":references[:20],"cve_status":cve.get("vulnStatus"),
+        "source_identifier":cve.get("sourceIdentifier"),"published":cve.get("published"),
+        "last_modified":cve.get("lastModified")
+    }
+
+
+def _workaround_guidance(record, details):
+    cisa=details.get("cisa") or {}; nvd=details.get("nvd") or {}; guidance=[]
+    if cisa.get("required_action"):
+        guidance.append({"kind":"official","title":"Acción requerida por CISA KEV",
+                         "text":cisa["required_action"],"source":"CISA KEV"})
+    vendor_refs=[r for r in (nvd.get("references") or []) if any(
+        t in " ".join(r.get("tags") or []).lower() for t in ("vendor advisory","patch","mitigation"))]
+    if vendor_refs:
+        guidance.append({"kind":"official_refs","title":"Avisos y parches del fabricante",
+                         "text":"Consulta estas referencias antes de aplicar cambios.","references":vendor_refs[:8]})
+    else:
+        guidance.append({"kind":"caution","title":"Mitigación específica no identificada en los datos disponibles",
+                         "text":"Revisa las referencias NVD y confirma con el fabricante qué versiones corrigen la falla. No asumas que una corrección aplica a todas las versiones."})
+    guidance.append({"kind":"operational","title":"Medidas compensatorias orientativas",
+        "text":"Son controles defensivos generales; no constituyen un workaround confirmado para esta CVE.",
+        "steps":[
+            "Verifica si los productos y rangos de versión afectados están presentes en el inventario; esta ficha pública no confirma exposición de tus activos.",
+            "Mientras se valida la corrección, limita la exposición de red y los accesos al servicio vulnerable cuando sea técnicamente viable.",
+            "Si no existe parche, evalúa deshabilitar temporalmente solo la función afectada, con aprobación del responsable del servicio y plan de reversa.",
+            "Aumenta temporalmente el monitoreo de indicadores y comportamientos descritos en los avisos del fabricante."
+        ]})
+    return guidance
+
+
 def refresh_vulnerability_intel():
     # CISA KEV is the authoritative list of vulnerabilities known to be exploited.
     kev_resp = requests.get(CISA_KEV_URL, timeout=TIMEOUT, headers=HEADERS)
@@ -949,7 +1035,8 @@ def refresh_vulnerability_intel():
             "description": desc[:1800], "published": cve.get("published", ""),
             "modified": cve.get("lastModified", ""), "cvss": cvss, "severity": severity,
             "kev": 0, "kev_date": "", "ransomware_use": "Unknown",
-            "source_url": "https://nvd.nist.gov/vuln/detail/" + cve_id
+            "source_url": "https://nvd.nist.gov/vuln/detail/" + cve_id,
+            "details": {"nvd": _nvd_vulnerability_detail(cve), "cisa": {}}
         }
     for cve_id, item in kev_by_cve.items():
         rec = records.setdefault(cve_id, {
@@ -961,6 +1048,15 @@ def refresh_vulnerability_intel():
         rec.update({"kev": 1, "kev_date": item.get("dateAdded", ""),
                     "ransomware_use": item.get("knownRansomwareCampaignUse", "Unknown"),
                     "source_url": "https://nvd.nist.gov/vuln/detail/" + cve_id})
+        rec.setdefault("details", {"nvd": {}, "cisa": {}})
+        rec["details"]["cisa"] = {
+            "date_added": item.get("dateAdded"), "due_date": item.get("dueDate"),
+            "known_ransomware_campaign_use": item.get("knownRansomwareCampaignUse"),
+            "required_action": item.get("requiredAction"), "notes": item.get("notes"),
+            "cwes": item.get("cwes") or [], "vendor": item.get("vendorProject"),
+            "product": item.get("product"), "vulnerability_name": item.get("vulnerabilityName"),
+            "short_description": item.get("shortDescription")
+        }
         if not rec.get("title") or rec["title"] == cve_id:
             rec["title"] = item.get("vulnerabilityName", cve_id)
         if not rec.get("description"):
@@ -986,16 +1082,18 @@ def refresh_vulnerability_intel():
         for rec in records.values():
             ep = epss_map.get(rec["cve"], (None, None))
             c.execute("""INSERT INTO vulnerability_items
-              (cve,title,vendor,product,description,published,modified,cvss,severity,kev,kev_date,ransomware_use,epss,epss_percentile,source_url,cached_at)
-              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+              (cve,title,vendor,product,description,published,modified,cvss,severity,kev,kev_date,ransomware_use,epss,epss_percentile,source_url,cached_at,details_json)
+              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
               ON CONFLICT(cve) DO UPDATE SET title=excluded.title,vendor=excluded.vendor,product=excluded.product,
               description=excluded.description,published=excluded.published,modified=excluded.modified,cvss=excluded.cvss,
               severity=excluded.severity,kev=excluded.kev,kev_date=excluded.kev_date,ransomware_use=excluded.ransomware_use,
               epss=COALESCE(excluded.epss,vulnerability_items.epss),epss_percentile=COALESCE(excluded.epss_percentile,vulnerability_items.epss_percentile),
-              source_url=excluded.source_url,cached_at=excluded.cached_at""",
+              source_url=excluded.source_url,cached_at=excluded.cached_at,
+              details_json=COALESCE(excluded.details_json,vulnerability_items.details_json)""",
               (rec["cve"],rec.get("title"),rec.get("vendor"),rec.get("product"),rec.get("description"),
                rec.get("published"),rec.get("modified"),rec.get("cvss"),rec.get("severity"),rec.get("kev",0),
-               rec.get("kev_date"),rec.get("ransomware_use"),ep[0],ep[1],rec.get("source_url"),stamp))
+               rec.get("kev_date"),rec.get("ransomware_use"),ep[0],ep[1],rec.get("source_url"),stamp,
+               json.dumps(rec.get("details") or {},ensure_ascii=False)))
         c.execute("DELETE FROM vulnerability_items WHERE cached_at < ?", ((datetime.now(timezone.utc)-timedelta(days=45)).isoformat(),))
     _vuln_meta("last_refresh", stamp)
     _vuln_meta("kev_count", len(kev_items))
@@ -1018,6 +1116,7 @@ def get_vulnerability_intel(period="30d", search=""):
         params += [f"%{search}%"]*4
     query += " ORDER BY kev DESC, COALESCE(epss,0) DESC, COALESCE(cvss,0) DESC LIMIT 500"
     with db() as c: rows = [dict(r) for r in c.execute(query, params).fetchall()]
+    for row in rows: row.pop("details_json", None)
     return {"items": rows, "count": len(rows), "last_refresh": _vuln_meta("last_refresh"),
             "kev_count": _vuln_meta("kev_count"), "nvd_count": _vuln_meta("nvd_count")}
 
@@ -1375,6 +1474,47 @@ def api_refresh_ransomware_tracker():
         return refresh_ransomware_tracker()
     except Exception as exc:
         raise HTTPException(502, f"No se pudo actualizar el tracker de ransomware: {str(exc)[:220]}")
+
+
+@app.get("/api/threat-intel/vulnerabilities/{cve_id}")
+def api_vulnerability_detail(cve_id: str):
+    normalized=cve_id.upper()
+    if not re.fullmatch(r"CVE-\d{4}-\d{4,}", normalized):
+        raise HTTPException(400,"Identificador CVE inválido.")
+    with db() as c:
+        row=c.execute("SELECT * FROM vulnerability_items WHERE cve=?",(normalized,)).fetchone()
+    if not row:
+        raise HTTPException(404,"La CVE no está en caché. Actualiza las fuentes públicas e inténtalo nuevamente.")
+    item=dict(row)
+    try: details=json.loads(item.get("details_json") or "{}")
+    except (TypeError,json.JSONDecodeError): details={}
+    details.setdefault("nvd",{}); details.setdefault("cisa",{})
+    nvd=details.get("nvd") or {}
+    if not (nvd.get("cvss") or nvd.get("references") or nvd.get("affected_products")):
+        try:
+            resp=requests.get(NVD_API_URL,params={"cveId":normalized},timeout=min(TIMEOUT,8),headers=HEADERS)
+            resp.raise_for_status()
+            nvd_rows=resp.json().get("vulnerabilities") or []
+            if nvd_rows and nvd_rows[0].get("cve"):
+                details["nvd"]=_nvd_vulnerability_detail(nvd_rows[0]["cve"])
+        except Exception as exc:
+            details["lookup_note"]=f"No fue posible ampliar el detalle NVD en esta consulta: {str(exc)[:160]}"
+    if item.get("epss") is None:
+        try:
+            resp=requests.get(EPSS_API_URL,params={"cve":normalized},timeout=min(TIMEOUT,6),headers=HEADERS)
+            resp.raise_for_status(); rows=resp.json().get("data") or []
+            if rows:
+                item["epss"]=float(rows[0].get("epss")); item["epss_percentile"]=float(rows[0].get("percentile"))
+                with db() as c:
+                    c.execute("UPDATE vulnerability_items SET epss=?,epss_percentile=? WHERE cve=?",
+                              (item["epss"],item["epss_percentile"],normalized))
+        except Exception: pass
+    details["workaround_guidance"]=_workaround_guidance(item,details)
+    if details.get("nvd") and (details["nvd"].get("cvss") or details["nvd"].get("references") or details["nvd"].get("affected_products")):
+        with db() as c:
+            c.execute("UPDATE vulnerability_items SET details_json=? WHERE cve=?",
+                      (json.dumps({k:v for k,v in details.items() if k!="workaround_guidance"},ensure_ascii=False),normalized))
+    return {"item":{k:v for k,v in item.items() if k!="details_json"},"details":details}
 
 
 @app.get("/api/threat-intel/vulnerabilities")

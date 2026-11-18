@@ -435,10 +435,68 @@ function renderVulnerabilities(data) {
     const epss = v.epss == null ? "—" : `${(Number(v.epss)*100).toFixed(2)}%`;
     const kev = Number(v.kev) ? `<span class="vuln-kev">Sí · ${esc(v.ransomware_use || "Unknown")}</span>` : "No";
     const date = v.published ? new Date(v.published).toLocaleDateString("es-CL") : (v.kev_date || "—");
-    return `<tr><td><a href="${esc(v.source_url)}" target="_blank" rel="noopener">${esc(v.cve)}</a></td><td><b>${esc(v.title || v.cve)}</b><small>${esc([v.vendor,v.product].filter(Boolean).join(" · "))}</small><p>${esc(v.description || "")}</p></td><td>${cvss}</td><td>${epss}</td><td>${kev}</td><td>${esc(date)}</td><td><a href="${esc(v.source_url)}" target="_blank" rel="noopener">NVD ↗</a></td></tr>`;
+    return `<tr class="vuln-click-row" data-cve="${esc(v.cve)}" tabindex="0" role="button" aria-label="Abrir detalle de ${esc(v.cve)}"><td><button type="button" class="vuln-open" data-cve="${esc(v.cve)}">${esc(v.cve)}</button></td><td><b>${esc(v.title || v.cve)}</b><small>${esc([v.vendor,v.product].filter(Boolean).join(" · "))}</small><p>${esc(v.description || "")}</p><span class="vuln-row-hint">Ver ficha técnica y mitigaciones ↗</span></td><td>${cvss}</td><td>${epss}</td><td>${kev}</td><td>${esc(date)}</td><td><a href="${esc(v.source_url)}" target="_blank" rel="noopener" data-no-vuln-detail>NVD ↗</a></td></tr>`;
   }).join("");
   $("vulnRows").innerHTML = rows || '<tr><td colspan="7">No hay registros para este filtro. Actualiza las fuentes públicas.</td></tr>';
 }
+function detailCell(value) {
+  if (value === null || value === undefined || value === "") return "No informado";
+  return esc(String(value).replaceAll("_", " "));
+}
+function renderVulnerabilityDetail(payload) {
+  const v=payload.item||{}, d=payload.details||{}, nvd=d.nvd||{}, cisa=d.cisa||{}, cvss=nvd.cvss||{};
+  const pct=x=>x==null?"No disponible":`${(Number(x)*100).toFixed(2)}%`;
+  const kv=(label,value)=>`<tr><th>${esc(label)}</th><td>${detailCell(value)}</td></tr>`;
+  const affected=(nvd.affected_products||[]).map(x=>{
+    const limits=[
+      x.version_start_including&&`desde ${x.version_start_including} (incl.)`,
+      x.version_start_excluding&&`desde ${x.version_start_excluding} (excl.)`,
+      x.version_end_including&&`hasta ${x.version_end_including} (incl.)`,
+      x.version_end_excluding&&`hasta ${x.version_end_excluding} (excl.)`
+    ].filter(Boolean).join(" · ");
+    return `<tr><td><code>${esc(x.criteria||"Producto no identificado")}</code></td><td>${esc(limits||"Rango según CPE")}</td><td>${x.vulnerable?"Afectado":"Contexto"}</td></tr>`;
+  }).join("");
+  const weaknesses=(nvd.weaknesses||[]).concat(Array.isArray(cisa.cwes)?cisa.cwes:(cisa.cwes?[cisa.cwes]:[])).filter((x,i,a)=>a.indexOf(x)===i);
+  const references=(nvd.references||[]).map(r=>`<li><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.source||r.url)}</a>${r.tags?.length?`<small>${esc(r.tags.join(" · "))}</small>`:""}</li>`).join("");
+  const guidance=(d.workaround_guidance||[]).map(g=>{
+    const extra=g.steps?.length?`<ol>${g.steps.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>`:"";
+    const links=g.references?.length?`<ul>${g.references.map(r=>`<li><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.source||r.url)}</a></li>`).join("")}</ul>`:"";
+    return `<article class="vuln-guidance ${esc(g.kind)}"><h4>${esc(g.title)}</h4><p>${esc(g.text||"")}</p>${extra}${links}${g.source?`<small>Fuente: ${esc(g.source)}</small>`:""}</article>`;
+  }).join("");
+  $("vulnDetailTitle").textContent=`${v.cve||"Detalle de vulnerabilidad"} · ${v.title||""}`;
+  $("vulnDetailSubtitle").textContent=[v.vendor,v.product].filter(Boolean).join(" · ")||"Ficha técnica de fuentes públicas";
+  const kevBadge=Number(v.kev)?'<span class="vuln-tag danger">Incluida en CISA KEV</span>':'<span class="vuln-tag neutral">No figura en CISA KEV</span>';
+  $("vulnDetailBody").innerHTML=`
+    <div class="vuln-detail-top"><div><div class="vuln-tags"><span class="vuln-tag severity">${esc(v.severity||"Severidad no informada")}${v.cvss!=null?` · CVSS ${Number(v.cvss).toFixed(1)}`:""}</span>${kevBadge}</div><p>${esc(v.description||cisa.short_description||"La fuente no publicó una descripción.")}</p><div class="vuln-detail-date">Publicación: ${esc(v.published?new Date(v.published).toLocaleString("es-CL"):"No informada")} · Modificación: ${esc(v.modified?new Date(v.modified).toLocaleString("es-CL"):"No informada")}</div></div><a class="portal-btn" href="${esc(v.source_url||`https://nvd.nist.gov/vuln/detail/${encodeURIComponent(v.cve||"")}`)}" target="_blank" rel="noopener noreferrer">Abrir ficha NVD ↗</a></div>
+    <div class="vuln-detail-kpis">
+      <div><small>CVSS · Severidad técnica</small><b>${v.cvss==null?"—":Number(v.cvss).toFixed(1)}</b><span>${esc(v.severity||"Sin puntuación")}</span></div>
+      <div><small>EPSS · Probabilidad 30 días</small><b>${pct(v.epss)}</b><span>Percentil ${pct(v.epss_percentile)}</span></div>
+      <div><small>Explotación conocida</small><b>${Number(v.kev)?"Sí · KEV":"No registrada"}</b><span>Ransomware: ${esc(v.ransomware_use||"No informado")}</span></div>
+    </div>
+    ${d.lookup_note?`<div class="vuln-detail-lookup-note">${esc(d.lookup_note)}</div>`:""}
+    <section class="vuln-detail-section"><h3>Indicadores técnicos</h3><div class="vuln-detail-table-wrap"><table class="vuln-detail-table"><tbody>
+      ${kv("Versión CVSS",cvss.version)}${kv("Vector CVSS",cvss.vector)}${kv("Vector de ataque",cvss.attack_vector)}${kv("Complejidad",cvss.attack_complexity)}${kv("Privilegios requeridos",cvss.privileges_required)}${kv("Interacción del usuario",cvss.user_interaction)}${kv("Alcance",cvss.scope)}${kv("Impacto confidencialidad",cvss.confidentiality_impact)}${kv("Impacto integridad",cvss.integrity_impact)}${kv("Impacto disponibilidad",cvss.availability_impact)}${kv("Debilidades CWE",weaknesses.join(", "))}${kv("Estado NVD",nvd.cve_status)}${kv("Fecha alta KEV",cisa.date_added||v.kev_date)}${kv("Fecha límite CISA",cisa.due_date)}${kv("Uso en campañas ransomware",cisa.known_ransomware_campaign_use||v.ransomware_use)}
+    </tbody></table></div></section>
+    <section class="vuln-detail-section"><h3>Productos y versiones afectadas</h3>${affected?`<div class="vuln-detail-table-wrap"><table class="vuln-detail-table"><thead><tr><th>CPE / Producto</th><th>Rango de versión</th><th>Tipo</th></tr></thead><tbody>${affected}</tbody></table></div>`:'<p class="muted">NVD no entregó configuraciones CPE para esta CVE. Revisa el aviso del fabricante para confirmar las versiones afectadas.</p>'}</section>
+    ${cisa.required_action||cisa.notes?`<section class="vuln-detail-section"><h3>Información CISA KEV</h3>${cisa.required_action?`<div class="vuln-official-action"><b>Acción requerida</b><p>${esc(cisa.required_action)}</p></div>`:""}${cisa.notes?`<p>${esc(cisa.notes)}</p>`:""}</section>`:""}
+    <section class="vuln-detail-section"><h3>Mitigación y posibles workaround</h3>${guidance||'<p class="muted">No hay recomendaciones disponibles en caché. Actualiza las fuentes y revisa las referencias oficiales.</p>'}</section>
+    <section class="vuln-detail-section"><h3>Referencias y advisories</h3><ul class="vuln-reference-list">${references||"<li>No hay referencias adicionales publicadas por NVD.</li>"}</ul></section>
+    <div class="vuln-detail-disclaimer">La ficha resume información pública de NVD, CISA KEV y FIRST EPSS. EPSS estima probabilidad, no confirma explotación. Las medidas orientativas no sustituyen las instrucciones del fabricante ni una validación del entorno.</div>`;
+}
+async function openVulnerabilityDetail(cve){
+  $("vulnDetailDialog").showModal();
+  $("vulnDetailTitle").textContent="Consultando ficha técnica…";
+  $("vulnDetailSubtitle").textContent=cve;
+  $("vulnDetailBody").innerHTML='<div class="loading">Recuperando indicadores NVD, CISA KEV y EPSS…</div>';
+  try{
+    const response=await fetch(`/api/threat-intel/vulnerabilities/${encodeURIComponent(cve)}`,{cache:"no-store"});
+    const payload=await response.json();
+    if(!response.ok)throw new Error(payload.detail||`HTTP ${response.status}`);
+    renderVulnerabilityDetail(payload);
+  }catch(e){$("vulnDetailBody").innerHTML=`<div class="vuln-detail-error">No se pudo recuperar la ficha: ${esc(e.message)}. Actualiza las fuentes públicas e inténtalo otra vez.</div>`;}
+}
+$("closeVulnDetail").addEventListener("click",()=>$("vulnDetailDialog").close());
+$("vulnDetailDialog").addEventListener("click",event=>{if(event.target===$("vulnDetailDialog"))$("vulnDetailDialog").close();});
 async function loadVulnerabilities() {
   const period = $("vulnPeriod").value;
   const search = $("vulnSearch").value.trim();
@@ -471,6 +529,18 @@ $("refreshVulns").addEventListener("click", async () => {
 $("vulnPeriod").addEventListener("change", loadVulnerabilities);
 let vulnSearchTimer;
 $("vulnSearch").addEventListener("input", () => { clearTimeout(vulnSearchTimer); vulnSearchTimer = setTimeout(loadVulnerabilities, 250); });
+document.addEventListener("click",event=>{
+  const button=event.target.closest(".vuln-open");
+  const row=event.target.closest(".vuln-click-row");
+  if(event.target.closest("[data-no-vuln-detail]"))return;
+  const cve=button?.dataset.cve||row?.dataset.cve;
+  if(cve)openVulnerabilityDetail(cve);
+});
+document.addEventListener("keydown",event=>{
+  if((event.key==="Enter"||event.key===" ")&&event.target.classList?.contains("vuln-click-row")){
+    event.preventDefault();openVulnerabilityDetail(event.target.dataset.cve);
+  }
+});
 loadVulnerabilities();
 
 // v1.8.1: módulo de inicio y navegación por tarjetas

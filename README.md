@@ -66,3 +66,12 @@ python -m pytest -q
 - Se corrigió una referencia antigua a la variable `kr` que había quedado en la carga principal.
 - Se actualizó el identificador de versión de JS/CSS para invalidar la caché del navegador.
 - Se agregaron pruebas de regresión para verificar que las cuatro tarjetas tengan su vista correspondiente, que los IDs usados por JavaScript existan y que los elementos eliminados no vuelvan a enlazarse.
+
+
+## Ficha detallada de vulnerabilidades — v1.8.2
+- Cada fila CVE abre una ficha dentro de Vulnerability Intelligence.
+- Incluye descripción, CVSS y vector, EPSS y percentil, estado CISA KEV, uso conocido en ransomware, fechas, CWE, configuraciones CPE y referencias.
+- Muestra acciones y fechas de CISA KEV, además de enlaces de advisories/patches del fabricante cuando NVD los clasifica así.
+- En registros KEV antiguos, realiza una consulta puntual a NVD al abrir la ficha si la información técnica no está en caché; EPSS también se consulta individualmente si falta.
+- Las medidas compensatorias generales están marcadas como orientativas; no se muestran como workaround específico confirmado.
+- La columna `details_json` se incorpora mediante migración SQLite, sin borrar filas existentes.

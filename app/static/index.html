@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.1.1-navfix"></head>
+<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.2-vuln-detail"></head>
 <body>
 <header class="topbar"><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · THREAT INTELLIGENCE</small></div></div>
 <div class="top-right"><span class="live-dot"></span><span>CONSULTA A DEMANDA</span><span id="clock">--:--:--</span></div></header>
@@ -163,11 +163,17 @@
 <section class="section-head history-head"><div><h2>Historial de cambios de estado</h2><p>Transiciones detectadas entre consultas manuales.</p></div></section>
 <section class="table-wrap"><table><thead><tr><th>FECHA (UTC)</th><th>PLATAFORMA</th><th>CAMBIO</th><th>DETALLE</th></tr></thead><tbody id="events"><tr><td colspan="4">Sin cambios de estado registrados.</td></tr></tbody></table></section>
 </div>
-<footer><span>SOC SERVICE STATUS MONITOR · v1.8.1.1</span><span>Consulta de fuentes públicas · Inteligencia de amenazas</span></footer>
-</main><dialog id="detailDialog" class="detail-dialog" aria-labelledby="detailTitle">
+<footer><span>SOC SERVICE STATUS MONITOR · v1.8.2</span><span>Consulta de fuentes públicas · Inteligencia de amenazas</span></footer>
+</main><dialog id="vulnDetailDialog" class="vuln-detail-dialog" aria-labelledby="vulnDetailTitle">
+ <div class="vuln-detail-shell">
+  <div class="vuln-detail-header"><div><span class="eyebrow">VULNERABILITY INTELLIGENCE · FICHA TÉCNICA</span><h2 id="vulnDetailTitle">Vulnerabilidad</h2><p id="vulnDetailSubtitle"></p></div><button type="button" id="closeVulnDetail" class="close-detail" aria-label="Cerrar detalle">×</button></div>
+  <div id="vulnDetailBody" class="vuln-detail-body"><div class="loading">Selecciona una CVE para consultar su ficha.</div></div>
+ </div>
+</dialog>
+<dialog id="detailDialog" class="detail-dialog" aria-labelledby="detailTitle">
  <div class="detail-shell">
   <div class="detail-header"><div><span class="eyebrow">DETALLE DE PLATAFORMA</span><h2 id="detailTitle">Plataforma</h2><p id="detailSubtitle"></p></div><button id="closeDetail" class="close-detail" aria-label="Cerrar detalle">×</button></div>
   <div id="detailBody" class="detail-body"><div class="loading">Consultando información de la fuente…</div></div>
  </div>
 </dialog>
-<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.1.1-navfix"></script></body></html>
+<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.2-vuln-detail"></script></body></html>
