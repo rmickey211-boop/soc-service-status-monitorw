@@ -418,3 +418,55 @@ document.querySelectorAll(".rw-period-btn").forEach(button => {
 $("rwSearch").addEventListener("input", renderRansomwareRows);
 $("rwGroupFilter").addEventListener("change", renderRansomwareRows);
 loadRansomware();
+
+
+// Vulnerability intelligence: CISA KEV, NVD and FIRST EPSS
+let vulnRowsCache = [];
+function renderVulnerabilities(data) {
+  vulnRowsCache = data.items || [];
+  $("vulnCount").textContent = data.count || 0;
+  $("vulnKevCount").textContent = data.kev_count || "—";
+  $("vulnNvdCount").textContent = data.nvd_count || "—";
+  $("vulnLastRefresh").textContent = data.last_refresh ? new Date(data.last_refresh).toLocaleString("es-CL") : "Pendiente";
+  const rows = vulnRowsCache.map(v => {
+    const cvss = v.cvss == null ? "—" : `${Number(v.cvss).toFixed(1)} · ${esc(v.severity || "")}`;
+    const epss = v.epss == null ? "—" : `${(Number(v.epss)*100).toFixed(2)}%`;
+    const kev = Number(v.kev) ? `<span class="vuln-kev">Sí · ${esc(v.ransomware_use || "Unknown")}</span>` : "No";
+    const date = v.published ? new Date(v.published).toLocaleDateString("es-CL") : (v.kev_date || "—");
+    return `<tr><td><a href="${esc(v.source_url)}" target="_blank" rel="noopener">${esc(v.cve)}</a></td><td><b>${esc(v.title || v.cve)}</b><small>${esc([v.vendor,v.product].filter(Boolean).join(" · "))}</small><p>${esc(v.description || "")}</p></td><td>${cvss}</td><td>${epss}</td><td>${kev}</td><td>${esc(date)}</td><td><a href="${esc(v.source_url)}" target="_blank" rel="noopener">NVD ↗</a></td></tr>`;
+  }).join("");
+  $("vulnRows").innerHTML = rows || '<tr><td colspan="7">No hay registros para este filtro. Actualiza las fuentes públicas.</td></tr>';
+}
+async function loadVulnerabilities() {
+  const period = $("vulnPeriod").value;
+  const search = $("vulnSearch").value.trim();
+  try {
+    const response = await fetch(`/api/threat-intel/vulnerabilities?period=${encodeURIComponent(period)}&search=${encodeURIComponent(search)}`, {cache:"no-store"});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    renderVulnerabilities(data);
+    $("vulnMessage").textContent = data.last_refresh ? "Caché local · Fuentes: CISA KEV, NVD y enriquecimiento EPSS cuando está disponible." : "Pendiente de primera actualización.";
+  } catch (e) {
+    $("vulnMessage").textContent = "No se pudo cargar la caché: " + e.message;
+  }
+}
+$("refreshVulns").addEventListener("click", async () => {
+  const button = $("refreshVulns");
+  button.disabled = true; button.textContent = "Consultando CISA, NVD y EPSS…";
+  $("vulnMessage").textContent = "Actualizando fuentes públicas. Puede tardar unos segundos…";
+  try {
+    const response = await fetch("/api/threat-intel/vulnerabilities/refresh", {method:"POST",cache:"no-store",headers:{"Accept":"application/json"}});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
+    await loadVulnerabilities();
+    $("vulnMessage").textContent = `Actualizado: ${result.kev_count} registros CISA KEV · ${result.nvd_count} CVE NVD · ${result.epss_enriched} enriquecidas con EPSS.`;
+    toast("Inteligencia de vulnerabilidades actualizada.");
+  } catch(e) {
+    $("vulnMessage").textContent = "Error al actualizar: " + e.message + ". Se conserva la caché anterior.";
+    toast("No se pudo actualizar vulnerabilidades: " + e.message);
+  } finally { button.disabled = false; button.textContent = "↻ Actualizar vulnerabilidades"; }
+});
+$("vulnPeriod").addEventListener("change", loadVulnerabilities);
+let vulnSearchTimer;
+$("vulnSearch").addEventListener("input", () => { clearTimeout(vulnSearchTimer); vulnSearchTimer = setTimeout(loadVulnerabilities, 250); });
+loadVulnerabilities();

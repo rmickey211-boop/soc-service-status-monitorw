@@ -261,3 +261,18 @@ RansomLook publica descripciones de contexto que pueden incluir país o gentilic
 ### Atribución
 
 Fuente de los registros: [RansomLook](https://www.ransomlook.io/recent). La documentación de RansomLook indica licencia de API CC BY 4.0. El mapa base utiliza [OpenStreetMap](https://www.openstreetmap.org/copyright), cuyos colaboradores reciben atribución en la propia vista.
+
+
+## v1.8.0 Parte 3 — Vulnerability Intelligence
+
+Añade una sección de inteligencia pública de vulnerabilidades con tres fuentes:
+- **CISA KEV**: catálogo oficial de vulnerabilidades con explotación conocida.
+- **NVD CVE API 2.0**: vulnerabilidades publicadas en los últimos 30 días y metadatos CVSS cuando están disponibles.
+- **FIRST EPSS**: enriquecimiento opcional de un subconjunto priorizado de CVE con probabilidad estimada de explotación en los próximos 30 días.
+
+La actualización es manual. Los resultados se guardan en SQLite local y se pueden filtrar por 7 días, 30 días o todos los registros almacenados, además de buscar por CVE, proveedor o producto. EPSS es una estimación, no evidencia de explotación; KEV sí representa inclusión en el catálogo de explotación conocida. No se correlaciona con inventarios internos.
+
+Fuentes oficiales:
+- https://www.cisa.gov/known-exploited-vulnerabilities-catalog
+- https://nvd.nist.gov/developers/vulnerabilities
+- https://www.first.org/epss/

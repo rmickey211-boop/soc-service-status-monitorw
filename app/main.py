@@ -61,6 +61,13 @@ def init_db():
             country_basis TEXT, cached_at TEXT NOT NULL)""")
         c.execute("""CREATE TABLE IF NOT EXISTS ransomware_meta (
             key TEXT PRIMARY KEY, value TEXT)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS vulnerability_items (
+            cve TEXT PRIMARY KEY, title TEXT, vendor TEXT, product TEXT, description TEXT,
+            published TEXT, modified TEXT, cvss REAL, severity TEXT, kev INTEGER,
+            kev_date TEXT, ransomware_use TEXT, epss REAL, epss_percentile REAL,
+            source_url TEXT, cached_at TEXT)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS vulnerability_meta (
+            key TEXT PRIMARY KEY, value TEXT)""")
         cols = {r[1] for r in c.execute("PRAGMA table_info(services)").fetchall()}
         for name, typ in [("category", "TEXT"), ("portal_label", "TEXT"), ("source_status", "TEXT"), ("error", "TEXT")]:
             if name not in cols:
@@ -891,6 +898,129 @@ def get_cached_ransomware(period="7d"):
     }
 
 
+
+# Public vulnerability intelligence: CISA KEV + NVD + FIRST EPSS
+CISA_KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+NVD_API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+EPSS_API_URL = "https://api.first.org/data/v1/epss"
+
+def _vuln_meta(key, value=None):
+    with db() as c:
+        if value is None:
+            row = c.execute("SELECT value FROM vulnerability_meta WHERE key=?", (key,)).fetchone()
+            return row["value"] if row else None
+        c.execute("INSERT INTO vulnerability_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, str(value)))
+    return str(value)
+
+def refresh_vulnerability_intel():
+    # CISA KEV is the authoritative list of vulnerabilities known to be exploited.
+    kev_resp = requests.get(CISA_KEV_URL, timeout=TIMEOUT, headers=HEADERS)
+    kev_resp.raise_for_status()
+    kev_payload = kev_resp.json()
+    kev_items = kev_payload.get("vulnerabilities", [])
+    kev_by_cve = {x.get("cveID"): x for x in kev_items if x.get("cveID")}
+    # NVD provides CVE metadata published/modified in the last 30 days.
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=30)
+    params = {"pubStartDate": start.strftime("%Y-%m-%dT%H:%M:%S.000Z"), "pubEndDate": end.strftime("%Y-%m-%dT%H:%M:%S.000Z"), "resultsPerPage": 2000}
+    nvd_resp = requests.get(NVD_API_URL, params=params, timeout=TIMEOUT, headers=HEADERS)
+    nvd_resp.raise_for_status()
+    nvd_payload = nvd_resp.json()
+    nvd_items = nvd_payload.get("vulnerabilities", [])
+    # Prioritize KEV + recent NVD entries; enrich a bounded batch with current EPSS.
+    records = {}
+    for item in nvd_items:
+        cve = item.get("cve", {})
+        cve_id = cve.get("id")
+        if not cve_id: continue
+        desc = next((x.get("value", "") for x in cve.get("descriptions", []) if x.get("lang") == "en"), "")
+        metrics = cve.get("metrics", {})
+        cvss = None
+        severity = "Sin CVSS"
+        for key in ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+            arr = metrics.get(key) or []
+            if arr:
+                data = arr[0].get("cvssData", {})
+                cvss = data.get("baseScore")
+                severity = data.get("baseSeverity") or arr[0].get("baseSeverity") or severity
+                break
+        records[cve_id] = {
+            "cve": cve_id, "title": cve_id, "vendor": "", "product": "",
+            "description": desc[:1800], "published": cve.get("published", ""),
+            "modified": cve.get("lastModified", ""), "cvss": cvss, "severity": severity,
+            "kev": 0, "kev_date": "", "ransomware_use": "Unknown",
+            "source_url": "https://nvd.nist.gov/vuln/detail/" + cve_id
+        }
+    for cve_id, item in kev_by_cve.items():
+        rec = records.setdefault(cve_id, {
+            "cve": cve_id, "title": item.get("vulnerabilityName", cve_id),
+            "vendor": item.get("vendorProject", ""), "product": item.get("product", ""),
+            "description": item.get("shortDescription", ""), "published": "",
+            "modified": "", "cvss": None, "severity": "Sin CVSS"
+        })
+        rec.update({"kev": 1, "kev_date": item.get("dateAdded", ""),
+                    "ransomware_use": item.get("knownRansomwareCampaignUse", "Unknown"),
+                    "source_url": "https://nvd.nist.gov/vuln/detail/" + cve_id})
+        if not rec.get("title") or rec["title"] == cve_id:
+            rec["title"] = item.get("vulnerabilityName", cve_id)
+        if not rec.get("description"):
+            rec["description"] = item.get("shortDescription", "")
+        rec["vendor"] = item.get("vendorProject", rec.get("vendor", ""))
+        rec["product"] = item.get("product", rec.get("product", ""))
+    # EPSS is a probability estimate, not evidence of exploitation. Query the most relevant 100 CVEs.
+    ranked = sorted(records.values(), key=lambda x: (x.get("kev", 0), x.get("published", "")), reverse=True)[:100]
+    epss_map = {}
+    for offset in range(0, len(ranked), 40):
+        ids = [x["cve"] for x in ranked[offset:offset+40]]
+        if not ids: continue
+        try:
+            er = requests.get(EPSS_API_URL, params={"cve": ",".join(ids)}, timeout=TIMEOUT, headers=HEADERS)
+            er.raise_for_status()
+            for row in er.json().get("data", []):
+                epss_map[row.get("cve")] = (float(row["epss"]), float(row["percentile"]))
+        except Exception:
+            # EPSS is an enrichment; keep KEV/NVD data if its API is temporarily unavailable.
+            pass
+    stamp = now()
+    with db() as c:
+        for rec in records.values():
+            ep = epss_map.get(rec["cve"], (None, None))
+            c.execute("""INSERT INTO vulnerability_items
+              (cve,title,vendor,product,description,published,modified,cvss,severity,kev,kev_date,ransomware_use,epss,epss_percentile,source_url,cached_at)
+              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+              ON CONFLICT(cve) DO UPDATE SET title=excluded.title,vendor=excluded.vendor,product=excluded.product,
+              description=excluded.description,published=excluded.published,modified=excluded.modified,cvss=excluded.cvss,
+              severity=excluded.severity,kev=excluded.kev,kev_date=excluded.kev_date,ransomware_use=excluded.ransomware_use,
+              epss=COALESCE(excluded.epss,vulnerability_items.epss),epss_percentile=COALESCE(excluded.epss_percentile,vulnerability_items.epss_percentile),
+              source_url=excluded.source_url,cached_at=excluded.cached_at""",
+              (rec["cve"],rec.get("title"),rec.get("vendor"),rec.get("product"),rec.get("description"),
+               rec.get("published"),rec.get("modified"),rec.get("cvss"),rec.get("severity"),rec.get("kev",0),
+               rec.get("kev_date"),rec.get("ransomware_use"),ep[0],ep[1],rec.get("source_url"),stamp))
+        c.execute("DELETE FROM vulnerability_items WHERE cached_at < ?", ((datetime.now(timezone.utc)-timedelta(days=45)).isoformat(),))
+    _vuln_meta("last_refresh", stamp)
+    _vuln_meta("kev_count", len(kev_items))
+    _vuln_meta("nvd_count", len(nvd_items))
+    return {"ok": True, "kev_count": len(kev_items), "nvd_count": len(nvd_items),
+            "epss_enriched": len(epss_map), "last_refresh": stamp,
+            "sources": [{"name":"CISA KEV","ok":True},{"name":"NVD CVE API","ok":True},
+                        {"name":"FIRST EPSS","ok":bool(epss_map),"note":"EPSS es enriquecimiento opcional; puede no estar disponible temporalmente." if not epss_map else "Puntajes EPSS actuales."}]}
+
+def get_vulnerability_intel(period="30d", search=""):
+    if period not in {"7d","30d","all"}: raise HTTPException(400, "Período inválido.")
+    cutoff = (datetime.now(timezone.utc)-timedelta(days=7 if period=="7d" else 30)).isoformat() if period!="all" else None
+    query = "SELECT * FROM vulnerability_items"
+    params = []
+    if cutoff:
+        query += " WHERE (published >= ? OR kev=1)"
+        params.append(cutoff)
+    if search:
+        query += (" AND" if params else " WHERE") + " (cve LIKE ? OR title LIKE ? OR vendor LIKE ? OR product LIKE ?)"
+        params += [f"%{search}%"]*4
+    query += " ORDER BY kev DESC, COALESCE(epss,0) DESC, COALESCE(cvss,0) DESC LIMIT 500"
+    with db() as c: rows = [dict(r) for r in c.execute(query, params).fetchall()]
+    return {"items": rows, "count": len(rows), "last_refresh": _vuln_meta("last_refresh"),
+            "kev_count": _vuln_meta("kev_count"), "nvd_count": _vuln_meta("nvd_count")}
+
 def _clean_html(value):
     value = re.sub(r"<[^>]+>", " ", str(value or ""))
     return re.sub(r"\s+", " ", value).strip()
@@ -1246,6 +1376,17 @@ def api_refresh_ransomware_tracker():
     except Exception as exc:
         raise HTTPException(502, f"No se pudo actualizar el tracker de ransomware: {str(exc)[:220]}")
 
+
+@app.get("/api/threat-intel/vulnerabilities")
+def api_vulnerability_intel(period: str = "30d", search: str = ""):
+    return get_vulnerability_intel(period, search[:100])
+
+@app.post("/api/threat-intel/vulnerabilities/refresh")
+def api_refresh_vulnerability_intel():
+    try:
+        return refresh_vulnerability_intel()
+    except Exception as exc:
+        raise HTTPException(502, f"No se pudo actualizar inteligencia de vulnerabilidades: {str(exc)[:220]}")
 
 @app.get("/api/config")
 def get_config():

@@ -166,3 +166,25 @@
 @media(max-width:700px){.ransomware-module{padding:14px}.rw-heading{flex-direction:column}.rw-toolbar{align-items:flex-start;flex-direction:column}.rw-filters{flex-direction:column}.rw-filters select{width:100%}.rw-side-panel{grid-template-columns:1fr}.rw-top-groups-heading{margin-top:10px;padding-top:10px;border-top:1px solid #2c3a50}#rwMap{height:280px}}
 
 .rw-map-fallback{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:#aabbd0;font-size:11px;line-height:1.5}
+
+/* Vulnerability intelligence */
+.vuln-panel{background:var(--panel,#101923);border:1px solid var(--line,#263545);border-radius:14px;padding:18px;margin-bottom:28px}
+.vuln-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.vuln-kpis>div{background:rgba(255,255,255,.035);border:1px solid var(--line,#263545);border-radius:10px;padding:12px;min-width:0}
+.vuln-kpis span{display:block;color:var(--muted,#91a1b2);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.vuln-kpis b{display:block;font-size:20px;margin-top:5px;overflow-wrap:anywhere}
+.vuln-tools{display:flex;gap:10px;margin:12px 0;flex-wrap:wrap}
+.vuln-tools input{flex:1;min-width:220px}
+.vuln-tools input,.vuln-tools select{background:#0b141d;color:inherit;border:1px solid var(--line,#263545);border-radius:8px;padding:10px}
+.vuln-table-wrap{overflow-x:auto}
+.vuln-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
+.vuln-table th,.vuln-table td{padding:10px 8px;border-bottom:1px solid var(--line,#263545);text-align:left;vertical-align:top;overflow-wrap:anywhere}
+.vuln-table th{color:var(--muted,#91a1b2);font-size:10px;letter-spacing:.05em}
+.vuln-table th:nth-child(1){width:135px}.vuln-table th:nth-child(2){width:32%}.vuln-table th:nth-child(3),.vuln-table th:nth-child(4){width:75px}.vuln-table th:nth-child(5){width:115px}.vuln-table th:nth-child(6){width:125px}.vuln-table th:nth-child(7){width:65px}
+.vuln-table td small{display:block;color:var(--muted,#91a1b2);margin:4px 0}
+.vuln-table td p{margin:5px 0 0;color:var(--muted,#91a1b2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.vuln-table a{color:#7cc7ff;text-decoration:none}
+.vuln-kev{display:inline-block;padding:3px 7px;border-radius:6px;background:rgba(239,85,85,.14);color:#ff9c9c;font-weight:700}
+.vuln-message,.vuln-disclaimer,.vuln-attribution{font-size:12px;color:var(--muted,#91a1b2);margin-top:12px;line-height:1.5}
+.vuln-attribution a{color:#7cc7ff}
+@media(max-width:760px){.vuln-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.vuln-table{min-width:850px}}

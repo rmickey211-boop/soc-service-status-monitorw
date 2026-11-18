@@ -123,6 +123,25 @@
  <div class="rw-attribution">Fuente: <a href="https://www.ransomlook.io/recent" target="_blank" rel="noopener noreferrer">RansomLook</a> · API pública documentada · Atribución CC BY 4.0 · La disponibilidad y el contenido dependen de la fuente externa.</div>
 </section>
 
+<section class="section-head"><div><h2>Vulnerability Intelligence</h2><p>Priorización pública de CVE mediante explotación conocida, severidad técnica y probabilidad EPSS.</p></div>
+ <div class="intel-actions"><button id="refreshVulns" class="refresh">↻ Actualizar vulnerabilidades</button></div></section>
+<section class="vuln-panel">
+ <div class="vuln-kpis">
+  <div><span>Registros visibles</span><b id="vulnCount">0</b></div>
+  <div><span>CISA KEV</span><b id="vulnKevCount">—</b></div>
+  <div><span>NVD últimos 30 días</span><b id="vulnNvdCount">—</b></div>
+  <div><span>Última actualización</span><b id="vulnLastRefresh">Pendiente</b></div>
+ </div>
+ <div class="vuln-tools">
+  <input id="vulnSearch" type="search" placeholder="Buscar CVE, proveedor o producto…">
+  <select id="vulnPeriod"><option value="30d">Últimos 30 días + KEV</option><option value="7d">Últimos 7 días + KEV</option><option value="all">Todos los almacenados</option></select>
+ </div>
+ <div class="vuln-table-wrap"><table class="vuln-table"><thead><tr><th>CVE</th><th>VULNERABILIDAD</th><th>CVSS</th><th>EPSS</th><th>CISA KEV</th><th>FECHA PUBLICACIÓN / ALTA KEV</th><th>FUENTE</th></tr></thead>
+ <tbody id="vulnRows"><tr><td colspan="7">Aún no hay datos. Pulsa «Actualizar vulnerabilidades».</td></tr></tbody></table></div>
+ <div id="vulnMessage" class="vuln-message" role="status">Fuentes pendientes de primera consulta.</div>
+ <div class="vuln-disclaimer">Interpretación: CISA KEV identifica vulnerabilidades con explotación conocida; CVSS expresa severidad técnica; EPSS estima la probabilidad de explotación en los próximos 30 días y no confirma explotación. La ausencia de una CVE en KEV no demuestra que no esté siendo explotada. Los resultados son inteligencia pública y no se correlacionan con activos internos ni indican exposición de la organización.</div>
+ <div class="vuln-attribution">Fuentes: <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener">CISA KEV</a> · <a href="https://nvd.nist.gov/developers/vulnerabilities" target="_blank" rel="noopener">NVD</a> · <a href="https://www.first.org/epss/" target="_blank" rel="noopener">FIRST EPSS</a></div>
+</section>
 <section class="section-head history-head"><div><h2>Checklist MDR</h2><p>Registra las verificaciones realizadas en inicio, intermedio y término de turno.</p></div></section>
 <section class="checklist-panel">
  <div class="checklist-grid">
@@ -140,11 +159,11 @@
 <section class="table-wrap"><table><thead><tr><th>FECHA / HORA</th><th>ANALISTA</th><th>TURNO</th><th>MOMENTO</th><th>PLATAFORMAS REVISADAS</th><th>OBSERVACIONES</th></tr></thead><tbody id="checkHistory"><tr><td colspan="6">Sin revisiones registradas.</td></tr></tbody></table></section>
 <section class="section-head history-head"><div><h2>Historial de cambios de estado</h2><p>Transiciones detectadas entre consultas manuales.</p></div></section>
 <section class="table-wrap"><table><thead><tr><th>FECHA (UTC)</th><th>PLATAFORMA</th><th>CAMBIO</th><th>DETALLE</th></tr></thead><tbody id="events"><tr><td colspan="4">Sin cambios de estado registrados.</td></tr></tbody></table></section>
-<footer><span>SOC SERVICE STATUS MONITOR · FASE 1.8.0 · PARTE 2</span><span>Consulta manual · Fuentes públicas · Checklist MDR piloto</span></footer>
+<footer><span>SOC SERVICE STATUS MONITOR · FASE 1.8.0 · PARTE 3</span><span>Consulta manual · Fuentes públicas · Checklist MDR piloto</span></footer>
 </main><dialog id="detailDialog" class="detail-dialog" aria-labelledby="detailTitle">
  <div class="detail-shell">
   <div class="detail-header"><div><span class="eyebrow">DETALLE DE PLATAFORMA</span><h2 id="detailTitle">Plataforma</h2><p id="detailSubtitle"></p></div><button id="closeDetail" class="close-detail" aria-label="Cerrar detalle">×</button></div>
   <div id="detailBody" class="detail-body"><div class="loading">Consultando información de la fuente…</div></div>
  </div>
 </dialog>
-<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.0-part2"></script></body></html>
+<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.0-part3"></script></body></html>
