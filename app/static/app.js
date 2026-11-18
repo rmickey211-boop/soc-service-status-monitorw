@@ -30,10 +30,9 @@ function renderDetail(payload){
  const s=payload.service, latest=payload.latest, live=payload.live||{};
  $("detailTitle").textContent=s.name;
  $("detailSubtitle").textContent=`${s.category} · ${s.type==="manual"?"Revisión manual":"Fuente automática"} · Consultado ${detailDate(payload.retrieved_at)}`;
- const comps=(live.components||[]).map(c=>`<div class="detail-row"><div><b>${esc(c.name)}</b>${c.description?`<small>${esc(c.description)}</small>`:""}</div><span class="pill ${esc(c.status)}">${esc(prettyStatus(c.status))}</span></div>`).join("");
- const incidents=(live.incidents||[]).map(i=>`<article class="detail-incident"><div class="detail-row"><b>${esc(i.name||"Incidente")}</b><span class="pill ${esc(i.impact||i.status||"unknown")}">${esc(prettyStatus(i.impact||i.status||"unknown"))}</span></div><small>Inicio: ${esc(detailDate(i.created_at))} · Actualización: ${esc(detailDate(i.updated_at))}</small>${i.locations?`<p><b>Ubicaciones:</b> ${esc(i.locations)}</p>`:""}${i.body?`<p>${esc(i.body)}</p>`:""}${(i.updates||[]).map(u=>`<div class="detail-update"><b>${esc(u.status||"Actualización")}</b> · ${esc(detailDate(u.created_at||u.display_at))}<p>${esc(u.body||"")}</p></div>`).join("")}</article>`).join("");
- const maint=(live.maintenances||[]).map(m=>`<article class="detail-incident"><b>${esc(m.name)}</b><small>${esc(m.status)} · ${esc(detailDate(m.scheduled_for))} – ${esc(detailDate(m.scheduled_until))}</small>${(m.updates||[]).map(u=>`<p>${esc(u.body)}</p>`).join("")}</article>`).join("");
- const screenshotUrl="https://s.wordpress.com/mshots/v1/"+encodeURIComponent(s.base_url)+"?w=1400&v="+Date.now();
+ const comps=(live.components||[]).slice(0,6).map(c=>`<div class="detail-row"><div><b>${esc(c.name)}</b>${c.description?`<small>${esc(c.description)}</small>`:""}</div><span class="pill ${esc(c.status)}">${esc(prettyStatus(c.status))}</span></div>`).join("");
+ const incidents=(live.incidents||[]).slice(0,3).map(i=>`<article class="detail-incident"><div class="detail-row"><b>${esc(i.name||"Incidente")}</b><span class="pill ${esc(i.impact||i.status||"unknown")}">${esc(prettyStatus(i.impact||i.status||"unknown"))}</span></div><small>Inicio: ${esc(detailDate(i.created_at))} · Actualización: ${esc(detailDate(i.updated_at))}</small>${i.locations?`<p><b>Ubicaciones:</b> ${esc(i.locations)}</p>`:""}${i.body?`<p>${esc((i.body||"").slice(0,420))}</p>`:""}${(i.updates||[]).map(u=>`<div class="detail-update"><b>${esc(u.status||"Actualización")}</b> · ${esc(detailDate(u.created_at||u.display_at))}<p>${esc((u.body||"").slice(0,240))}</p></div>`).join("")}</article>`).join("");
+ const maint=(live.maintenances||[]).slice(0,3).map(m=>`<article class="detail-incident"><b>${esc(m.name)}</b><small>${esc(m.status)} · ${esc(detailDate(m.scheduled_for))} – ${esc(detailDate(m.scheduled_until))}</small>${(m.updates||[]).map(u=>`<p>${esc(u.body)}</p>`).join("")}</article>`).join("");
  $("detailBody").innerHTML=`
   <div class="detail-summary">
    <div><span class="eyebrow">ESTADO PUBLICADO AHORA</span><h3><span class="pill ${esc(live.status||"unknown")}">${esc(prettyStatus(live.status||"unknown"))}</span></h3><p>${esc(live.source_status||"Sin resumen del proveedor")}</p><small>Consulta en vivo: ${esc(detailDate(payload.retrieved_at))}</small></div>
@@ -44,13 +43,7 @@ function renderDetail(payload){
   <section class="detail-section"><h3>Componentes y servicios</h3>${comps||'<p class="muted">La fuente no publica un desglose de componentes para esta integración.</p>'}</section>
   <section class="detail-section"><h3>Incidentes y actualizaciones</h3>${incidents||'<p class="muted">No hay incidentes activos publicados en esta respuesta.</p>'}</section>
   <section class="detail-section"><h3>Mantenimientos</h3>${maint||'<p class="muted">No se informan mantenimientos en esta respuesta.</p>'}</section>
-  <section class="detail-section screenshot-section"><div class="screenshot-heading"><div><h3>Imagen actual del portal oficial</h3><p>Captura generada bajo demanda mediante un servicio externo. Puede tardar unos segundos o no estar disponible si el portal bloquea capturas.</p></div><a class="portal-btn" href="${esc(s.base_url)}" target="_blank" rel="noopener noreferrer">Abrir portal ↗</a></div>
-   <div class="screenshot-frame"><div class="screenshot-loading" id="screenshotLoading">Generando captura del portal…</div><img id="portalScreenshot" src="${esc(screenshotUrl)}" alt="Captura reciente del portal ${esc(s.name)}" loading="lazy" referrerpolicy="no-referrer"><div id="screenshotError" class="screenshot-error" hidden>No fue posible generar la imagen del portal. Utiliza el botón «Abrir portal» para consultar la fuente original.</div></div>
-  </section>
   <div class="detail-footer"><span>Los estados corresponden a fuentes públicas y no necesariamente reflejan el tenant o instancia particular de tu organización.</span><a class="portal-btn" href="${esc(s.base_url)}" target="_blank" rel="noopener noreferrer">${esc(s.portal_label||"Abrir portal oficial")} ↗</a></div>`;
- const img=$("portalScreenshot"), loading=$("screenshotLoading"), err=$("screenshotError");
- img.addEventListener("load",()=>{loading.hidden=true;img.classList.add("loaded")},{once:true});
- img.addEventListener("error",()=>{loading.hidden=true;err.hidden=false;img.hidden=true},{once:true});
 }
 async function openServiceDetail(id){
  detailDialog.showModal();
@@ -77,14 +70,13 @@ $("services").addEventListener("keydown",e=>{
  if((e.key==="Enter"||e.key===" ")&&e.target.matches("[data-service-id]")){e.preventDefault();openServiceDetail(e.target.dataset.serviceId);}
 });
 
-async function load(){try{const [sr,er,cr,kr]=await Promise.all([fetch("/api/status"),fetch("/api/events?limit=100"),fetch("/api/config"),fetch("/api/checklist?limit=50")]);if(!sr.ok||!er.ok||!cr.ok||!kr.ok)throw new Error("API no disponible");const data=await sr.json(),events=await er.json(),config=await cr.json(),runs=await kr.json();cache=data.services;catalog=config.services;
+async function load(){try{const [sr,er,cr]=await Promise.all([fetch("/api/status"),fetch("/api/events?limit=100"),fetch("/api/config")]);if(!sr.ok||!er.ok||!cr.ok||!kr.ok)throw new Error("API no disponible");const data=await sr.json(),events=await er.json(),config=await cr.json();cache=data.services;catalog=config.services;
  for(const k of ["operational","info","degraded","outage","maintenance","manual","unknown"])$(k).textContent=data.counts[k]??0;
  const automatic=cache.filter(s=>s.status!=="manual"&&s.checked_at);const stale=automatic.filter(s=>ageInfo(s).kind==="stale").length;$("stale").textContent=stale;
  const checks=automatic.map(s=>s.checked_at).filter(Boolean).sort();$("updated").textContent=checks.length?date(checks[checks.length-1]):"Aún no consultado";
  $("freshSummary").textContent=`${automatic.length} fuentes con consulta registrada · ${stale} con datos de 60 min o más · ${cache.filter(s=>s.status==="manual").length} requieren revisión manual`;
- const cats=[...new Set(config.services.map(s=>s.category||"General"))].sort(),old=$("category").value;$("category").innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");$("category").value=cats.includes(old)?old:"";render();renderChecklistOptions();
+ const cats=[...new Set(config.services.map(s=>s.category||"General"))].sort(),old=$("category").value;$("category").innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");$("category").value=cats.includes(old)?old:"";render();
  $("events").innerHTML=events.length?events.map(e=>`<tr><td>${date(e.occurred_at)}</td><td><b>${esc(e.service_name)}</b></td><td class="change">${labels[e.old_status]||e.old_status} → ${labels[e.new_status]||e.new_status}</td><td>${esc(e.description)}</td></tr>`).join(""):'<tr><td colspan="4">Sin cambios de estado registrados.</td></tr>';
- $("checkHistory").innerHTML=runs.length?runs.map(r=>{let ids=[];try{ids=JSON.parse(r.checked_services)}catch{};const names=ids.map(id=>catalog.find(s=>s.id===id)?.name||id);const cp={inicio:"Inicio",intermedio:"Intermedio",termino:"Término"}[r.checkpoint]||r.checkpoint;return `<tr><td>${date(r.created_at)}</td><td>${esc(r.analyst)}</td><td>${esc(r.shift_name)}</td><td>${esc(cp)}</td><td>${esc(names.slice(0,6).join(", ")+(names.length>6?` y ${names.length-6} más`:"")||"—")}</td><td>${esc(r.notes||"—")}</td></tr>`}).join(""):'<tr><td colspan="6">Sin revisiones registradas.</td></tr>';
  }catch(e){$("services").innerHTML='<div class="loading">No se pudo conectar con el backend. Intenta nuevamente.</div>';$("freshSummary").textContent="No fue posible cargar los datos."}}
 $("refresh").addEventListener("click",async()=>{$("refresh").disabled=true;$("refresh").textContent="Consultando fuentes…";try{const r=await fetch("/api/poll",{method:"POST"});const result=await r.json();if(!r.ok)throw new Error(result.detail||"Error");await load();toast(`Consulta finalizada: ${result.success} fuentes con respuesta, ${result.errors} sin información y ${result.manual} para revisar manualmente.`)}catch(e){toast("No se pudo completar la consulta: "+e.message)}finally{$("refresh").disabled=false;$("refresh").textContent="↻ Actualizar ahora"}});
 document.querySelectorAll(".metric-filter").forEach(card=>card.addEventListener("click",()=>{
@@ -297,7 +289,20 @@ function renderRansomwareMap(countries) {
     rwMapInstance.setView([20, 0], 2);
   }
   status.textContent = valid.length ? `${valid.length} países representados` : "Sin países identificados";
-  setTimeout(() => rwMapInstance && rwMapInstance.invalidateSize(), 80);
+  const mapNode = $("rwMap");
+  if (!valid.length) {
+    mapNode.classList.add("map-no-data");
+    if (!mapNode.querySelector(".rw-map-empty")) {
+      const note=document.createElement("div");
+      note.className="rw-map-empty";
+      note.textContent="No hay publicaciones con país identificable en el período seleccionado. El mapa se mostrará cuando existan ubicaciones respaldadas por la fuente.";
+      mapNode.appendChild(note);
+    }
+  } else {
+    mapNode.classList.remove("map-no-data");
+    mapNode.querySelector(".rw-map-empty")?.remove();
+  }
+  setTimeout(() => rwMapInstance && rwMapInstance.invalidateSize(), 180);
 }
 
 function renderRansomwareRankedLists(data) {
@@ -470,3 +475,21 @@ $("vulnPeriod").addEventListener("change", loadVulnerabilities);
 let vulnSearchTimer;
 $("vulnSearch").addEventListener("input", () => { clearTimeout(vulnSearchTimer); vulnSearchTimer = setTimeout(loadVulnerabilities, 250); });
 loadVulnerabilities();
+
+// v1.8.1: módulo de inicio y navegación por tarjetas
+const moduleTitles={platforms:"Estado de plataformas",news:"Ataques y amenazas publicados",ransomware:"Ransomware tracker y mapa geográfico",vulns:"Vulnerability Intelligence"};
+function showModule(name){
+  $("moduleHome").hidden=true;
+  $("moduleNav").hidden=false;
+  document.querySelectorAll(".module-view").forEach(v=>v.hidden=true);
+  const view=$("view-"+name); if(view) view.hidden=false;
+  $("activeModuleName").textContent=moduleTitles[name]||"";
+  if(name==="ransomware" && rwMapInstance) setTimeout(()=>rwMapInstance.invalidateSize(),220);
+  if(name==="ransomware" && !rwItems.length) loadRansomware();
+}
+document.querySelectorAll("[data-open-module]").forEach(card=>card.addEventListener("click",()=>showModule(card.dataset.openModule)));
+$("backHome").addEventListener("click",()=>{
+  document.querySelectorAll(".module-view").forEach(v=>v.hidden=true);
+  $("moduleNav").hidden=true; $("moduleHome").hidden=false;
+});
+$("homeRefresh").addEventListener("click",()=>{$("refresh").click()});

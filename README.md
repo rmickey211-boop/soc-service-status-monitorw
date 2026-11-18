@@ -52,3 +52,11 @@ Ejecutar desde la raíz del proyecto:
 ```bash
 python -m pytest -q
 ```
+
+
+## v1.8.1 — mejoras de experiencia de usuario
+- Pantalla inicial con cuatro tarjetas de navegación: estado de plataformas, noticias/amenazas, ransomware y vulnerabilidades.
+- Se eliminó el Checklist MDR y su historial de la interfaz.
+- Se retiró la captura automática de portales oficiales; se conserva el enlace al portal original.
+- Se acotó el detalle de plataformas: hasta 6 componentes, 3 incidentes y 3 mantenimientos, con textos largos limitados.
+- El mapa se redimensiona al abrir el módulo y muestra un mensaje explicativo cuando no hay países identificables. La ausencia de marcadores no se reemplaza con ubicaciones inventadas.

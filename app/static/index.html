@@ -1,11 +1,22 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.0-final"></head>
+<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.1-hub"></head>
 <body>
-<header class="topbar"><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · MDR OPERATIONS</small></div></div>
+<header class="topbar"><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · THREAT INTELLIGENCE</small></div></div>
 <div class="top-right"><span class="live-dot"></span><span>CONSULTA A DEMANDA</span><span id="clock">--:--:--</span></div></header>
 <main>
-<section class="hero"><div><div class="eyebrow">CENTRO DE VISIBILIDAD DE SERVICIOS</div><h1>Estado de plataformas</h1><p>Consulta las fuentes públicas oficiales durante el checklist de inicio, intermedio y término de turno.</p></div>
+<section id="moduleHome" class="module-home">
+ <div class="module-home-heading"><div><div class="eyebrow">SOC OPERATIONS CENTER</div><h1>Centro de inteligencia</h1><p>Selecciona un módulo para consultar su información.</p></div><button type="button" id="homeRefresh" class="refresh">↻ Actualizar estado</button></div>
+ <div class="module-cards">
+  <button class="module-card" data-open-module="platforms"><span class="module-icon">◉</span><span class="module-card-title">Estado de plataformas</span><span class="module-card-desc">Disponibilidad, degradaciones, mantenimientos y cambios de estado.</span><span class="module-card-foot">Abrir módulo ↗</span></button>
+  <button class="module-card" data-open-module="news"><span class="module-icon">⌁</span><span class="module-card-title">Ataques y amenazas publicados</span><span class="module-card-desc">Noticias globales, malware, espionaje, filtraciones y DDoS.</span><span class="module-card-foot">Abrir módulo ↗</span></button>
+  <button class="module-card" data-open-module="ransomware"><span class="module-icon">⌖</span><span class="module-card-title">Ransomware tracker y mapa geográfico</span><span class="module-card-desc">Publicaciones de grupos, países asociados y actividad observada.</span><span class="module-card-foot">Abrir módulo ↗</span></button>
+  <button class="module-card" data-open-module="vulns"><span class="module-icon">⌘</span><span class="module-card-title">Vulnerability Intelligence</span><span class="module-card-desc">CISA KEV, NVD, CVSS y probabilidad EPSS.</span><span class="module-card-foot">Abrir módulo ↗</span></button>
+ </div>
+</section>
+<nav id="moduleNav" class="module-nav" hidden><button type="button" id="backHome" class="back-home">← Todos los módulos</button><span id="activeModuleName"></span></nav>
+
+<div class="module-view" id="view-platforms" hidden>\n<section class="hero"><div><div class="eyebrow">CENTRO DE VISIBILIDAD DE SERVICIOS</div><h1>Estado de plataformas</h1><p>Consulta las fuentes públicas oficiales durante el checklist de inicio, intermedio y término de turno.</p></div>
 <button id="refresh" class="refresh">↻ Actualizar ahora</button></section>
 <section class="metrics">
 <button type="button" class="metric metric-filter" data-filter="operational" aria-pressed="false" title="Filtrar plataformas operativas"><span>OPERATIVOS</span><strong id="operational">—</strong><i class="green"></i></button>
@@ -22,7 +33,7 @@
 <div class="toolbar"><input id="search" type="search" placeholder="Buscar plataforma…" aria-label="Buscar plataforma"><select id="category" aria-label="Filtrar categoría"><option value="">Todas las categorías</option></select><select id="state" aria-label="Filtrar estado"><option value="">Todos los estados</option><option value="operational">Operativo</option><option value="info">Aviso</option><option value="degraded">Degradado</option><option value="outage">Indisponibilidad</option><option value="maintenance">Mantenimiento</option><option value="manual">Consulta manual</option><option value="unknown">Sin información</option></select><select id="freshFilter" aria-label="Filtrar antigüedad"><option value="">Cualquier antigüedad</option><option value="fresh">Actualizados (menos de 60 min)</option><option value="stale">Antiguos (60 min o más)</option><option value="never">Nunca consultados</option></select></div>
 <section id="services" class="services"><div class="loading">Aún no se ha realizado una consulta. Presiona «Actualizar ahora».</div></section>
 
-<section class="intel-module" id="global-threat-intel">
+</div>\n<div class="module-view" id="view-news" hidden>\n<section class="intel-module" id="global-threat-intel">
  <div class="intel-heading">
   <div>
    <div class="eyebrow">SOC GLOBAL THREAT INTELLIGENCE · PARTE 1</div>
@@ -67,7 +78,7 @@
 </section>
 
 
-<section class="ransomware-module" id="ransomware-tracker">
+</div>\n<div class="module-view" id="view-ransomware" hidden>\n<section class="ransomware-module" id="ransomware-tracker">
  <div class="rw-heading">
   <div>
    <div class="eyebrow">SOC GLOBAL THREAT INTELLIGENCE · PARTE 2</div>
@@ -123,7 +134,7 @@
  <div class="rw-attribution">Fuente: <a href="https://www.ransomlook.io/recent" target="_blank" rel="noopener noreferrer">RansomLook</a> · API pública documentada · Atribución CC BY 4.0 · La disponibilidad y el contenido dependen de la fuente externa.</div>
 </section>
 
-<section class="section-head"><div><h2>Vulnerability Intelligence</h2><p>Priorización pública de CVE mediante explotación conocida, severidad técnica y probabilidad EPSS.</p></div>
+</div>\n<div class="module-view" id="view-vulns" hidden>\n<section class="section-head"><div><h2>Vulnerability Intelligence</h2><p>Priorización pública de CVE mediante explotación conocida, severidad técnica y probabilidad EPSS.</p></div>
  <div class="intel-actions"><button id="refreshVulns" class="refresh">↻ Actualizar vulnerabilidades</button></div></section>
 <section class="vuln-panel">
  <div class="vuln-kpis">
@@ -142,28 +153,13 @@
  <div class="vuln-disclaimer">Interpretación: CISA KEV identifica vulnerabilidades con explotación conocida; CVSS expresa severidad técnica; EPSS estima la probabilidad de explotación en los próximos 30 días y no confirma explotación. La ausencia de una CVE en KEV no demuestra que no esté siendo explotada. Los resultados son inteligencia pública y no se correlacionan con activos internos ni indican exposición de la organización.</div>
  <div class="vuln-attribution">Fuentes: <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener">CISA KEV</a> · <a href="https://nvd.nist.gov/developers/vulnerabilities" target="_blank" rel="noopener">NVD</a> · <a href="https://www.first.org/epss/" target="_blank" rel="noopener">FIRST EPSS</a></div>
 </section>
-<section class="section-head history-head"><div><h2>Checklist MDR</h2><p>Registra las verificaciones realizadas en inicio, intermedio y término de turno.</p></div></section>
-<section class="checklist-panel">
- <div class="checklist-grid">
-  <label>Analista<input id="analyst" maxlength="80" placeholder="Nombre o identificador"></label>
-  <label>Turno<select id="shift"><option value="">Seleccionar turno</option><option>Turno día</option><option>Turno tarde</option><option>Turno noche</option><option>Otro</option></select></label>
-  <label>Momento de revisión<select id="checkpoint"><option value="inicio">Inicio de turno</option><option value="intermedio">Intermedio</option><option value="termino">Término de turno</option></select></label>
- </div>
- <div class="checklist-tools"><b>Plataformas verificadas</b><div><button type="button" class="small-btn" id="selectAll">Marcar todas</button><button type="button" class="small-btn" id="clearAll">Limpiar</button></div></div>
- <div id="checklistServices" class="checklist-services"><span class="muted">Cargando plataformas…</span></div>
- <label class="notes-label">Observaciones (opcional)<textarea id="checkNotes" maxlength="1000" rows="2" placeholder="Anota novedades generales sin incluir información sensible de clientes."></textarea></label>
- <div class="checklist-submit"><span class="muted">Se registra fecha/hora, analista, turno y plataformas marcadas.</span><button id="saveChecklist" class="refresh">Registrar revisión</button></div>
- <div id="checkMsg" class="check-msg" role="status"></div>
-</section>
-<section class="section-head"><div><h2>Historial de revisiones MDR</h2><p>Últimos registros disponibles en esta instancia.</p></div></section>
-<section class="table-wrap"><table><thead><tr><th>FECHA / HORA</th><th>ANALISTA</th><th>TURNO</th><th>MOMENTO</th><th>PLATAFORMAS REVISADAS</th><th>OBSERVACIONES</th></tr></thead><tbody id="checkHistory"><tr><td colspan="6">Sin revisiones registradas.</td></tr></tbody></table></section>
 <section class="section-head history-head"><div><h2>Historial de cambios de estado</h2><p>Transiciones detectadas entre consultas manuales.</p></div></section>
 <section class="table-wrap"><table><thead><tr><th>FECHA (UTC)</th><th>PLATAFORMA</th><th>CAMBIO</th><th>DETALLE</th></tr></thead><tbody id="events"><tr><td colspan="4">Sin cambios de estado registrados.</td></tr></tbody></table></section>
-<footer><span>SOC SERVICE STATUS MONITOR · FASE 1.8.0 · PARTE 3</span><span>Consulta manual · Fuentes públicas · Checklist MDR piloto</span></footer>
+</div>\n<footer><span>SOC SERVICE STATUS MONITOR · FASE 1.8.0 · PARTE 3</span><span>Consulta de fuentes públicas · Inteligencia de amenazas</span></footer>
 </main><dialog id="detailDialog" class="detail-dialog" aria-labelledby="detailTitle">
  <div class="detail-shell">
   <div class="detail-header"><div><span class="eyebrow">DETALLE DE PLATAFORMA</span><h2 id="detailTitle">Plataforma</h2><p id="detailSubtitle"></p></div><button id="closeDetail" class="close-detail" aria-label="Cerrar detalle">×</button></div>
   <div id="detailBody" class="detail-body"><div class="loading">Consultando información de la fuente…</div></div>
  </div>
 </dialog>
-<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.0-final"></script></body></html>
+<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.1-hub"></script></body></html>
