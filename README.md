@@ -202,3 +202,62 @@ Se corrige la interacción del botón «Actualizar inteligencia» y la carga de 
 - El total de fuentes se calcula a partir de la respuesta y no queda fijado visualmente a cinco.
 
 La ruta `POST /api/threat-intel/news/refresh` se mantiene. No se incorporan servicios, credenciales, API Keys ni costos nuevos.
+
+
+# SOC Global Threat Intelligence — v1.8.0 · Parte 2
+
+## Alcance de esta entrega
+
+Se incorpora un tracker de publicaciones relacionadas con ransomware y un mapa de países asociados a esas publicaciones. El panel original de estado de plataformas, el checklist MDR y las noticias de la Parte 1 se conservan.
+
+### Fuente integrada
+
+| Fuente | Endpoint público | Datos utilizados |
+|---|---|---|
+| RansomLook | `https://www.ransomlook.io/api/posts?days=7` | Nombre publicado, grupo atribuido, fecha de observación y descripción/contexto |
+
+La documentación pública de RansomLook muestra el endpoint de publicaciones recientes y ejemplos de los campos `post_title`, `group_name`, `discovered` y `description`. No requiere una API key para el feed público de recientes. Se enlaza la ficha de grupo o página pública de RansomLook; no se enlazan directamente sitios de filtración.
+
+### Períodos y actualización
+
+- La pantalla permite filtrar publicaciones de las últimas 24 horas o los últimos 7 días.
+- La consulta se inicia manualmente con «Actualizar ransomware».
+- Los resultados se conservan en SQLite local y se muestran desde caché al volver a abrir la página.
+- Se aplica un intervalo mínimo de 15 minutos entre consultas para evitar llamadas repetidas al servicio externo. Si se vuelve a pulsar antes, se reutiliza la caché.
+- Se conservan hasta 30 días de metadatos en la base local.
+- En caso de error de la fuente, la caché anterior no se borra y el estado de la consulta se muestra en pantalla.
+
+### Mapa y atribución geográfica
+
+RansomLook publica descripciones de contexto que pueden incluir país o gentilicio de la organización. Como los registros no siempre incluyen un campo de país estructurado, el sistema busca menciones explícitas en la descripción del registro (no en el nombre de la organización) y las compara con un catálogo local de países y coordenadas aproximadas.
+
+- Solo se representa un país cuando el texto coincide con una única ubicación reconocible.
+- Si la descripción no contiene país, o menciona varios países sin que sea posible resolver uno de forma segura, el registro queda como «Sin asignar».
+- No se infiere el país a partir del nombre del grupo, del dominio de la víctima ni de la ubicación del atacante.
+- Los marcadores representan publicaciones asociadas a un país, no ubicaciones precisas ni límites territoriales.
+- El mapa utiliza Leaflet y teselas de OpenStreetMap con atribución visible. Requiere conexión a internet para cargar el mapa base.
+
+### Interpretación y limitaciones
+
+- Cada registro es una publicación/afirmación observada por RansomLook; no demuestra por sí sola que la intrusión, exfiltración o afectación sean reales.
+- `discovered` representa la fecha/hora en que RansomLook observó la publicación; no es necesariamente la fecha del ataque.
+- La clasificación geográfica depende del texto descriptivo y puede quedar incompleta. No reemplaza validación con la organización afectada, autoridad competente o fuentes primarias.
+- No se descargan ni almacenan archivos filtrados, muestras de malware, credenciales ni datos personales publicados en sitios criminales.
+
+### API interna del módulo
+
+- `GET /api/threat-intel/ransomware?period=24h`
+- `GET /api/threat-intel/ransomware?period=7d`
+- `POST /api/threat-intel/ransomware/refresh`
+
+### Privacidad y costos
+
+- Solo se consulta el endpoint público de RansomLook.
+- No se recopila ni transmite información corporativa, de clientes, tickets internos, credenciales o APIs privadas.
+- No se agregan variables de entorno, API keys, servicios externos de pago ni procesos automáticos en segundo plano.
+- La consulta es manual y el caché utiliza SQLite, con las mismas limitaciones de almacenamiento efímero de Render Free descritas en las versiones anteriores.
+- El catálogo de países y coordenadas es un archivo JSON local; no añade dependencias Python.
+
+### Atribución
+
+Fuente de los registros: [RansomLook](https://www.ransomlook.io/recent). La documentación de RansomLook indica licencia de API CC BY 4.0. El mapa base utiliza [OpenStreetMap](https://www.openstreetmap.org/copyright), cuyos colaboradores reciben atribución en la propia vista.
