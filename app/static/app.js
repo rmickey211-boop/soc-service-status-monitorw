@@ -170,11 +170,15 @@ async function loadIntelNews() {
     $("intelLastRefresh").textContent = data.last_refresh
       ? `Última consulta: ${date(data.last_refresh)}`
       : "Sin actualización registrada";
-    $("intelSourceSummary").textContent = `${data.sources?.filter(x => x.ok).length || 0} de 5 fuentes respondieron en la última consulta`;
+    const totalSources = (data.sources || []).length || 5;
+    $("intelSourceSummary").textContent = `${data.sources?.filter(x => x.ok).length || 0} de ${totalSources} fuentes respondieron en la última consulta`;
     renderIntelSources(data.sources || []);
     renderIntelNews();
+    return true;
   } catch (error) {
+    $("intelSourceSummary").textContent = `No se pudo cargar la inteligencia: ${error.message}`;
     $("intelNewsList").innerHTML = `<div class="intel-empty"><b>No se pudo cargar la inteligencia</b><span>${esc(error.message)}</span></div>`;
+    return false;
   }
 }
 
@@ -182,14 +186,30 @@ $("refreshIntel").addEventListener("click", async () => {
   const button = $("refreshIntel");
   button.disabled = true;
   button.textContent = "Consultando fuentes…";
-  $("intelSourceSummary").textContent = "Consultando cinco fuentes públicas en paralelo…";
+  $("intelSourceSummary").textContent = "Consultando cinco fuentes públicas en paralelo. Puede tardar varios segundos…";
+  $("intelNewsList").innerHTML = '<div class="intel-empty"><b>Consultando fuentes públicas…</b><span>Se está actualizando la caché. No cierres esta pestaña durante la consulta.</span></div>';
   try {
-    const response = await fetch("/api/threat-intel/news/refresh", { method: "POST" });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.detail || "Error al actualizar");
-    await loadIntelNews();
-    toast(`Inteligencia actualizada: ${result.fetched} publicaciones nuevas/actualizadas · ${result.successful_sources}/5 fuentes disponibles.`);
+    const response = await fetch("/api/threat-intel/news/refresh", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Accept": "application/json" }
+    });
+    let result;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error(`El servidor respondió HTTP ${response.status}, pero no entregó una respuesta JSON válida.`);
+    }
+    if (!response.ok) throw new Error(result.detail || `El servidor respondió HTTP ${response.status}.`);
+    const loaded = await loadIntelNews();
+    if (!loaded) throw new Error("La consulta terminó, pero no fue posible recuperar las publicaciones guardadas.");
+    const totalSources = (result.sources || []).length || 5;
+    const successful = Number(result.successful_sources || 0);
+    $("intelSourceSummary").textContent = `Consulta completada: ${successful} de ${totalSources} fuentes disponibles · ${result.fetched || 0} registros procesados.`;
+    toast(`Inteligencia actualizada: ${result.fetched || 0} publicaciones procesadas · ${successful}/${totalSources} fuentes disponibles.`);
   } catch (error) {
+    $("intelSourceSummary").textContent = `No se pudo actualizar: ${error.message}`;
+    $("intelNewsList").innerHTML = `<div class="intel-empty"><b>No se pudo actualizar la inteligencia</b><span>${esc(error.message)}. Verifica que Render haya terminado de iniciar y vuelve a intentarlo.</span></div>`;
     toast("No se pudo actualizar la inteligencia: " + error.message);
   } finally {
     button.disabled = false;

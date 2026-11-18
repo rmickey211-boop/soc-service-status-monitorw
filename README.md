@@ -190,3 +190,15 @@ Esta entrega aún no incluye:
 - CISA KEV, EPSS o NVD como módulo CVE.
 
 Esas funciones se incorporarán en las siguientes partes de la versión 1.8.
+
+
+## Hotfix v1.8.0 · Parte 1.1 — actualización de inteligencia
+
+Se corrige la interacción del botón «Actualizar inteligencia» y la carga de recursos estáticos:
+- Se agregan identificadores de versión (`?v=1.8.0-part1.1`) a CSS y JavaScript para evitar que el navegador reutilice archivos antiguos de la versión anterior.
+- El botón queda declarado explícitamente como `type="button"`.
+- Durante la consulta se muestra un estado visible y el botón queda temporalmente deshabilitado.
+- Si el servidor devuelve un error HTTP, una respuesta no JSON o no se puede recuperar la caché, el panel muestra el motivo en pantalla; ya no depende únicamente de una notificación temporal.
+- El total de fuentes se calcula a partir de la respuesta y no queda fijado visualmente a cinco.
+
+La ruta `POST /api/threat-intel/news/refresh` se mantiene. No se incorporan servicios, credenciales, API Keys ni costos nuevos.

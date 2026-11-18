@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="/static/style.css"></head>
+<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="/static/style.css?v=1.8.0-part1.1"></head>
 <body>
 <header class="topbar"><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · MDR OPERATIONS</small></div></div>
 <div class="top-right"><span class="live-dot"></span><span>CONSULTA A DEMANDA</span><span id="clock">--:--:--</span></div></header>
@@ -29,7 +29,7 @@
    <h2>Ataques y amenazas publicados</h2>
    <p>Noticias externas de ciberseguridad, campañas y alertas de fuentes públicas. No utiliza información corporativa.</p>
   </div>
-  <button id="refreshIntel" class="refresh intel-refresh">↻ Actualizar inteligencia</button>
+  <button type="button" id="refreshIntel" class="refresh intel-refresh">↻ Actualizar inteligencia</button>
  </div>
  <div class="intel-toolbar">
   <div class="intel-period" role="group" aria-label="Período de publicaciones">
@@ -49,7 +49,7 @@
  </div>
  <div class="intel-meta">
   <span id="intelCount">0 publicaciones</span>
-  <span id="intelSourceSummary">La actualización es manual; los resultados se conservan en caché.</span>
+  <span id="intelSourceSummary" aria-live="polite">La actualización es manual; los resultados se conservan en caché.</span>
  </div>
  <div id="intelNewsList" class="intel-news-grid">
   <div class="intel-empty">
@@ -83,11 +83,11 @@
 <section class="table-wrap"><table><thead><tr><th>FECHA / HORA</th><th>ANALISTA</th><th>TURNO</th><th>MOMENTO</th><th>PLATAFORMAS REVISADAS</th><th>OBSERVACIONES</th></tr></thead><tbody id="checkHistory"><tr><td colspan="6">Sin revisiones registradas.</td></tr></tbody></table></section>
 <section class="section-head history-head"><div><h2>Historial de cambios de estado</h2><p>Transiciones detectadas entre consultas manuales.</p></div></section>
 <section class="table-wrap"><table><thead><tr><th>FECHA (UTC)</th><th>PLATAFORMA</th><th>CAMBIO</th><th>DETALLE</th></tr></thead><tbody id="events"><tr><td colspan="4">Sin cambios de estado registrados.</td></tr></tbody></table></section>
-<footer><span>SOC SERVICE STATUS MONITOR · FASE 1.8.0 · PARTE 1</span><span>Consulta manual · Fuentes públicas · Checklist MDR piloto</span></footer>
+<footer><span>SOC SERVICE STATUS MONITOR · FASE 1.8.0 · PARTE 1.1</span><span>Consulta manual · Fuentes públicas · Checklist MDR piloto</span></footer>
 </main><dialog id="detailDialog" class="detail-dialog" aria-labelledby="detailTitle">
  <div class="detail-shell">
   <div class="detail-header"><div><span class="eyebrow">DETALLE DE PLATAFORMA</span><h2 id="detailTitle">Plataforma</h2><p id="detailSubtitle"></p></div><button id="closeDetail" class="close-detail" aria-label="Cerrar detalle">×</button></div>
   <div id="detailBody" class="detail-body"><div class="loading">Consultando información de la fuente…</div></div>
  </div>
 </dialog>
-<div id="toast" class="toast"></div><script src="/static/app.js"></script></body></html>
+<div id="toast" class="toast"></div><script src="/static/app.js?v=1.8.0-part1.1"></script></body></html>
