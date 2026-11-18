@@ -15,7 +15,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.5 (+public vendor status checks)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.6.1")
+app = FastAPI(title="SOC Service Status Monitor", version="1.6.2")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -66,6 +66,44 @@ def normalize_statuspage(value):
     return "unknown"
 
 
+def statuspage_effective_status(payload):
+    """
+    Shared classifier for the summary card and live detail.
+    A green rollup does not hide active minor incidents or degraded components.
+    """
+    rollup = payload.get("status") or {}
+    status = normalize_statuspage(rollup.get("indicator"))
+    rank = {"operational": 0, "info": 1, "maintenance": 2, "degraded": 3, "outage": 4}
+    evidence = []
+
+    for component in payload.get("components") or []:
+        component_status = normalize_statuspage(component.get("status"))
+        if component_status not in {"operational", "unknown"}:
+            evidence.append((component_status, f"Componente {component.get('name', 'sin nombre')}: {component_status}"))
+
+    for incident in payload.get("incidents") or []:
+        incident_state = str(incident.get("status") or "").strip().lower().replace("_", " ")
+        if incident_state in {"resolved", "postmortem", "closed"}:
+            continue
+        impact = normalize_statuspage(incident.get("impact"))
+        if impact != "unknown":
+            evidence.append((impact, f"Incidente activo {incident.get('name', 'sin nombre')} ({incident.get('impact', 'impacto no informado')}; {incident_state or 'estado no informado'})"))
+
+    maintenances = payload.get("scheduled_maintenances") or []
+    active_maintenances = [
+        item for item in maintenances
+        if str(item.get("status") or "").strip().lower().replace("_", " ") in {"in progress", "verifying"}
+    ]
+    if active_maintenances:
+        evidence.append(("maintenance", f"{len(active_maintenances)} mantenimiento(s) en curso"))
+
+    for item_status, _ in evidence:
+        if rank.get(item_status, -1) > rank.get(status, -1):
+            status = item_status
+
+    return status, evidence, active_maintenances
+
+
 def fetch_statuspage(service):
     base = service["base_url"].rstrip("/")
     endpoint = base + "/api/v2/summary.json"
@@ -73,38 +111,28 @@ def fetch_statuspage(service):
     response.raise_for_status()
     payload = response.json()
     rollup = payload.get("status") or {}
-    status = normalize_statuspage(rollup.get("indicator"))
+    status, evidence, active_maint = statuspage_effective_status(payload)
     description = rollup.get("description") or "El proveedor no publicó una descripción."
-    component_states = []
-    for component in payload.get("components") or []:
-        cstatus = normalize_statuspage(component.get("status"))
-        if cstatus not in {"operational", "unknown"}:
-            component_states.append((component.get("name", "Componente"), cstatus))
-    rank = {"operational": 0, "info": 1, "maintenance": 2, "degraded": 3, "outage": 4}
-    if component_states:
-        worst = max((s for _, s in component_states), key=lambda x: rank.get(x, 0))
-        if rank.get(worst, 0) > rank.get(status, 0):
-            status = worst
-        description += " | Componentes: " + ", ".join(f"{n}: {s}" for n, s in component_states[:5])
+    if evidence:
+        description += " | " + " | ".join(text for _, text in evidence[:6])
     active = payload.get("incidents") or []
-    if active:
-        titles, impacts = [], []
-        for incident in active[:5]:
-            impact = normalize_statuspage(incident.get("impact"))
-            impacts.append(impact)
-            titles.append(f"{incident.get('name') or 'Incidente activo'} ({incident.get('impact') or 'impacto no informado'})")
-        worst = max(impacts, key=lambda x: rank.get(x, 0), default="unknown")
-        if rank.get(worst, 0) > rank.get(status, 0): status = worst
-        description = "Incidentes activos: " + " | ".join(titles)
-    maintenances = payload.get("scheduled_maintenances") or []
-    active_maint = [m for m in maintenances if (m.get("status") or "").lower().replace("_", " ") in {"in progress", "verifying"}]
-    if active_maint and status == "operational":
-        status = "maintenance"
-        description = "Mantenimiento en curso: " + " | ".join(m.get("name", "Mantenimiento") for m in active_maint[:3])
-    upcoming = [m for m in maintenances if (m.get("status") or "").lower().replace("_", " ") in {"scheduled", "not started"}]
+    active_items = []
+    for incident in active[:5]:
+        state = str(incident.get("status") or "").strip().lower()
+        if state in {"resolved", "postmortem", "closed"}:
+            continue
+        active_items.append(f"{incident.get('name') or 'Incidente activo'} ({incident.get('impact') or 'impacto no informado'})")
+    if active_items:
+        description = "Incidentes activos: " + " | ".join(active_items)
+    if active_maint:
+        description += " | Mantenimientos en curso: " + ", ".join(m.get("name", "Mantenimiento") for m in active_maint[:3])
+    upcoming = [
+        m for m in (payload.get("scheduled_maintenances") or [])
+        if str(m.get("status") or "").lower().replace("_", " ") in {"scheduled", "not started"}
+    ]
     if upcoming:
         description += f" | Mantenimientos programados: {len(upcoming)}"
-    return status, description, base + "/", rollup.get("indicator", "")
+    return status, description[:1200], base + "/", rollup.get("indicator", "")
 
 
 def fetch_google_workspace(service, payload):
@@ -401,6 +429,7 @@ def _statuspage_detail(service):
     response.raise_for_status()
     payload = response.json()
     rollup = payload.get("status") or {}
+    effective_status, evidence, active_maintenances = statuspage_effective_status(payload)
     components = []
     for item in payload.get("components") or []:
         components.append({
@@ -443,8 +472,14 @@ def _statuspage_detail(service):
         })
     return {
         "source_kind": "statuspage",
-        "source_status": rollup.get("description") or rollup.get("indicator") or "Estado no informado",
-        "status": normalize_statuspage(rollup.get("indicator")),
+        "source_status": (
+            (rollup.get("description") or rollup.get("indicator") or "Estado no informado")
+            + (f" · Estado efectivo calculado considerando componentes/incidentes activos: {effective_status}"
+               if effective_status != normalize_statuspage(rollup.get("indicator")) else "")
+        ),
+        "status": effective_status,
+        "rollup_status": normalize_statuspage(rollup.get("indicator")),
+        "status_evidence": [text for _, text in evidence[:8]],
         "components": components,
         "incidents": incidents,
         "maintenances": maintenances

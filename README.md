@@ -118,3 +118,15 @@ Se retiraron del catálogo las siguientes plataformas, según solicitud:
 - Datadog US1
 
 El catálogo queda con 32 plataformas. No se modificaron los conectores ni la lógica de las demás fuentes. No requiere variables de entorno nuevas ni cambios en la configuración del servicio Render.
+
+
+## Hotfix v1.6.2 — consistencia de estados Statuspage
+
+Se corrigió la divergencia entre las tarjetas y la ventana de detalle:
+- Antes, la tarjeta aplicaba el peor estado entre el resumen global, componentes e incidentes activos.
+- La ventana de detalle solo mostraba el indicador global (`status.indicator`), por lo que podía decir "All Systems Operational" aunque hubiera un incidente minor/monitoring abierto.
+- Ahora ambas vistas utilizan `statuspage_effective_status()`, con la misma prioridad: indisponibilidad > degradación > mantenimiento > aviso > operativo.
+- Incidentes `resolved`, `postmortem` o `closed` no se consideran activos.
+- La ventana de detalle conserva y muestra el estado global original y explica cuándo el estado efectivo cambia por un componente o incidente activo.
+
+La lógica no afirma que toda la plataforma esté caída por un incidente regional menor: clasifica el estado efectivo como degradado y muestra el nombre/impacto del incidente para contexto.
