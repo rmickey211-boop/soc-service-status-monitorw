@@ -1,6 +1,6 @@
-# SOC Service Status Monitor — v1.8.0 (integración final)
+# SOC Service Status Monitor — v1.8.1.1 (corrección de navegación)
 
-Panel web de consulta de estado de plataformas y de inteligencia pública de ciberamenazas. Esta entrega consolida las etapas anteriores en una sola versión desplegable.
+Panel web de consulta del estado de plataformas y de inteligencia pública de ciberamenazas. Esta entrega corrige la navegación de la interfaz modular.
 
 ## Módulos incluidos
 
@@ -8,7 +8,7 @@ Panel web de consulta de estado de plataformas y de inteligencia pública de cib
 2. **SOC Global Threat Intelligence:** noticias públicas de ciberseguridad con filtros temporales y temáticos.
 3. **Ransomware Tracker:** publicaciones públicas de RansomLook, con filtros por período/grupo y mapa de países cuando el país puede identificarse explícitamente.
 4. **Vulnerability Intelligence:** CISA KEV, CVE de NVD y enriquecimiento EPSS de FIRST cuando está disponible.
-5. **Checklist MDR:** registro de revisiones de plataformas por turno (funcionalidad piloto).
+
 
 ## Fuentes y criterios
 
@@ -33,7 +33,6 @@ Para actualizar: reemplazar el contenido del repositorio GitHub existente con el
 - `GET /api/status`
 - `POST /api/poll`
 - `GET /api/events`
-- `GET /api/checklist` y `POST /api/checklist`
 - `GET /api/threat-intel/news` y `POST /api/threat-intel/news/refresh`
 - `GET /api/threat-intel/ransomware` y `POST /api/threat-intel/ransomware/refresh`
 - `GET /api/threat-intel/vulnerabilities` y `POST /api/threat-intel/vulnerabilities/refresh`
@@ -60,3 +59,10 @@ python -m pytest -q
 - Se retiró la captura automática de portales oficiales; se conserva el enlace al portal original.
 - Se acotó el detalle de plataformas: hasta 6 componentes, 3 incidentes y 3 mantenimientos, con textos largos limitados.
 - El mapa se redimensiona al abrir el módulo y muestra un mensaje explicativo cuando no hay países identificables. La ausencia de marcadores no se reemplaza con ubicaciones inventadas.
+
+
+## v1.8.1.1 — corrección crítica de navegación
+- Se retiraron los controladores JavaScript que seguían intentando acceder a los controles del Checklist MDR eliminados de la página. Ese acceso nulo detenía la ejecución del archivo `app.js` antes de registrar los clics de las tarjetas.
+- Se corrigió una referencia antigua a la variable `kr` que había quedado en la carga principal.
+- Se actualizó el identificador de versión de JS/CSS para invalidar la caché del navegador.
+- Se agregaron pruebas de regresión para verificar que las cuatro tarjetas tengan su vista correspondiente, que los IDs usados por JavaScript existan y que los elementos eliminados no vuelvan a enlazarse.

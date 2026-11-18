@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.1-hub"></head>
+<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.1.1-navfix"></head>
 <body>
 <header class="topbar"><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · THREAT INTELLIGENCE</small></div></div>
 <div class="top-right"><span class="live-dot"></span><span>CONSULTA A DEMANDA</span><span id="clock">--:--:--</span></div></header>
@@ -16,7 +16,8 @@
 </section>
 <nav id="moduleNav" class="module-nav" hidden><button type="button" id="backHome" class="back-home">← Todos los módulos</button><span id="activeModuleName"></span></nav>
 
-<div class="module-view" id="view-platforms" hidden>\n<section class="hero"><div><div class="eyebrow">CENTRO DE VISIBILIDAD DE SERVICIOS</div><h1>Estado de plataformas</h1><p>Consulta las fuentes públicas oficiales durante el checklist de inicio, intermedio y término de turno.</p></div>
+<div class="module-view" id="view-platforms" hidden>
+<section class="hero"><div><div class="eyebrow">CENTRO DE VISIBILIDAD DE SERVICIOS</div><h1>Estado de plataformas</h1><p>Consulta el estado publicado por las fuentes oficiales y revisa los incidentes y mantenimientos vigentes.</p></div>
 <button id="refresh" class="refresh">↻ Actualizar ahora</button></section>
 <section class="metrics">
 <button type="button" class="metric metric-filter" data-filter="operational" aria-pressed="false" title="Filtrar plataformas operativas"><span>OPERATIVOS</span><strong id="operational">—</strong><i class="green"></i></button>
@@ -33,7 +34,9 @@
 <div class="toolbar"><input id="search" type="search" placeholder="Buscar plataforma…" aria-label="Buscar plataforma"><select id="category" aria-label="Filtrar categoría"><option value="">Todas las categorías</option></select><select id="state" aria-label="Filtrar estado"><option value="">Todos los estados</option><option value="operational">Operativo</option><option value="info">Aviso</option><option value="degraded">Degradado</option><option value="outage">Indisponibilidad</option><option value="maintenance">Mantenimiento</option><option value="manual">Consulta manual</option><option value="unknown">Sin información</option></select><select id="freshFilter" aria-label="Filtrar antigüedad"><option value="">Cualquier antigüedad</option><option value="fresh">Actualizados (menos de 60 min)</option><option value="stale">Antiguos (60 min o más)</option><option value="never">Nunca consultados</option></select></div>
 <section id="services" class="services"><div class="loading">Aún no se ha realizado una consulta. Presiona «Actualizar ahora».</div></section>
 
-</div>\n<div class="module-view" id="view-news" hidden>\n<section class="intel-module" id="global-threat-intel">
+</div>
+<div class="module-view" id="view-news" hidden>
+<section class="intel-module" id="global-threat-intel">
  <div class="intel-heading">
   <div>
    <div class="eyebrow">SOC GLOBAL THREAT INTELLIGENCE · PARTE 1</div>
@@ -78,7 +81,9 @@
 </section>
 
 
-</div>\n<div class="module-view" id="view-ransomware" hidden>\n<section class="ransomware-module" id="ransomware-tracker">
+</div>
+<div class="module-view" id="view-ransomware" hidden>
+<section class="ransomware-module" id="ransomware-tracker">
  <div class="rw-heading">
   <div>
    <div class="eyebrow">SOC GLOBAL THREAT INTELLIGENCE · PARTE 2</div>
@@ -134,7 +139,9 @@
  <div class="rw-attribution">Fuente: <a href="https://www.ransomlook.io/recent" target="_blank" rel="noopener noreferrer">RansomLook</a> · API pública documentada · Atribución CC BY 4.0 · La disponibilidad y el contenido dependen de la fuente externa.</div>
 </section>
 
-</div>\n<div class="module-view" id="view-vulns" hidden>\n<section class="section-head"><div><h2>Vulnerability Intelligence</h2><p>Priorización pública de CVE mediante explotación conocida, severidad técnica y probabilidad EPSS.</p></div>
+</div>
+<div class="module-view" id="view-vulns" hidden>
+<section class="section-head"><div><h2>Vulnerability Intelligence</h2><p>Priorización pública de CVE mediante explotación conocida, severidad técnica y probabilidad EPSS.</p></div>
  <div class="intel-actions"><button id="refreshVulns" class="refresh">↻ Actualizar vulnerabilidades</button></div></section>
 <section class="vuln-panel">
  <div class="vuln-kpis">
@@ -155,11 +162,12 @@
 </section>
 <section class="section-head history-head"><div><h2>Historial de cambios de estado</h2><p>Transiciones detectadas entre consultas manuales.</p></div></section>
 <section class="table-wrap"><table><thead><tr><th>FECHA (UTC)</th><th>PLATAFORMA</th><th>CAMBIO</th><th>DETALLE</th></tr></thead><tbody id="events"><tr><td colspan="4">Sin cambios de estado registrados.</td></tr></tbody></table></section>
-</div>\n<footer><span>SOC SERVICE STATUS MONITOR · FASE 1.8.0 · PARTE 3</span><span>Consulta de fuentes públicas · Inteligencia de amenazas</span></footer>
+</div>
+<footer><span>SOC SERVICE STATUS MONITOR · v1.8.1.1</span><span>Consulta de fuentes públicas · Inteligencia de amenazas</span></footer>
 </main><dialog id="detailDialog" class="detail-dialog" aria-labelledby="detailTitle">
  <div class="detail-shell">
   <div class="detail-header"><div><span class="eyebrow">DETALLE DE PLATAFORMA</span><h2 id="detailTitle">Plataforma</h2><p id="detailSubtitle"></p></div><button id="closeDetail" class="close-detail" aria-label="Cerrar detalle">×</button></div>
   <div id="detailBody" class="detail-body"><div class="loading">Consultando información de la fuente…</div></div>
  </div>
 </dialog>
-<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.1-hub"></script></body></html>
+<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.1.1-navfix"></script></body></html>
