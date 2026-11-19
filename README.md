@@ -96,3 +96,10 @@ python -m pytest -q
 - Países y grupos muestran el aporte de RansomLook y Ransomware.live por separado.
 - El mapa usa colores por fuente (RansomLook, Ransomware.live o ambas) y el popup presenta el desglose.
 - Los totales se denominan observaciones procesadas; no implican víctimas únicas ni incidentes confirmados.
+
+
+## v1.8.5 — acceso directo a Ransomware.live
+- Se agrega junto al encabezado de publicaciones individuales un enlace visible y directo al portal oficial de Ransomware.live.
+- Se etiqueta expresamente la tabla como publicaciones individuales de RansomLook.
+- Se explica que Ransomware.live aporta indicadores agregados visibles en las tarjetas superiores; sus nombres de víctimas no se redistribuyen en la tabla pública.
+- Se elimina el panel de estado duplicado del final de la tabla; el estado principal de fuentes permanece al inicio del módulo.

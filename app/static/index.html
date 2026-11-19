@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.4-vuln-detail"></head>
+<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.5-vuln-detail"></head>
 <body>
 <header class="topbar"><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · THREAT INTELLIGENCE</small></div></div>
 <div class="top-right"><span class="live-dot"></span><span>CONSULTA A DEMANDA</span><span id="clock">--:--:--</span></div></header>
@@ -130,8 +130,14 @@
   </aside>
  </div>
  <div class="rw-list-heading">
-  <div><b>Publicaciones individuales visibles</b><small>Esta tabla muestra registros de RansomLook. Ransomware.live aporta indicadores agregados, no filas de víctimas.</small></div>
-  <span id="rwVisibleCount">0 registros</span>
+  <div class="rw-list-heading-copy">
+   <b>Publicaciones individuales · RansomLook</b>
+   <small>Esta tabla contiene publicaciones individuales de RansomLook. Los indicadores de Ransomware.live se consultan en sus tarjetas superiores.</small>
+  </div>
+  <div class="rw-list-heading-actions">
+   <span id="rwVisibleCount">0 filas individuales</span>
+   <a class="rw-external-source-btn" href="https://www.ransomware.live/" target="_blank" rel="noopener noreferrer" aria-label="Abrir publicaciones originales en Ransomware.live">Consultar Ransomware.live ↗</a>
+  </div>
  </div>
  <div class="rw-filters">
   <input id="rwSearch" type="search" placeholder="Buscar organización o grupo…" aria-label="Buscar publicación ransomware">
@@ -142,10 +148,6 @@
    <tbody id="rwItems"><tr><td colspan="6" class="rw-empty-cell">Aún no hay publicaciones en caché. Presiona «Actualizar ransomware».</td></tr></tbody>
   </table>
  </div>
- <details class="intel-source-panel rw-source-panel">
-  <summary>Estado de la fuente consultada</summary>
-  <div id="rwSources" class="intel-sources"><span class="muted">Todavía no se ha ejecutado una actualización.</span></div>
- </details>
  <div class="rw-disclaimer"><b>Advertencia de interpretación:</b> estos registros reflejan afirmaciones publicadas por grupos criminales y no demuestran por sí solos una intrusión, exfiltración o afectación real. «Observado» corresponde al momento en que la fuente detectó la publicación, no necesariamente a la fecha del ataque. El país solo se asigna cuando el texto descriptivo incluye una mención reconocible y no ambigua; los registros sin evidencia suficiente quedan sin geolocalizar. No se consulta ni descarga información filtrada.</div>
  <div class="rw-attribution">Fuentes: <a href="https://www.ransomlook.io/recent" target="_blank" rel="noopener noreferrer">RansomLook</a> (CC BY 4.0) · <a href="https://www.ransomware.live/" target="_blank" rel="noopener noreferrer">Ransomware.live</a> (indicadores agregados; uso no comercial con atribución según sus condiciones). No se redistribuyen públicamente nombres individuales de víctimas de Ransomware.live.</div>
 </section>
@@ -187,4 +189,4 @@
   <div id="detailBody" class="detail-body"><div class="loading">Consultando información de la fuente…</div></div>
  </div>
 </dialog>
-<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.4-vuln-detail"></script></body></html>
+<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.5-vuln-detail"></script></body></html>

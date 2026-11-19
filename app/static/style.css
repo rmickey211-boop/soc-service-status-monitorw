@@ -313,3 +313,12 @@
 .rw-rank-item-sources small{font-size:8px;color:#8ea4bd;font-weight:400}
 .rw-list-heading{margin-top:20px}
 @media(max-width:720px){.rw-sources-overview-head{align-items:flex-start;flex-direction:column}.rw-sources-grid{grid-template-columns:1fr}.rw-source-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* v1.8.5 — direct access to source portal */
+.rw-list-heading{align-items:center}
+.rw-list-heading-copy{min-width:0;flex:1}
+.rw-list-heading-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.rw-list-heading-actions>span{font-size:9px;color:#9caec2;white-space:nowrap}
+.rw-external-source-btn{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 13px;border:1px solid #32765f;border-radius:7px;background:#14382f;color:#8ce5c7;text-decoration:none;font-size:10px;font-weight:800;white-space:nowrap;transition:background .15s,border-color .15s}
+.rw-external-source-btn:hover{background:#1b4a3e;border-color:#48a988;color:#c0ffe9}
+@media(max-width:720px){.rw-list-heading{align-items:flex-start;flex-direction:column}.rw-list-heading-actions{width:100%;justify-content:space-between}}
