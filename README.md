@@ -75,3 +75,15 @@ python -m pytest -q
 - En registros KEV antiguos, realiza una consulta puntual a NVD al abrir la ficha si la información técnica no está en caché; EPSS también se consulta individualmente si falta.
 - Las medidas compensatorias generales están marcadas como orientativas; no se muestran como workaround específico confirmado.
 - La columna `details_json` se incorpora mediante migración SQLite, sin borrar filas existentes.
+
+
+## v1.8.3 — fechas CVE y fuentes ransomware ampliadas
+- La tabla de vulnerabilidades separa fecha de publicación NVD y fecha de incorporación a CISA KEV; la ficha técnica conserva también fecha de última modificación.
+- Se incorpora el RSS público de Ransomware.live sin API key, junto con RansomLook.
+- Ransomware.live se utiliza para indicadores agregados de países y grupos, no para redistribuir públicamente nombres individuales de víctimas; su feed se atribuye y enlaza.
+- Las publicaciones individuales de la tabla se identifican como RansomLook.
+- Las reclamaciones de grupos ransomware se presentan como no verificadas.
+- La fuente RSS se consulta con caché e intervalo mínimo de 15 minutos.
+
+- Nota geográfica: el RSS no garantiza un campo de país estructurado. Solo se asigna país cuando aparece una mención explícita y no ambigua en el resumen disponible; si el feed no la incluye, el registro queda sin país. No se infiere por dominio, nombre de empresa ni ubicación de grupo.
+- Condiciones de reutilización: Ransomware.live se limita a indicadores agregados en la vista pública y siempre se atribuye/enlaza; revisar sus términos vigentes antes de cualquier uso comercial o redistribución.

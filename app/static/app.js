@@ -434,10 +434,11 @@ function renderVulnerabilities(data) {
     const cvss = v.cvss == null ? "—" : `${Number(v.cvss).toFixed(1)} · ${esc(v.severity || "")}`;
     const epss = v.epss == null ? "—" : `${(Number(v.epss)*100).toFixed(2)}%`;
     const kev = Number(v.kev) ? `<span class="vuln-kev">Sí · ${esc(v.ransomware_use || "Unknown")}</span>` : "No";
-    const date = v.published ? new Date(v.published).toLocaleDateString("es-CL") : (v.kev_date || "—");
-    return `<tr class="vuln-click-row" data-cve="${esc(v.cve)}" tabindex="0" role="button" aria-label="Abrir detalle de ${esc(v.cve)}"><td><button type="button" class="vuln-open" data-cve="${esc(v.cve)}">${esc(v.cve)}</button></td><td><b>${esc(v.title || v.cve)}</b><small>${esc([v.vendor,v.product].filter(Boolean).join(" · "))}</small><p>${esc(v.description || "")}</p><span class="vuln-row-hint">Ver ficha técnica y mitigaciones ↗</span></td><td>${cvss}</td><td>${epss}</td><td>${kev}</td><td>${esc(date)}</td><td><a href="${esc(v.source_url)}" target="_blank" rel="noopener" data-no-vuln-detail>NVD ↗</a></td></tr>`;
+    const publishedDate = v.published ? new Date(v.published).toLocaleDateString("es-CL") : "—";
+    const kevDate = v.kev_date ? new Date(v.kev_date).toLocaleDateString("es-CL") : "—";
+    return `<tr class="vuln-click-row" data-cve="${esc(v.cve)}" tabindex="0" role="button" aria-label="Abrir detalle de ${esc(v.cve)}"><td><button type="button" class="vuln-open" data-cve="${esc(v.cve)}">${esc(v.cve)}</button></td><td><b>${esc(v.title || v.cve)}</b><small>${esc([v.vendor,v.product].filter(Boolean).join(" · "))}</small><p>${esc(v.description || "")}</p><span class="vuln-row-hint">Ver ficha técnica y mitigaciones ↗</span></td><td>${cvss}</td><td>${epss}</td><td>${kev}</td><td>${esc(publishedDate)}</td><td>${esc(kevDate)}</td><td><a href="${esc(v.source_url)}" target="_blank" rel="noopener" data-no-vuln-detail>NVD ↗</a></td></tr>`;
   }).join("");
-  $("vulnRows").innerHTML = rows || '<tr><td colspan="7">No hay registros para este filtro. Actualiza las fuentes públicas.</td></tr>';
+  $("vulnRows").innerHTML = rows || '<tr><td colspan="8">No hay registros para este filtro. Actualiza las fuentes públicas.</td></tr>';
 }
 function detailCell(value) {
   if (value === null || value === undefined || value === "") return "No informado";

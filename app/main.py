@@ -20,7 +20,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.8 (+public status and ransomware metadata)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.8.2")
+app = FastAPI(title="SOC Service Status Monitor", version="1.8.3")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -58,7 +58,10 @@ def init_db():
             id TEXT PRIMARY KEY, victim TEXT NOT NULL, group_name TEXT NOT NULL,
             discovered_at TEXT NOT NULL, description TEXT, source_link TEXT NOT NULL,
             country_code TEXT, country_name TEXT, country_lat REAL, country_lon REAL,
-            country_basis TEXT, cached_at TEXT NOT NULL)""")
+            country_basis TEXT, cached_at TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'RansomLook')""")
+        ransomware_cols = {r[1] for r in c.execute("PRAGMA table_info(ransomware_posts)").fetchall()}
+        if "source" not in ransomware_cols:
+            c.execute("ALTER TABLE ransomware_posts ADD COLUMN source TEXT NOT NULL DEFAULT 'RansomLook'")
         c.execute("""CREATE TABLE IF NOT EXISTS ransomware_meta (
             key TEXT PRIMARY KEY, value TEXT)""")
         c.execute("""CREATE TABLE IF NOT EXISTS vulnerability_items (
@@ -665,6 +668,8 @@ def get_cached_threat_news(period="7d"):
 # ---------------------------------------------------------------------------
 RANSOMLOOK_API = "https://www.ransomlook.io/api/posts"
 RANSOMLOOK_HOME = "https://www.ransomlook.io"
+RANSOMWARELIVE_RSS = "https://ransomware.live/rss.xml"
+RANSOMWARELIVE_HOME = "https://www.ransomware.live"
 RANSOMLOOK_REFRESH_FLOOR_MINUTES = 15
 
 
@@ -746,7 +751,7 @@ def _fetch_ransomlook_posts():
     return payload
 
 
-def _ransom_build_record(item):
+def _ransom_build_record(item, source="RansomLook"):
     if not isinstance(item, dict):
         return None
     victim = _news_clean(item.get("post_title") or item.get("victim") or item.get("title"))[:260]
@@ -755,20 +760,47 @@ def _ransom_build_record(item):
     if not victim or not group or not discovered:
         return None
     description = _news_clean(item.get("description") or item.get("summary") or "")[:1600]
-    country = _ransom_detect_country(description, victim)
-    stable = "|".join((group.casefold(), victim.casefold(), discovered.isoformat()))
+    country = _ransom_detect_country(description, victim + " " + str(item.get("title") or ""))
+    stable = "|".join((source.casefold(), group.casefold(), victim.casefold(), discovered.date().isoformat()))
     record_id = hashlib.sha256(stable.encode("utf-8")).hexdigest()
     return {
         "id": record_id, "victim": victim, "group_name": group,
         "discovered_at": discovered.isoformat(), "description": description,
-        "source_link": _ransomlook_safe_source_link(item),
+         "source_link": (item.get("link") if source == "Ransomware.live" and str(item.get("link") or "").startswith("https://www.ransomware.live/") else _ransomlook_safe_source_link(item)),
         "country_code": country["code"] if country else None,
         "country_name": country["name"] if country else None,
         "country_lat": country["lat"] if country else None,
         "country_lon": country["lon"] if country else None,
         "country_basis": f"Mención textual: {country['matched_term']}" if country else None,
-        "cached_at": now(),
+        "source": source, "cached_at": now(),
     }
+
+
+
+def _fetch_ransomwarelive_rss():
+    """Read public RSS metadata only; never retrieve leak-site files."""
+    response = requests.get(RANSOMWARELIVE_RSS, timeout=TIMEOUT,
+        headers={**HEADERS, "Accept": "application/rss+xml, application/xml, text/xml"})
+    response.raise_for_status()
+    root = ET.fromstring(response.content)
+    entries = []
+    for node in root.findall(".//item"):
+        title = (node.findtext("title") or "").strip()
+        link = (node.findtext("link") or "").strip()
+        pub = (node.findtext("pubDate") or "").strip()
+        description = node.findtext("description") or ""
+        description = _news_clean(re.sub(r"<[^>]+>", " ", html_lib.unescape(description)))[:1200]
+        match = re.match(r"^(.+?)\s+has just published (?:a new )?victim\s*:?\s*(.+)$", title, re.I)
+        if not match:
+            match = re.match(r"^(.+?)\s*[-:]\s*(?:new victim|victim)\s*[-:]?\s*(.+)$", title, re.I)
+        if not match:
+            continue
+        group, victim = _news_clean(match.group(1)), _news_clean(match.group(2))
+        if not group or not victim or not link.startswith("https://www.ransomware.live/"):
+            continue
+        entries.append({"group_name": group, "post_title": victim, "discovered": pub,
+                        "description": description, "link": link})
+    return entries
 
 
 def _get_ransom_meta():
@@ -778,77 +810,66 @@ def _get_ransom_meta():
 
 
 def refresh_ransomware_tracker(force=False):
-    """Fetch seven days from RansomLook and persist claim metadata locally.
-
-    A 15-minute server-side floor avoids repeated polling of the public API.
-    """
+    """Fetch public metadata from RansomLook and Ransomware.live RSS."""
     init_db()
     meta = _get_ransom_meta()
     previous = _news_parse_date(meta.get("last_refresh"))
     if not force and previous and (datetime.now(timezone.utc) - previous) < timedelta(minutes=RANSOMLOOK_REFRESH_FLOOR_MINUTES):
         cached = get_cached_ransomware("7d")
-        return {
-            "ok": True, "skipped": True,
-            "message": f"Se reutiliza la caché para respetar el intervalo mínimo de {RANSOMLOOK_REFRESH_FLOOR_MINUTES} minutos.",
-            "fetched": 0, "cache_total": cached["count"],
-            "last_refresh": meta.get("last_refresh"),
-            "sources": [{"source": "RansomLook", "ok": True, "cached": True, "items": cached["count"]}],
-            "successful_sources": 1, "failed_sources": 0,
-        }
-
-    source_results = []
-    try:
-        source_items = _fetch_ransomlook_posts()
-        rows = []
-        cutoff = datetime.now(timezone.utc) - timedelta(days=8)
-        for item in source_items[:1200]:
-            record = _ransom_build_record(item)
-            if not record:
-                continue
-            discovered = _news_parse_date(record["discovered_at"])
-            if not discovered or discovered < cutoff:
-                continue
-            rows.append(record)
-        with db() as c:
-            if rows:
-                c.executemany("""INSERT INTO ransomware_posts
-                    (id,victim,group_name,discovered_at,description,source_link,country_code,
-                     country_name,country_lat,country_lon,country_basis,cached_at)
-                    VALUES(:id,:victim,:group_name,:discovered_at,:description,:source_link,
-                           :country_code,:country_name,:country_lat,:country_lon,:country_basis,:cached_at)
-                    ON CONFLICT(id) DO UPDATE SET
-                    victim=excluded.victim, group_name=excluded.group_name,
-                    description=excluded.description, source_link=excluded.source_link,
-                    country_code=excluded.country_code, country_name=excluded.country_name,
-                    country_lat=excluded.country_lat, country_lon=excluded.country_lon,
-                    country_basis=excluded.country_basis, cached_at=excluded.cached_at""", rows)
-            c.execute("DELETE FROM ransomware_posts WHERE discovered_at < ?",
-                      ((datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),))
-        source_results.append({"source": "RansomLook", "ok": True, "items": len(rows)})
-    except Exception as exc:
-        source_results.append({"source": "RansomLook", "ok": False, "error": str(exc)[:220]})
-        if not meta.get("last_refresh"):
-            # Keep a visible failed refresh timestamp but do not erase cache.
-            pass
-
+        sources = cached.get("sources", [])
+        return {"ok": True, "skipped": True,
+                "message": f"Se reutiliza la caché durante {RANSOMLOOK_REFRESH_FLOOR_MINUTES} minutos.",
+                "fetched": 0, "cache_total": cached["count"], "last_refresh": meta.get("last_refresh"),
+                "sources": sources,
+                "successful_sources": sum(1 for x in sources if x.get("ok")),
+                "failed_sources": sum(1 for x in sources if not x.get("ok"))}
+    source_results, total_fetched = [], 0
+    for source_name, fetcher in (("RansomLook", _fetch_ransomlook_posts),
+                                  ("Ransomware.live", _fetch_ransomwarelive_rss)):
+        try:
+            source_items = fetcher()
+            rows, cutoff = [], datetime.now(timezone.utc) - timedelta(days=8)
+            for item in source_items[:1200]:
+                record = _ransom_build_record(item, source=source_name)
+                if not record:
+                    continue
+                discovered = _news_parse_date(record["discovered_at"])
+                if discovered and discovered >= cutoff:
+                    rows.append(record)
+            with db() as c:
+                if rows:
+                    c.executemany("""INSERT INTO ransomware_posts
+                        (id,victim,group_name,discovered_at,description,source_link,country_code,
+                         country_name,country_lat,country_lon,country_basis,cached_at,source)
+                        VALUES(:id,:victim,:group_name,:discovered_at,:description,:source_link,
+                               :country_code,:country_name,:country_lat,:country_lon,:country_basis,:cached_at,:source)
+                        ON CONFLICT(id) DO UPDATE SET victim=excluded.victim,group_name=excluded.group_name,
+                        description=excluded.description,source_link=excluded.source_link,
+                        country_code=excluded.country_code,country_name=excluded.country_name,
+                        country_lat=excluded.country_lat,country_lon=excluded.country_lon,
+                        country_basis=excluded.country_basis,cached_at=excluded.cached_at,source=excluded.source""", rows)
+            total_fetched += len(rows)
+            source_results.append({"source": source_name, "ok": True, "items": len(rows)})
+        except Exception as exc:
+            source_results.append({"source": source_name, "ok": False, "error": str(exc)[:220]})
+    with db() as c:
+        c.execute("DELETE FROM ransomware_posts WHERE discovered_at < ?",
+                  ((datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),))
     refreshed_at = now()
     with db() as c:
-        if source_results and source_results[0].get("ok"):
+        if any(x["ok"] for x in source_results):
             c.execute("""INSERT INTO ransomware_meta(key,value) VALUES('last_refresh',?)
-                         ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (refreshed_at,))
+                ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (refreshed_at,))
         c.execute("""INSERT INTO ransomware_meta(key,value) VALUES('last_attempt',?)
-                     ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (refreshed_at,))
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (refreshed_at,))
         c.execute("""INSERT INTO ransomware_meta(key,value) VALUES('source_results',?)
-                     ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
-                  (json.dumps(source_results, ensure_ascii=False),))
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+            (json.dumps(source_results, ensure_ascii=False),))
         total = c.execute("SELECT COUNT(*) FROM ransomware_posts").fetchone()[0]
-    return {
-        "ok": bool(source_results and source_results[0]["ok"]),
-        "fetched": source_results[0].get("items", 0), "cache_total": total,
-        "last_refresh": refreshed_at, "sources": source_results,
-        "successful_sources": sum(1 for item in source_results if item["ok"]),
-        "failed_sources": sum(1 for item in source_results if not item["ok"]),
-    }
+    return {"ok": any(x["ok"] for x in source_results), "fetched": total_fetched,
+            "cache_total": total, "last_refresh": refreshed_at, "sources": source_results,
+            "successful_sources": sum(1 for x in source_results if x["ok"]),
+            "failed_sources": sum(1 for x in source_results if not x["ok"])}
 
 
 def get_cached_ransomware(period="7d"):
@@ -868,10 +889,15 @@ def get_cached_ransomware(period="7d"):
         record = {
             "id": row["id"], "victim": row["victim"], "group_name": row["group_name"],
             "discovered_at": row["discovered_at"], "description": row["description"],
-            "source_link": row["source_link"], "country_code": row["country_code"],
+             "source_link": row["source_link"], "source": row["source"] if "source" in row.keys() else "RansomLook",
+            "country_code": row["country_code"],
             "country_name": row["country_name"], "country_basis": row["country_basis"],
         }
-        posts.append(record)
+        # Ransomware.live terms restrict raw-data redistribution. Its records
+        # contribute only to aggregate country/group indicators; individual
+        # victim names are shown only for RansomLook.
+        if record.get("source") != "Ransomware.live":
+            posts.append(record)
         group_key = row["group_name"]
         group_counts[group_key] = group_counts.get(group_key, 0) + 1
         code = row["country_code"]
@@ -889,14 +915,18 @@ def get_cached_ransomware(period="7d"):
     except Exception:
         source_results = []
     return {
-        "period": period, "items": posts, "count": len(posts),
+        "period": period, "items": posts, "count": len(posts) + sum(
+            1 for row in rows if (row["source"] if "source" in row.keys() else "RansomLook") == "Ransomware.live"
+            and (_news_parse_date(row["discovered_at"]) and _news_parse_date(row["discovered_at"]) >= cutoff)),
+        "listed_items_count": len(posts),
         "groups_count": len(group_counts), "top_groups": groups,
         "countries": countries,
         "countries_count": len(countries),
         "unmapped_count": sum(1 for post in posts if not post["country_code"]),
         "last_refresh": meta.get("last_refresh"),
         "sources": source_results,
-        "source_home": RANSOMLOOK_HOME,
+         "source_home": RANSOMLOOK_HOME, "ransomwarelive_home": RANSOMWARELIVE_HOME,
+        "source_attribution": "RansomLook · Ransomware.live",
         "refresh_floor_minutes": RANSOMLOOK_REFRESH_FLOOR_MINUTES,
     }
 
