@@ -20,7 +20,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.8 (+public status and ransomware metadata)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.8.3")
+app = FastAPI(title="SOC Service Status Monitor", version="1.8.4")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -882,50 +882,82 @@ def get_cached_ransomware(period="7d"):
     posts = []
     country_counts = {}
     group_counts = {}
+    source_stats = {
+        "RansomLook": {"source": "RansomLook", "processed": 0, "rows_visible": 0, "groups": set(), "countries": set()},
+        "Ransomware.live": {"source": "Ransomware.live", "processed": 0, "rows_visible": 0, "groups": set(), "countries": set()},
+    }
     for row in rows:
         discovered = _news_parse_date(row["discovered_at"])
         if not discovered or discovered < cutoff:
             continue
+        source = row["source"] if "source" in row.keys() and row["source"] else "RansomLook"
+        if source not in source_stats:
+            source_stats[source] = {"source": source, "processed": 0, "rows_visible": 0, "groups": set(), "countries": set()}
+        stats = source_stats[source]
+        stats["processed"] += 1
         record = {
             "id": row["id"], "victim": row["victim"], "group_name": row["group_name"],
             "discovered_at": row["discovered_at"], "description": row["description"],
-             "source_link": row["source_link"], "source": row["source"] if "source" in row.keys() else "RansomLook",
+            "source_link": row["source_link"], "source": source,
             "country_code": row["country_code"],
             "country_name": row["country_name"], "country_basis": row["country_basis"],
         }
-        # Ransomware.live terms restrict raw-data redistribution. Its records
-        # contribute only to aggregate country/group indicators; individual
-        # victim names are shown only for RansomLook.
-        if record.get("source") != "Ransomware.live":
+        # Ransomware.live contributes aggregate indicators only in the public dashboard.
+        if source != "Ransomware.live":
             posts.append(record)
+            stats["rows_visible"] += 1
         group_key = row["group_name"]
-        group_counts[group_key] = group_counts.get(group_key, 0) + 1
+        group_entry = group_counts.setdefault(group_key, {
+            "name": group_key, "count": 0, "source_counts": {"RansomLook": 0, "Ransomware.live": 0}
+        })
+        group_entry["count"] += 1
+        group_entry["source_counts"][source] = group_entry["source_counts"].get(source, 0) + 1
+        stats["groups"].add(group_key)
         code = row["country_code"]
         if code:
+            stats["countries"].add(code)
             entry = country_counts.setdefault(code, {
-                "code": code, "name": row["country_name"],
-                "lat": row["country_lat"], "lon": row["country_lon"], "count": 0,
+                "code": code, "name": row["country_name"], "lat": row["country_lat"],
+                "lon": row["country_lon"], "count": 0,
+                "source_counts": {"RansomLook": 0, "Ransomware.live": 0},
             })
             entry["count"] += 1
+            entry["source_counts"][source] = entry["source_counts"].get(source, 0) + 1
+
     countries = sorted(country_counts.values(), key=lambda x: (-x["count"], x["name"]))
-    groups = sorted(({"name": key, "count": value} for key, value in group_counts.items()),
-                    key=lambda x: (-x["count"], x["name"].casefold()))[:8]
+    groups = sorted(group_counts.values(), key=lambda x: (-x["count"], x["name"].casefold()))[:8]
     try:
         source_results = json.loads(meta.get("source_results", "[]")) if meta.get("source_results") else []
     except Exception:
         source_results = []
+    result_lookup = {item.get("source"): item for item in source_results if isinstance(item, dict)}
+    source_output = []
+    for source, stats in source_stats.items():
+        result = result_lookup.get(source, {})
+        source_output.append({
+            "source": source, "ok": result.get("ok") if result else None,
+            "error": result.get("error"), "cached": bool(result.get("cached")),
+            "processed": stats["processed"], "rows_visible": stats["rows_visible"],
+            "groups_count": len(stats["groups"]), "countries_count": len(stats["countries"]),
+            "last_refresh": meta.get("last_refresh"),
+        })
+    total_processed = sum(item["processed"] for item in source_output)
+    try:
+        unmapped_count = sum(1 for row in rows
+            if (row["source"] if "source" in row.keys() and row["source"] else "RansomLook") != "Ransomware.live"
+            and _news_parse_date(row["discovered_at"]) and _news_parse_date(row["discovered_at"]) >= cutoff
+            and not row["country_code"])
+    except Exception:
+        unmapped_count = 0
     return {
-        "period": period, "items": posts, "count": len(posts) + sum(
-            1 for row in rows if (row["source"] if "source" in row.keys() else "RansomLook") == "Ransomware.live"
-            and (_news_parse_date(row["discovered_at"]) and _news_parse_date(row["discovered_at"]) >= cutoff)),
-        "listed_items_count": len(posts),
+        "period": period, "items": posts, "count": total_processed,
+        "listed_items_count": len(posts), "processed_items_count": total_processed,
         "groups_count": len(group_counts), "top_groups": groups,
-        "countries": countries,
-        "countries_count": len(countries),
-        "unmapped_count": sum(1 for post in posts if not post["country_code"]),
+        "countries": countries, "countries_count": len(countries),
+        "unmapped_count": unmapped_count,
         "last_refresh": meta.get("last_refresh"),
-        "sources": source_results,
-         "source_home": RANSOMLOOK_HOME, "ransomwarelive_home": RANSOMWARELIVE_HOME,
+        "sources": source_results, "source_stats": source_output,
+        "source_home": RANSOMLOOK_HOME, "ransomwarelive_home": RANSOMWARELIVE_HOME,
         "source_attribution": "RansomLook · Ransomware.live",
         "refresh_floor_minutes": RANSOMLOOK_REFRESH_FLOOR_MINUTES,
     }

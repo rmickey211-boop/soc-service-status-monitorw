@@ -152,3 +152,26 @@ def test_ransomware_schema_migrates_source_column(tmp_path, monkeypatch):
     with main.db() as c:
         columns = {row[1] for row in c.execute("PRAGMA table_info(ransomware_posts)")}
     assert "source" in columns
+
+
+def test_source_breakdown_distinguishes_visible_rows_from_processed_counts(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, "DB_PATH", str(tmp_path / "ransomware.sqlite3"))
+    stamp = datetime.now(timezone.utc).isoformat()
+    look = [_post("Visible Victim", "Qilin", stamp, "A Chilean company.")]
+    live = [_post("Aggregated Only Victim", "Qilin", stamp, "A Dutch company.",
+                  "https://www.ransomware.live/group/qilin")]
+    with patch.object(main, "_fetch_ransomlook_posts", return_value=look), patch.object(main, "_fetch_ransomwarelive_rss", return_value=live):
+        result = main.refresh_ransomware_tracker()
+    data = main.get_cached_ransomware("7d")
+    assert result["ok"] is True
+    assert data["processed_items_count"] == 2
+    assert data["listed_items_count"] == 1
+    by_source = {item["source"]: item for item in data["source_stats"]}
+    assert by_source["RansomLook"]["processed"] == 1
+    assert by_source["RansomLook"]["rows_visible"] == 1
+    assert by_source["Ransomware.live"]["processed"] == 1
+    assert by_source["Ransomware.live"]["rows_visible"] == 0
+    countries = {item["code"]: item for item in data["countries"]}
+    assert countries["CL"]["source_counts"]["RansomLook"] == 1
+    assert countries["NL"]["source_counts"]["Ransomware.live"] == 1
+    assert data["top_groups"][0]["source_counts"]["Ransomware.live"] == 1

@@ -87,3 +87,12 @@ python -m pytest -q
 
 - Nota geográfica: el RSS no garantiza un campo de país estructurado. Solo se asigna país cuando aparece una mención explícita y no ambigua en el resumen disponible; si el feed no la incluye, el registro queda sin país. No se infiere por dominio, nombre de empresa ni ubicación de grupo.
 - Condiciones de reutilización: Ransomware.live se limita a indicadores agregados en la vista pública y siempre se atribuye/enlaza; revisar sus términos vigentes antes de cualquier uso comercial o redistribución.
+
+
+## v1.8.4 — desglose visible de fuentes ransomware
+- Se sube el estado de RansomLook y Ransomware.live al inicio del módulo.
+- Se distinguen publicaciones procesadas por fuente de filas individuales visibles en la tabla.
+- La tabla indica explícitamente que sus filas individuales visibles corresponden a RansomLook.
+- Países y grupos muestran el aporte de RansomLook y Ransomware.live por separado.
+- El mapa usa colores por fuente (RansomLook, Ransomware.live o ambas) y el popup presenta el desglose.
+- Los totales se denominan observaciones procesadas; no implican víctimas únicas ni incidentes confirmados.

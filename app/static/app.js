@@ -236,18 +236,44 @@ function rwUtcDate(value) {
   return parsed.toISOString().replace("T", " ").slice(0, 19) + " UTC";
 }
 
-function renderRansomwareSources(sources) {
-  if (!sources || !sources.length) {
-    $("rwSources").innerHTML = '<span class="muted">Todavía no se ha ejecutado una actualización.</span>';
+function renderRansomwareSources(stats) {
+  const sourceInfo = (stats || []);
+  if (!sourceInfo.length) {
+    $("rwSources").innerHTML = `
+      <div class="rw-source-card"><b>RansomLook</b><span class="rw-source-pending">Pendiente de consulta</span></div>
+      <div class="rw-source-card"><b>Ransomware.live</b><span class="rw-source-pending">Pendiente de consulta</span></div>`;
+    $("rwSourceQueryTime").textContent = "Sin consulta registrada";
     return;
   }
-  $("rwSources").innerHTML = sources.map(source => `
-    <div class="intel-source-row">
-      <b>${esc(source.source || "Fuente externa")}</b>
-      ${source.ok
-        ? `<span class="intel-source-ok">${source.cached ? "Caché reutilizada" : "Consultada"} · ${Number(source.items || 0)} registros</span>`
-        : `<span class="intel-source-fail">Sin respuesta · ${esc(source.error || "Error de consulta")}</span>`}
-    </div>`).join("");
+  const definitions = [
+    {name:"RansomLook", url:"https://www.ransomlook.io/recent", description:"Publicaciones individuales"},
+    {name:"Ransomware.live", url:"https://www.ransomware.live/", description:"Indicadores agregados; sin filas individuales"}
+  ];
+  $("rwSources").innerHTML = definitions.map(def => {
+    const item = sourceInfo.find(x => x.source === def.name) || {};
+    const status = item.ok === true
+      ? '<span class="rw-source-status ok">● Conectada</span>'
+      : item.ok === false
+        ? '<span class="rw-source-status fail">● Error de consulta</span>'
+        : '<span class="rw-source-status pending">● Sin estado reciente</span>';
+    const processed = Number(item.processed || 0);
+    const rows = Number(item.rows_visible || 0);
+    const groups = Number(item.groups_count || 0);
+    const countries = Number(item.countries_count || 0);
+    const detail = item.error ? `<p class="rw-source-error">${esc(item.error)}</p>` : "";
+    return `<article class="rw-source-card">
+      <div class="rw-source-card-head"><b><a href="${def.url}" target="_blank" rel="noopener noreferrer">${def.name} ↗</a></b>${status}</div>
+      <p class="rw-source-purpose">${def.description}</p>
+      <div class="rw-source-metrics">
+        <div><small>Procesadas</small><strong>${processed.toLocaleString("es-CL")}</strong></div>
+        <div><small>Filas visibles</small><strong>${rows.toLocaleString("es-CL")}</strong></div>
+        <div><small>Grupos</small><strong>${groups.toLocaleString("es-CL")}</strong></div>
+        <div><small>Países</small><strong>${countries.toLocaleString("es-CL")}</strong></div>
+      </div>${detail}
+    </article>`;
+  }).join("");
+  const stamp = sourceInfo.find(x => x.last_refresh)?.last_refresh;
+  $("rwSourceQueryTime").textContent = stamp ? `Última actualización: ${date(stamp)}` : "Sin consulta registrada";
 }
 
 function renderRansomwareMap(countries) {
@@ -270,11 +296,16 @@ function renderRansomwareMap(countries) {
   valid.forEach(country => {
     const count = Number(country.count || 0);
     const radius = Math.min(18, 6 + Math.sqrt(count) * 2.2);
+    const sourceCounts = country.source_counts || {};
+    const rlook = Number(sourceCounts.RansomLook || 0);
+    const rlive = Number(sourceCounts["Ransomware.live"] || 0);
+    const mixed = rlook > 0 && rlive > 0;
+    const fill = mixed ? "#a78bfa" : (rlive > 0 ? "#39c6a0" : "#c94765");
     const marker = L.circleMarker([Number(country.lat), Number(country.lon)], {
-      radius, color: "#ff9eae", weight: 1.5, opacity: .95,
-      fillColor: "#c94765", fillOpacity: .72
+      radius, color: fill, weight: 1.5, opacity: .95,
+      fillColor: fill, fillOpacity: .76
     });
-    marker.bindPopup(`<b>${esc(country.name)}</b><br>${count} publicación(es) asociada(s)`);
+    marker.bindPopup(`<b>${esc(country.name)}</b><br>Total: ${count} observación(es)<br>RansomLook: ${rlook}<br>Ransomware.live: ${rlive}`);
     marker.addTo(rwMapMarkers);
   });
   if (valid.length > 1) {
@@ -304,12 +335,16 @@ function renderRansomwareMap(countries) {
 
 function renderRansomwareRankedLists(data) {
   const countries = data.countries || [];
-  $("rwCountryList").innerHTML = countries.length ? countries.slice(0, 8).map(country => `
-    <div class="rw-rank-item"><span>${esc(country.name)}</span><b>${Number(country.count || 0)}</b></div>`).join("")
+  $("rwCountryList").innerHTML = countries.length ? countries.slice(0, 8).map(country => {
+    const sc=country.source_counts||{};
+    return `<div class="rw-rank-item rw-rank-item-sources"><span>${esc(country.name)}<small>RansomLook ${Number(sc.RansomLook||0)} · Ransomware.live ${Number(sc["Ransomware.live"]||0)}</small></span><b>${Number(country.count || 0)}</b></div>`;
+  }).join("")
     : '<span class="muted">No hay países asociados con confianza suficiente.</span>';
   const groups = data.top_groups || [];
-  $("rwGroupList").innerHTML = groups.length ? groups.map(group => `
-    <div class="rw-rank-item"><span>${esc(group.name)}</span><b>${Number(group.count || 0)}</b></div>`).join("")
+  $("rwGroupList").innerHTML = groups.length ? groups.map(group => {
+    const sc=group.source_counts||{};
+    return `<div class="rw-rank-item rw-rank-item-sources"><span>${esc(group.name)}<small>RansomLook ${Number(sc.RansomLook||0)} · Ransomware.live ${Number(sc["Ransomware.live"]||0)}</small></span><b>${Number(group.count || 0)}</b></div>`;
+  }).join("")
     : '<span class="muted">No hay grupos publicados en este período.</span>';
 }
 
@@ -320,7 +355,7 @@ function renderRansomwareRows() {
     const haystack = `${item.victim || ""} ${item.group_name || ""} ${item.country_name || ""}`.toLowerCase();
     return (!term || haystack.includes(term)) && (!group || item.group_name === group);
   });
-  $("rwVisibleCount").textContent = `${visible.length} de ${rwItems.length} registros`;
+  $("rwVisibleCount").textContent = `${visible.length} de ${Number(rwItems.length).toLocaleString("es-CL")} filas individuales`;
   $("rwItems").innerHTML = visible.length ? visible.map(item => {
     const country = item.country_name
       ? `<span class="rw-country">${esc(item.country_name)}</span>`
@@ -358,7 +393,7 @@ function renderRansomware(data) {
   renderRansomwareRankedLists(data);
   renderRansomwareMap(data.countries || []);
   renderRansomwareRows();
-  renderRansomwareSources(data.sources || []);
+  renderRansomwareSources(data.source_stats || []);
 }
 
 async function loadRansomware() {
@@ -381,8 +416,8 @@ async function loadRansomware() {
 $("refreshRansomware").addEventListener("click", async () => {
   const button = $("refreshRansomware");
   button.disabled = true;
-  button.textContent = "Consultando RansomLook…";
-  $("rwMapStatus").textContent = "Actualizando publicaciones…";
+  button.textContent = "Consultando ambas fuentes…";
+  $("rwMapStatus").textContent = "Actualizando indicadores de ambas fuentes…";
   $("rwItems").innerHTML = '<tr><td colspan="6" class="rw-empty-cell">Consultando la fuente pública. Puede tardar unos segundos…</td></tr>';
   try {
     const response = await fetch("/api/threat-intel/ransomware/refresh", {
@@ -395,11 +430,12 @@ $("refreshRansomware").addEventListener("click", async () => {
     if (result.skipped) {
       toast(result.message || "Se reutilizó la caché reciente.");
     } else if (result.ok) {
-      toast(`Ransomware actualizado: ${Number(result.fetched || 0)} publicaciones procesadas.`);
+      const sourceCounts = (result.sources || []).map(x => `${x.source}: ${Number(x.items || 0)} procesadas${x.ok ? "" : " (error)"}`).join(" · ");
+      toast(`Actualización terminada. ${sourceCounts || "Revisa el estado de las fuentes."}`);
     } else {
       const reason = result.sources?.find(x => !x.ok)?.error || "La fuente no respondió correctamente.";
       $("rwMapStatus").textContent = "Última consulta con error; caché conservada";
-      toast("No se pudo actualizar RansomLook: " + reason);
+      toast("No se pudo actualizar una o más fuentes: " + reason);
     }
   } catch (error) {
     $("rwMapStatus").textContent = "No se pudo completar la consulta";

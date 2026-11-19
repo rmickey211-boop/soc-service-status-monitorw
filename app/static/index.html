@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.3-vuln-detail"></head>
+<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.4-vuln-detail"></head>
 <body>
 <header class="topbar"><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · THREAT INTELLIGENCE</small></div></div>
 <div class="top-right"><span class="live-dot"></span><span>CONSULTA A DEMANDA</span><span id="clock">--:--:--</span></div></header>
@@ -99,8 +99,18 @@
   </div>
   <span id="rwLastRefresh" class="intel-last-refresh">Sin actualización registrada</span>
  </div>
+ <section class="rw-sources-overview" aria-label="Estado de fuentes ransomware">
+  <div class="rw-sources-overview-head">
+   <div><b>Fuentes de inteligencia</b><small>Conteo separado de publicaciones procesadas y filas que se muestran en la tabla.</small></div>
+   <span id="rwSourceQueryTime" class="rw-source-query-time">Sin consulta registrada</span>
+  </div>
+  <div id="rwSources" class="rw-sources-grid">
+   <div class="rw-source-card"><b>RansomLook</b><span class="muted">Pendiente de consulta</span></div>
+   <div class="rw-source-card"><b>Ransomware.live</b><span class="muted">Pendiente de consulta</span></div>
+  </div>
+ </section>
  <div class="rw-kpis">
-  <div class="rw-kpi"><span>PUBLICACIONES</span><b id="rwVictimCount">—</b></div>
+  <div class="rw-kpi"><span>PUBLICACIONES PROCESADAS · AMBAS FUENTES</span><b id="rwVictimCount">—</b><small>Observaciones de fuentes; pueden existir coincidencias entre proveedores.</small></div>
   <div class="rw-kpi"><span>GRUPOS IDENTIFICADOS</span><b id="rwGroupCount">—</b></div>
   <div class="rw-kpi"><span>PAÍSES ASOCIADOS</span><b id="rwCountryCount">—</b></div>
   <div class="rw-kpi"><span>SIN PAÍS ASIGNABLE</span><b id="rwUnknownCount">—</b></div>
@@ -109,17 +119,18 @@
   <div class="rw-map-panel">
    <div class="rw-panel-heading"><div><b>Distribución geográfica</b><small>Marcadores agrupados por país mencionado en el contexto público</small></div><span id="rwMapStatus" class="rw-map-status">Esperando datos</span></div>
    <div id="rwMap" role="img" aria-label="Mapa mundial de países asociados a publicaciones ransomware"></div>
+   <div class="rw-map-legend"><span><i class="rw-legend-dot rwl"></i>RansomLook</span><span><i class="rw-legend-dot rwlive"></i>Ransomware.live</span><span><i class="rw-legend-dot mixed"></i>Ambas fuentes</span></div>
    <div class="rw-map-attribution">Mapa base © OpenStreetMap contributors · Los puntos representan país asociado, no ubicación del atacante.</div>
   </div>
   <aside class="rw-side-panel">
-   <div class="rw-panel-heading"><b>Países con más publicaciones</b></div>
+   <div class="rw-panel-heading"><b>Países con más publicaciones</b><small>Desglose por proveedor debajo de cada país</small></div>
    <div id="rwCountryList" class="rw-ranked-list"><span class="muted">Aún no hay datos geográficos.</span></div>
-   <div class="rw-panel-heading rw-top-groups-heading"><b>Grupos más activos</b></div>
+   <div class="rw-panel-heading rw-top-groups-heading"><b>Grupos más activos</b><small>Observaciones por fuente; puede haber duplicados</small></div>
    <div id="rwGroupList" class="rw-ranked-list"><span class="muted">Aún no hay publicaciones.</span></div>
   </aside>
  </div>
  <div class="rw-list-heading">
-  <div><b>Publicaciones recientes</b><small>Registros observados por RansomLook; no son incidentes confirmados.</small></div>
+  <div><b>Publicaciones individuales visibles</b><small>Esta tabla muestra registros de RansomLook. Ransomware.live aporta indicadores agregados, no filas de víctimas.</small></div>
   <span id="rwVisibleCount">0 registros</span>
  </div>
  <div class="rw-filters">
@@ -176,4 +187,4 @@
   <div id="detailBody" class="detail-body"><div class="loading">Consultando información de la fuente…</div></div>
  </div>
 </dialog>
-<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.3-vuln-detail"></script></body></html>
+<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.4-vuln-detail"></script></body></html>
