@@ -10,13 +10,14 @@ CSS = (BASE / "app/static/style.css").read_text(encoding="utf-8")
 def test_platform_module_has_status_category_and_transition_charts():
     for element_id in ("platformStateDonut", "platformCategoryBars", "platformEventTrend"):
         assert f'id="{element_id}"' in HTML
-    assert "renderPlatformAnalytics(cache,events)" in JS
+    assert "renderPlatformAnalytics(cache,eventCache)" in JS
+    assert "renderPlatformEvents()" in JS
 
 
 def test_news_module_has_timeline_category_and_source_charts():
     for element_id in ("intelTrendChart", "intelCategoryChart", "intelSourceChart"):
         assert f'id="{element_id}"' in HTML
-    assert "renderNewsAnalytics(visible)" in JS
+    assert "renderNewsAnalytics(chartItems)" in JS
 
 
 def test_ransomware_module_has_timeline_and_group_chart():

@@ -612,3 +612,43 @@ main{max-width:none;margin:0;padding:0;min-height:calc(100vh - 68px)}
  .module-source-bars{grid-template-columns:1fr}
  .module-timeline-column>small{font-size:6px}
 }
+
+/* ========================================================================
+   v1.9.0 Phase 3 — chart drill-down, filter feedback and touch accessibility
+   ======================================================================== */
+.module-chart-drilldown{cursor:pointer;text-align:left;transition:background .15s ease,border-color .15s ease,filter .15s ease}
+.module-chart-drilldown:hover{filter:brightness(1.16)}
+.module-chart-drilldown.is-active{outline:1px solid #5daaf5;outline-offset:2px;background-color:#17314a}
+.module-chart-drilldown:focus-visible,.drill-filter-clear:focus-visible{outline:2px solid #83c1ff;outline-offset:3px}
+.module-chart-legend-row.module-chart-drilldown{width:100%;padding:4px 5px;border:1px solid transparent;border-radius:6px;background:transparent;font:inherit}
+.module-chart-legend-row.module-chart-drilldown:hover{background:#1b3047}
+.module-stack-row.module-chart-drilldown{width:100%;padding:7px 8px;border:1px solid transparent;border-radius:7px;background:transparent;font:inherit}
+.module-stack-row.module-chart-drilldown:hover{background:#182c42;border-color:#314b67}
+.module-horizontal-row.module-chart-drilldown{width:100%;padding:6px 8px;border:1px solid transparent;border-radius:7px;background:transparent;font:inherit}
+.module-horizontal-row.module-chart-drilldown:hover{background:#172b40;border-color:#304963}
+.module-timeline-column.module-chart-drilldown{width:100%;padding:0 2px 2px;border:1px solid transparent;border-radius:7px;background:transparent;font:inherit;color:inherit}
+.module-timeline-column.module-chart-drilldown:hover{background:#172b40;border-color:#304963}
+.module-chart-drilldown.is-active .module-horizontal-label span,.module-chart-drilldown.is-active .module-stack-label span{color:#d6ebff}
+.drill-filter{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:0;margin:0 0 14px;padding:0;border:0;border-radius:8px;color:#a9c2dc;font-size:10px}
+.drill-filter:not(:empty){padding:9px 12px;border:1px solid #365578;background:#11243a}
+.drill-filter-label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.drill-filter-label b{color:#8cc4ff;text-transform:uppercase;font-size:9px;letter-spacing:.7px}
+.drill-filter-clear{flex:none;border:1px solid #486888;border-radius:6px;background:#172e46;color:#d2e8ff;padding:5px 9px;font-size:9px;font-weight:700}
+.drill-filter-clear:hover{background:#214361}
+.kev-drill-card{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;padding:10px;border:1px solid #293e55;border-radius:8px;background:#142338;color:inherit;font:inherit;text-align:left}
+.kev-drill-card strong{font-size:22px;color:#e8f1fa;font-variant-numeric:tabular-nums}
+.kev-drill-card span{font-size:8px;color:#8ba4bd}
+@media(max-width:650px){
+ .drill-filter{align-items:flex-start;flex-direction:column}
+ .drill-filter-clear{width:100%;min-height:36px}
+ .module-chart-drilldown{min-height:38px}
+ .module-timeline-column.module-chart-drilldown{min-height:138px}
+ .module-chart-legend-row.module-chart-drilldown{min-height:34px}
+}
+.module-chart-drilldown{color:inherit;font:inherit;appearance:none;-webkit-appearance:none}
+.module-stack-row{display:flex;flex-direction:column;gap:7px;min-width:0;text-align:left}
+.module-stack-label{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#b8c9db;font-size:9px}
+.module-stack-label span{overflow-wrap:anywhere}
+.module-stack-label b{flex:none;color:#e8f1f9;font-size:9px;font-variant-numeric:tabular-nums}
+.module-stack-track{display:flex;width:100%;height:10px;overflow:hidden;border-radius:20px;background:#263b52}
+.module-stack-track .stack-segment{display:block;height:100%;min-width:2px;border-radius:0}

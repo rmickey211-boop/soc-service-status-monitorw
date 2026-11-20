@@ -1,4 +1,4 @@
-# SOC Service Status Monitor — v1.8.1.1 (corrección de navegación)
+# SOC Service Status Monitor — v1.9.0 (Fase 3 · análisis interactivo)
 
 Panel web de consulta del estado de plataformas y de inteligencia pública de ciberamenazas. Esta entrega corrige la navegación de la interfaz modular.
 
@@ -219,3 +219,18 @@ Cada proveedor se consulta de forma independiente; un fallo de una fuente no deb
 - Se incorporó una prueba de regresión para detectar nuevamente este patrón.
 - Se actualizó el identificador de caché de los recursos estáticos a `1.9.0-phase2.1` y el pie de página para verificar el despliegue correcto.
 - Validación: 68 pruebas aprobadas; compilación Python; sintaxis JavaScript; prueba local de navegador sin errores de ejecución y navegación entre módulos operativa.
+
+
+## v1.9.0 — Fase 3: análisis interactivo y navegación a registros
+
+- Los gráficos de estado de plataformas permiten filtrar el catálogo por estado y categoría; la tendencia diaria filtra el historial de transiciones.
+- Los gráficos de noticias permiten filtrar publicaciones por tema, fuente y fecha; el período de 24 horas mantiene ventanas de cuatro horas y el de 7 días, ventanas diarias.
+- El gráfico de grupos ransomware permite saltar al filtro de publicaciones individuales de RansomLook cuando existen filas visibles para el grupo. Si el grupo solo aparece en los agregados de Ransomware.live, se informa que no hay detalle individual público en la tabla.
+- Las tendencias ransomware filtran publicaciones individuales por el intervalo UTC del bucket seleccionado; el backend entrega solo los límites del intervalo y los conteos agregados, sin datos de víctimas Ransomware.live.
+- Los gráficos CVSS, EPSS y CISA KEV filtran la tabla CVE en el navegador sin repetir la consulta al backend.
+- Cada módulo presenta el filtro activo y un control para quitarlo; los controles son botones accesibles por teclado.
+- Se mejora la adaptación táctil de gráficos, botones y filtros para móviles.
+- No se incorpora ninguna dependencia de gráficos, API de pago ni servicio nuevo.
+
+### Limitaciones de comparación histórica
+Las fuentes actuales entregan ventanas activas (24 horas/7 días en noticias y ransomware) y el historial de estados disponible (100 transiciones más recientes). No existe una serie histórica uniforme y persistente para comparar períodos consecutivos sin introducir una nueva estrategia de almacenamiento. Por ello, esta fase habilita filtrado por ventana y detalle de registros, pero no presenta comparaciones históricas simuladas.

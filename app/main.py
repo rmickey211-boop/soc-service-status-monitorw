@@ -20,7 +20,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.8 (+public status and ransomware metadata)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.9.0-phase2.1")
+app = FastAPI(title="SOC Service Status Monitor", version="1.9.0-phase3")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -964,6 +964,9 @@ def get_cached_ransomware(period="7d"):
         ]
         buckets = {
             bucket.strftime("%Y-%m-%dT%H:%M:%SZ"): {
+                "key": bucket.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "start": int(bucket.timestamp() * 1000),
+                "end": int((bucket + timedelta(seconds=bucket_seconds)).timestamp() * 1000),
                 "label": bucket.strftime("%H:%M"), "total": 0,
                 "RansomLook": 0, "Ransomware.live": 0
             }
@@ -989,6 +992,9 @@ def get_cached_ransomware(period="7d"):
         bucket_dates = [today - timedelta(days=offset) for offset in reversed(range(7))]
         buckets = {
             bucket_date.isoformat(): {
+                "key": bucket_date.isoformat(),
+                "start": int(datetime.combine(bucket_date, datetime.min.time(), tzinfo=timezone.utc).timestamp() * 1000),
+                "end": int((datetime.combine(bucket_date, datetime.min.time(), tzinfo=timezone.utc) + timedelta(days=1)).timestamp() * 1000),
                 "label": bucket_date.strftime("%d %b"), "total": 0,
                 "RansomLook": 0, "Ransomware.live": 0
             }

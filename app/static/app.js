@@ -1,5 +1,5 @@
 const labels={operational:"OPERATIVO",info:"AVISO",degraded:"DEGRADADO",outage:"INDISPONIBILIDAD",maintenance:"MANTENIMIENTO",manual:"CONSULTA MANUAL",unknown:"SIN INFORMACIÓN"};
-const $=id=>document.getElementById(id);let cache=[],catalog=[];
+const $=id=>document.getElementById(id);let cache=[],catalog=[],eventCache=[],platformEventDateFilter="";
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function date(s){if(!s)return "Aún no consultado";try{return new Date(s).toLocaleString("es-CL",{hour12:false})}catch{return s}}
 function ageInfo(s){if(!s.checked_at)return {text:s.status==="manual"?"Revisión manual requerida":"Nunca consultado",kind:"never",mins:null};let mins=Math.max(0,Math.floor((Date.now()-new Date(s.checked_at).getTime())/60000));if(!Number.isFinite(mins))return {text:"Antigüedad desconocida",kind:"never",mins:null};if(mins>=60)return {text:`Desactualizado · ${mins} min`,kind:"stale",mins};return {text:mins<1?"Hace menos de 1 min":`Actualizado hace ${mins} min`,kind:"fresh",mins}}
@@ -7,6 +7,7 @@ function render(){const term=$("search").value.trim().toLowerCase(),cat=$("categ
  const rows=cache.filter(s=>{const a=ageInfo(s);return (!term||s.name.toLowerCase().includes(term)||s.category.toLowerCase().includes(term))&&(!cat||s.category===cat)&&(!state||s.status===state)&&(!fresh||a.kind===fresh)});
  $("services").innerHTML=rows.map(s=>{const a=ageInfo(s);return `<article class="service service-clickable" data-service-id="${esc(s.id)}" tabindex="0" role="button" aria-label="Ver detalle de ${esc(s.name)}"><div class="service-top"><div><span class="service-name">${esc(s.name)}</span><div class="category">${esc(s.category||"General")}</div></div><span class="pill ${esc(s.status)}">${labels[s.status]||"SIN INFORMACIÓN"}</span></div><div class="service-desc">${esc(s.description||s.error||"Pendiente de consulta")}</div><div class="service-foot"><span class="age ${a.kind}">${esc(a.text)}</span><span class="portal-area"><a class="portal-btn" href="${esc(s.source_url||"#")}" target="_blank" rel="noopener noreferrer" data-no-detail>${esc(s.portal_label||"Abrir portal oficial")} ↗</a></span></div><div class="detail-hint">Seleccionar para ver el detalle y el enlace oficial ↗</div>${s.error?`<div class="error-line">No se pudo consultar automáticamente: ${esc(s.error)}</div>`:""}</article>`}).join("")||'<div class="loading">No hay plataformas que coincidan con los filtros.</div>';
  updateMetricSelection();
+ renderPlatformDrillFilter();
 }
 function updateMetricSelection(){
  const selectedState=$("state").value;
@@ -98,7 +99,7 @@ function buildFourHourTimeline(items,dateKey) {
   const buckets=[];
   for(let offset=5;offset>=0;offset--){
     const start=new Date(current-offset*width), end=new Date(start.getTime()+width);
-    buckets.push({start:start.getTime(),end:end.getTime(),label:start.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}),count:0});
+    buckets.push({start:start.getTime(),end:end.getTime(),key:start.toISOString(),label:start.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}),count:0});
   }
   (items||[]).forEach(item=>{
     const stamp=new Date(item[dateKey]||"").getTime(); if(!Number.isFinite(stamp))return;
@@ -124,7 +125,11 @@ function renderTimelineChart(targetId,buckets,options={}) {
     } else {
       segments=`<i style="height:${height.toFixed(2)}%;background:${options.color||"#5daaf5"}"></i>`;
     }
-    return `<div class="module-timeline-column" title="${esc(title)}"><b>${value||""}</b><div class="module-timeline-track">${segments}</div><small>${esc(item.label)}</small></div>`;
+    const drill = options.filterType
+      ? `type="button" class="module-timeline-column module-chart-drilldown${options.isActive?.(item) ? " is-active" : ""}" data-chart-filter="${esc(options.filterType)}" data-chart-value="${esc(item.key||"")}" data-chart-start="${Number(item.start||0)}" data-chart-end="${Number(item.end||0)}" aria-label="Filtrar por ${esc(item.label)}: ${value} registros"`
+      : `class="module-timeline-column"`;
+    const tag = options.filterType ? "button" : "div";
+    return `<${tag} ${drill} title="${esc(title)}"><b>${value||""}</b><div class="module-timeline-track">${segments}</div><small>${esc(item.label)}</small></${tag}>`;
   }).join("")}</div>${options.stacked?'<div class="module-chart-legend-inline"><span><i class="rlook"></i>RansomLook</span><span><i class="rlive"></i>Ransomware.live</span></div>':""}`;
 }
 function renderHorizontalChart(targetId,items,options={}) {
@@ -134,7 +139,9 @@ function renderHorizontalChart(targetId,items,options={}) {
   const max=Math.max(1,...rows.map(x=>Number(x.value||0)));
   node.innerHTML=rows.map(item=>{
     const width=Math.max(2,Number(item.value||0)/max*100);
-    return `<div class="module-horizontal-row"><div class="module-horizontal-label"><span>${esc(item.label)}</span><b>${Number(item.value).toLocaleString("es-CL")}</b></div><div class="module-horizontal-track"><i style="width:${width.toFixed(1)}%;background:${item.color||options.color||"#5daaf5"}"></i></div></div>`;
+    const drill=options.filterType?`type="button" class="module-horizontal-row module-chart-drilldown${options.isActive?.(item) ? " is-active" : ""}" data-chart-filter="${esc(options.filterType)}" data-chart-value="${esc(item.filterValue??item.label)}" aria-label="Filtrar ${esc(item.label)}: ${Number(item.value).toLocaleString("es-CL")} registros"`:`class="module-horizontal-row"`;
+    const tag=options.filterType?"button":"div";
+    return `<${tag} ${drill}><div class="module-horizontal-label"><span>${esc(item.label)}</span><b>${Number(item.value).toLocaleString("es-CL")}</b></div><div class="module-horizontal-track"><i style="width:${width.toFixed(1)}%;background:${item.color||options.color||"#5daaf5"}"></i></div></${tag}>`;
   }).join("");
 }
 
@@ -169,7 +176,7 @@ function renderPlatformAnalytics(services, events) {
     : "conic-gradient(#27384c 0 100%)";
   $("platformStateLegend").innerHTML = platformChartStates.filter(x=>counts[x.key]>0).map(item=>{
     const value=counts[item.key], pct=total?(value/total*100).toFixed(0):0;
-    return `<div class="module-chart-legend-row"><i style="background:${item.color}"></i><span>${item.label}</span><b>${value}</b><small>${pct}%</small></div>`;
+    return `<button type="button" class="module-chart-legend-row module-chart-drilldown${$("state").value===item.key?" is-active":""}" data-chart-filter="platform-status" data-chart-value="${item.key}" aria-label="Filtrar plataformas: ${item.label}, ${value}"><i style="background:${item.color}"></i><span>${item.label}</span><b>${value}</b><small>${pct}%</small></button>`;
   }).join("") || '<span class="module-chart-empty">Aún no hay estados registrados.</span>';
 
   const byCategory=new Map();
@@ -187,22 +194,41 @@ function renderPlatformAnalytics(services, events) {
       const width=item.values[state.key]/maxCategory*100;
       return `<i class="stack-segment" title="${esc(state.label)}: ${item.values[state.key]}" style="width:${width.toFixed(2)}%;background:${state.color}"></i>`;
     }).join("");
-    return `<div class="module-stack-row"><div class="module-stack-label"><span>${esc(item.name)}</span><b>${item.total}</b></div><div class="module-stack-track">${parts}</div></div>`;
+    return `<button type="button" class="module-stack-row module-chart-drilldown${$("category").value===item.name?" is-active":""}" data-chart-filter="platform-category" data-chart-value="${esc(item.name)}" aria-label="Filtrar categoría ${esc(item.name)}: ${item.total} plataformas"><div class="module-stack-label"><span>${esc(item.name)}</span><b>${item.total}</b></div><div class="module-stack-track">${parts}</div></button>`;
   }).join(""):'<span class="module-chart-empty">No hay categorías de plataformas.</span>';
 
   const timeline=buildDailyTimeline(events||[],"occurred_at",7).map(x=>({...x,count:x.count}));
-  renderTimelineChart("platformEventTrend",timeline,{color:"#5daaf5",empty:"Sin cambios de estado registrados en este período."});
+  renderTimelineChart("platformEventTrend",timeline,{color:"#5daaf5",filterType:"platform-event-date",isActive:item=>platformEventDateFilter===item.key,empty:"Sin cambios de estado registrados en este período."});
+  renderPlatformDrillFilter();
   const totalEvents=timeline.reduce((sum,item)=>sum+item.count,0);
   $("platformEventNote").textContent=`${totalEvents} transiciones en los últimos 7 días, calculadas sobre los 100 cambios más recientes disponibles. Solo se cuentan cambios detectados; no son mediciones continuas de disponibilidad.`;
 }
 
+function renderPlatformEvents(){
+ const rows=platformEventDateFilter?eventCache.filter(item=>localDateKey(item.occurred_at)===platformEventDateFilter):eventCache;
+ $("events").innerHTML=rows.length?rows.map(e=>`<tr><td>${date(e.occurred_at)}</td><td><b>${esc(e.service_name)}</b></td><td class="change">${labels[e.old_status]||e.old_status} → ${labels[e.new_status]||e.new_status}</td><td>${esc(e.description)}</td></tr>`).join(""):'<tr><td colspan="4">Sin cambios de estado para el filtro seleccionado.</td></tr>';
+ renderPlatformDrillFilter();
+}
+function renderPlatformDrillFilter(){
+ const parts=[];
+ if($("state").value)parts.push(`Estado: ${prettyStatus($("state").value)}`);
+ if($("category").value)parts.push(`Categoría: ${$("category").value}`);
+ renderDrillFilter("platformDrillFilter",[...parts,...(platformEventDateFilter?[`Historial: ${platformEventDateFilter}`]:[])].join(" · "),()=>{
+  $("state").value="";$("category").value="";$("freshFilter").value="";platformEventDateFilter="";render();renderPlatformEvents();renderPlatformAnalytics(cache,eventCache);
+ });
+}
+function renderDrillFilter(targetId,label,onClear){
+ const node=$(targetId);if(!node)return;
+ node.innerHTML=label?`<span class="drill-filter-label"><b>Filtro activo</b> ${esc(label)}</span><button type="button" class="drill-filter-clear" data-clear-drill="${esc(targetId)}">Quitar filtro ×</button>`:"";
+ if(label&&onClear)node._clearDrill=onClear;else node._clearDrill=null;
+}
 async function load(){try{const [sr,er,cr]=await Promise.all([fetch("/api/status"),fetch("/api/events?limit=100"),fetch("/api/config")]);if(!sr.ok||!er.ok||!cr.ok)throw new Error("API no disponible");const data=await sr.json(),events=await er.json(),config=await cr.json();cache=data.services;catalog=config.services;
  for(const k of ["operational","info","degraded","outage","maintenance","manual","unknown"])$(k).textContent=data.counts[k]??0;
  const automatic=cache.filter(s=>s.status!=="manual"&&s.checked_at);const stale=automatic.filter(s=>ageInfo(s).kind==="stale").length;$("stale").textContent=stale;
  const checks=automatic.map(s=>s.checked_at).filter(Boolean).sort();$("updated").textContent=checks.length?date(checks[checks.length-1]):"Aún no consultado";
  $("freshSummary").textContent=`${automatic.length} fuentes con consulta registrada · ${stale} con datos de 60 min o más · ${cache.filter(s=>s.status==="manual").length} requieren revisión manual`;
  const cats=[...new Set(config.services.map(s=>s.category||"General"))].sort(),old=$("category").value;$("category").innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");$("category").value=cats.includes(old)?old:"";render();
- $("events").innerHTML=events.length?events.map(e=>`<tr><td>${date(e.occurred_at)}</td><td><b>${esc(e.service_name)}</b></td><td class="change">${labels[e.old_status]||e.old_status} → ${labels[e.new_status]||e.new_status}</td><td>${esc(e.description)}</td></tr>`).join(""):'<tr><td colspan="4">Sin cambios de estado registrados.</td></tr>';renderPlatformAnalytics(cache,events);
+ eventCache=events||[];renderPlatformEvents();renderPlatformAnalytics(cache,eventCache);
  }catch(e){$("services").innerHTML='<div class="loading">No se pudo conectar con el backend. Intenta nuevamente.</div>';$("freshSummary").textContent="No fue posible cargar los datos."}}
 $("refresh").addEventListener("click",async()=>{$("refresh").disabled=true;$("refresh").textContent="Consultando fuentes…";try{const r=await fetch("/api/poll",{method:"POST"});const result=await r.json();if(!r.ok)throw new Error(result.detail||"Error");await load();await loadExecutiveDashboard();toast(`Consulta finalizada: ${result.success} fuentes con respuesta, ${result.errors} sin información y ${result.manual} para revisar manualmente.`)}catch(e){toast("No se pudo completar la consulta: "+e.message)}finally{$("refresh").disabled=false;$("refresh").textContent="↻ Actualizar ahora"}});
 document.querySelectorAll(".metric-filter").forEach(card=>card.addEventListener("click",()=>{
@@ -223,6 +249,7 @@ function tick(){$("clock").textContent=new Date().toLocaleTimeString("es-CL",{ho
 let intelPeriod = "7d";
 let intelCategory = "all";
 let intelSource = "all";
+let intelDateFilter = null;
 let intelItems = [];
 let intelSourceResults = [];
 const intelCategoryNames = {
@@ -263,7 +290,7 @@ function renderNewsAnalytics(items) {
   const timeline = intelPeriod === "24h"
     ? buildFourHourTimeline(items,"published_at")
     : buildDailyTimeline(items,"published_at",7);
-  renderTimelineChart("intelTrendChart",timeline,{color:"#5daaf5",empty:"Sin publicaciones en el período seleccionado."});
+  renderTimelineChart("intelTrendChart",timeline,{color:"#5daaf5",filterType:"intel-date",isActive:item=>intelDateFilter&&(intelDateFilter.start===Number(item.start||0)&&intelDateFilter.end===Number(item.end||0)||intelDateFilter.key===item.key),empty:"Sin publicaciones en el período seleccionado."});
 
   const categoryCounts={};
   const categoryLabels={ransomware:"Ransomware",espionage:"Espionaje",leaks:"Filtraciones",ddos:"DDoS",malware:"Malware",vulnerabilities:"Vulnerabilidades"};
@@ -273,12 +300,12 @@ function renderNewsAnalytics(items) {
     });
   });
   const categoryRows=Object.entries(categoryCounts).map(([key,value])=>({
-    label:categoryLabels[key]||key,value,color:{
+    label:categoryLabels[key]||key,filterValue:key,value,color:{
       ransomware:"#e58a78",espionage:"#a98ae8",leaks:"#e7b45e",
       ddos:"#5ea8e9",malware:"#64c49c",vulnerabilities:"#c5a4ef"
     }[key]||"#5daaf5"
   }));
-  renderHorizontalChart("intelCategoryChart",categoryRows,{empty:"No hay etiquetas temáticas en el filtro seleccionado."});
+  renderHorizontalChart("intelCategoryChart",categoryRows,{filterType:"intel-category",isActive:item=>intelCategory===item.filterValue,empty:"No hay etiquetas temáticas en el filtro seleccionado."});
 
   const sourceCounts={};
   (items||[]).forEach(item=>{
@@ -286,19 +313,23 @@ function renderNewsAnalytics(items) {
     sourceCounts[name]=(sourceCounts[name]||0)+1;
   });
   renderHorizontalChart("intelSourceChart",Object.entries(sourceCounts).map(([label,value])=>({label,value})),{
-    color:"#39c99a",limit:9,empty:"No hay publicaciones para las fuentes seleccionadas."
+    color:"#39c99a",limit:9,filterType:"intel-source",isActive:item=>intelSource===item.label,empty:"No hay publicaciones para las fuentes seleccionadas."
   });
 }
 
 function renderIntelNews() {
   renderIntelSourceFilter();
-  const visible = intelItems.filter(item => {
-    const categoryMatch = intelCategory === "all" || (item.categories || []).includes(intelCategory);
-    const sourceMatch = intelSource === "all" || item.source === intelSource;
-    return categoryMatch && sourceMatch;
-  });
+  const chartItems = intelItems.filter(item =>
+    (intelCategory === "all" || (item.categories || []).includes(intelCategory)) &&
+    (intelSource === "all" || item.source === intelSource)
+  );
+  const visible = chartItems.filter(item => !intelDateFilter || (intelDateFilter.start && intelDateFilter.end
+    ? new Date(item.published_at||0).getTime()>=intelDateFilter.start && new Date(item.published_at||0).getTime()<intelDateFilter.end
+    : localDateKey(item.published_at)===intelDateFilter.key));
   $("intelCount").textContent = `${visible.length} publicaciones`;
-  renderNewsAnalytics(visible);
+  renderNewsAnalytics(chartItems);
+  const dateLabel=intelDateFilter?(intelDateFilter.key||new Date(intelDateFilter.start).toLocaleString("es-CL")):"";
+  renderDrillFilter("intelDrillFilter",[intelCategory!=="all"?`Tema: ${intelCategoryNames[intelCategory]||intelCategory}`:"",intelSource!=="all"?`Fuente: ${intelSource}`:"",dateLabel?`Fecha: ${dateLabel}`:""].filter(Boolean).join(" · "),()=>{intelCategory="all";intelSource="all";intelDateFilter=null;$("intelSourceFilter").value="all";renderIntelNews();});
   $("intelNewsList").innerHTML = visible.length ? visible.map(item => {
     const tags = (item.categories || []).map(key =>
       `<span class="intel-tag tag-${esc(key)}">${esc(intelCategoryNames[key] || key)}</span>`
@@ -399,7 +430,7 @@ $("refreshIntel").addEventListener("click", async () => {
 
 document.querySelectorAll(".intel-period-btn").forEach(button => {
   button.addEventListener("click", () => {
-    intelPeriod = button.dataset.period;
+    intelPeriod = button.dataset.period;intelDateFilter=null;
     loadIntelNews();
   });
 });
@@ -420,6 +451,7 @@ loadIntelNews();
 // SOC Global Threat Intelligence — Part 2: ransomware claims and country map
 // ---------------------------------------------------------------------------
 let rwPeriod = "7d";
+let rwDateFilter = null;
 let rwItems = [];
 let rwMapInstance = null;
 let rwMapMarkers = null;
@@ -548,7 +580,9 @@ function renderRansomwareRows() {
   const group = $("rwGroupFilter").value;
   const visible = rwItems.filter(item => {
     const haystack = `${item.victim || ""} ${item.group_name || ""} ${item.country_name || ""}`.toLowerCase();
-    return (!term || haystack.includes(term)) && (!group || item.group_name === group);
+    const stamp=new Date(item.discovered_at||"").getTime();
+    const dateMatch=!rwDateFilter||(Number.isFinite(stamp)&&stamp>=rwDateFilter.start&&stamp<rwDateFilter.end);
+    return (!term || haystack.includes(term)) && (!group || item.group_name === group) && dateMatch;
   });
   $("rwVisibleCount").textContent = `${visible.length} de ${Number(rwItems.length).toLocaleString("es-CL")} filas individuales`;
   $("rwItems").innerHTML = visible.length ? visible.map(item => {
@@ -566,13 +600,15 @@ function renderRansomwareRows() {
       <td>${context}</td>
       <td><a href="${esc(item.source_link || "https://www.ransomlook.io/recent")}" target="_blank" rel="noopener noreferrer">RansomLook ↗</a></td>
     </tr>`;
-  }).join("") : '<tr><td colspan="6" class="rw-empty-cell">No hay publicaciones que coincidan con los filtros.</td></tr>';
+  }).join("") : '<tr><td colspan="6" class="rw-empty-cell">No hay publicaciones que coincidan con los filtros. Recuerda que Ransomware.live aporta conteos agregados y sus publicaciones individuales no se muestran aquí.</td></tr>';
+  const filterLabel=[$("rwGroupFilter").value?`Grupo: ${$("rwGroupFilter").value}`:"",rwDateFilter?`Fecha: ${new Date(rwDateFilter.start).toLocaleString("es-CL")}`:""].filter(Boolean).join(" · ");
+  renderDrillFilter("rwDrillFilter",filterLabel,()=>{$("rwGroupFilter").value="";rwDateFilter=null;renderRansomwareRows();});
 }
 
 function renderRansomwareAnalytics(data) {
   $("rwChartWindow").textContent = rwPeriod === "24h" ? "ÚLTIMAS 24 HORAS" : "ÚLTIMOS 7 DÍAS";
   renderTimelineChart("rwTimelineChart",data.timeline||[],{
-    stacked:true,empty:"No hay observaciones temporales en el período seleccionado."
+    stacked:true,filterType:"rw-date",isActive:item=>rwDateFilter&&rwDateFilter.start===Number(item.start||0),empty:"No hay observaciones temporales en el período seleccionado."
   });
   const groups=(data.top_groups||[]).slice(0,8);
   const max=Math.max(1,...groups.map(x=>Number(x.count||0)));
@@ -580,14 +616,14 @@ function renderRansomwareAnalytics(data) {
     const total=Number(group.count||0), sc=group.source_counts||{};
     const look=Number(sc.RansomLook||0), live=Number(sc["Ransomware.live"]||0);
     const lookWidth=look/max*100, liveWidth=live/max*100;
-    return `<div class="module-horizontal-row">
+    return `<button type="button" class="module-horizontal-row module-chart-drilldown${$("rwGroupFilter").value===group.name?" is-active":""}" data-chart-filter="rw-group" data-chart-value="${esc(group.name)}" aria-label="Filtrar publicaciones por grupo ${esc(group.name)}: ${total} observaciones">
       <div class="module-horizontal-label"><span>${esc(group.name)}</span><b>${total.toLocaleString("es-CL")}</b></div>
       <div class="module-horizontal-track module-stacked-track">
        <i class="rlook" title="RansomLook: ${look}" style="width:${lookWidth.toFixed(2)}%"></i>
        <i class="rlive" title="Ransomware.live: ${live}" style="width:${liveWidth.toFixed(2)}%"></i>
       </div>
       <small class="module-row-subtext">RansomLook ${look} · Ransomware.live ${live}</small>
-    </div>`;
+    </button>`;
   }).join(""):'<span class="module-chart-empty">No hay grupos identificados en el período.</span>';
 }
 
@@ -668,7 +704,7 @@ $("refreshRansomware").addEventListener("click", async () => {
 
 document.querySelectorAll(".rw-period-btn").forEach(button => {
   button.addEventListener("click", () => {
-    rwPeriod = button.dataset.rwPeriod;
+    rwPeriod = button.dataset.rwPeriod;rwDateFilter=null;
     loadRansomware();
   });
 });
@@ -677,8 +713,44 @@ $("rwGroupFilter").addEventListener("change", renderRansomwareRows);
 loadRansomware();
 
 
+// ---------------------------------------------------------------------------
+// Fase 3 — interacción y navegación desde gráficos a registros
+// ---------------------------------------------------------------------------
+document.addEventListener("click",event=>{
+ const clear=event.target.closest("[data-clear-drill]");
+ if(clear){const node=$(clear.dataset.clearDrill);node?._clearDrill?.();return;}
+ const control=event.target.closest("[data-chart-filter]");
+ if(!control)return;
+ const type=control.dataset.chartFilter,value=control.dataset.chartValue||"";
+ if(type==="platform-status"){$("state").value=$("state").value===value?"":value;$("freshFilter").value="";render();renderPlatformAnalytics(cache,eventCache);document.querySelector("#services")?.scrollIntoView({behavior:"smooth",block:"start"});}
+ else if(type==="platform-category"){$("category").value=$("category").value===value?"":value;render();renderPlatformAnalytics(cache,eventCache);document.querySelector("#services")?.scrollIntoView({behavior:"smooth",block:"start"});}
+ else if(type==="platform-event-date"){platformEventDateFilter=platformEventDateFilter===value?"":value;renderPlatformEvents();document.querySelector("#events")?.closest(".table-wrap")?.scrollIntoView({behavior:"smooth",block:"start"});}
+ else if(type==="intel-category"){intelCategory=intelCategory===value?"all":value;renderIntelNews();$("intelNewsList")?.scrollIntoView({behavior:"smooth",block:"start"});}
+ else if(type==="intel-source"){intelSource=intelSource===value?"all":value;$("intelSourceFilter").value=intelSource;renderIntelNews();$("intelNewsList")?.scrollIntoView({behavior:"smooth",block:"start"});}
+ else if(type==="intel-date"){
+  const start=Number(control.dataset.chartStart||0),end=Number(control.dataset.chartEnd||0);
+  const next=start&&end?{start,end}:{key:value};
+  intelDateFilter=intelDateFilter&&((next.key&&intelDateFilter.key===next.key)||(next.start&&intelDateFilter.start===next.start))?null:next;
+  renderIntelNews();$("intelNewsList")?.scrollIntoView({behavior:"smooth",block:"start"});
+ }
+ else if(type==="rw-group"){
+  if(!rwItems.some(item=>item.group_name===value)){toast(`El grupo ${value} aparece en el agregado de fuentes, pero no tiene publicaciones individuales visibles en la tabla RansomLook.`);return;}
+  $("rwGroupFilter").value=$("rwGroupFilter").value===value?"":value;renderRansomwareRows();$("rwItems")?.closest(".rw-table-wrap")?.scrollIntoView({behavior:"smooth",block:"start"});
+ }
+ else if(type==="rw-date"){
+  const key=value;const providedStart=Number(control.dataset.chartStart||0),providedEnd=Number(control.dataset.chartEnd||0);const start=providedStart||Date.parse(key);
+  if(Number.isFinite(start)&&start>0){const width=providedEnd>start?providedEnd-start:(rwPeriod==="24h"?4*60*60*1000:24*60*60*1000);rwDateFilter=rwDateFilter?.start===start?null:{start,end:start+width};renderRansomwareRows();$("rwItems")?.closest(".rw-table-wrap")?.scrollIntoView({behavior:"smooth",block:"start"});}
+ }
+ else if(type==="vuln-severity"||type==="vuln-epss"||type==="vuln-kev"){
+  const filterType=type==="vuln-severity"?"severity":type==="vuln-epss"?"epss":"kev";
+  vulnDrillFilter=vulnDrillFilter?.type===filterType&&vulnDrillFilter.value===value?null:{type:filterType,value};
+  renderVulnerabilityTable();renderVulnerabilityAnalytics(vulnRowsCache);$("vulnRows")?.closest(".vuln-table-wrap")?.scrollIntoView({behavior:"smooth",block:"start"});
+ }
+});
+
 // Vulnerability intelligence: CISA KEV, NVD and FIRST EPSS
 let vulnRowsCache = [];
+let vulnDrillFilter = null;
 function renderVulnerabilityAnalytics(items) {
   const period=$("vulnPeriod").value||"30d";
   $("vulnChartWindow").textContent=period==="all"?"TODOS LOS ALMACENADOS":period==="7d"?"ÚLTIMOS 7 DÍAS + KEV":"30 DÍAS + KEV";
@@ -702,42 +774,65 @@ function renderVulnerabilityAnalytics(items) {
     else epss.high+=1;
   });
   renderHorizontalChart("vulnSeverityChart",severityOrder.map(x=>({
-    label:x.label,value:severityCounts[x.key],color:x.color
-  })),{empty:"No hay CVE visibles para clasificar."});
+    label:x.label,filterValue:x.key,value:severityCounts[x.key],color:x.color
+  })),{filterType:"vuln-severity",isActive:item=>vulnDrillFilter?.type==="severity"&&vulnDrillFilter.value===item.filterValue,empty:"No hay CVE visibles para clasificar."});
   renderHorizontalChart("vulnEpssChart",[
-    {label:"Alta · ≥ 50%",value:epss.high,color:"#ed8b82"},
-    {label:"Media · 10–49,99%",value:epss.medium,color:"#e9bb63"},
-    {label:"Baja · < 10%",value:epss.low,color:"#55b9a0"},
-    {label:"Sin puntaje EPSS",value:epss.unknown,color:"#7d91a8"}
-  ],{empty:"No hay puntajes EPSS en los registros visibles."});
+    {label:"Alta · ≥ 50%",filterValue:"high",value:epss.high,color:"#ed8b82"},
+    {label:"Media · 10–49,99%",filterValue:"medium",value:epss.medium,color:"#e9bb63"},
+    {label:"Baja · < 10%",filterValue:"low",value:epss.low,color:"#55b9a0"},
+    {label:"Sin puntaje EPSS",filterValue:"unknown",value:epss.unknown,color:"#7d91a8"}
+  ],{filterType:"vuln-epss",isActive:item=>vulnDrillFilter?.type==="epss"&&vulnDrillFilter.value===item.filterValue,empty:"No hay puntajes EPSS en los registros visibles."});
   const known=(items||[]).length-kev;
   const ratio=(items||[]).length?kev/items.length*100:0;
   $("vulnKevChart").innerHTML=(items||[]).length?`
-    <div class="kev-split-summary"><div><strong>${kev.toLocaleString("es-CL")}</strong><span>Incluidas en CISA KEV</span></div><div><strong>${known.toLocaleString("es-CL")}</strong><span>No incluidas en KEV</span></div></div>
-    <div class="kev-split-track"><i style="width:${ratio.toFixed(2)}%"></i></div>
-    <div class="kev-split-legend"><span>KEV ${(ratio).toFixed(1)}%</span><span>Fuera de KEV ${(100-ratio).toFixed(1)}%</span></div>`
+    <div class="kev-split-summary">
+     <button type="button" class="kev-drill-card module-chart-drilldown${vulnDrillFilter?.type==="kev"&&vulnDrillFilter.value==="yes"?" is-active":""}" data-chart-filter="vuln-kev" data-chart-value="yes" aria-label="Filtrar CVE incluidas en CISA KEV"><strong>${kev.toLocaleString("es-CL")}</strong><span>Incluidas en CISA KEV · ${(ratio).toFixed(1)}%</span></button>
+     <button type="button" class="kev-drill-card module-chart-drilldown${vulnDrillFilter?.type==="kev"&&vulnDrillFilter.value==="no"?" is-active":""}" data-chart-filter="vuln-kev" data-chart-value="no" aria-label="Filtrar CVE no incluidas en CISA KEV"><strong>${known.toLocaleString("es-CL")}</strong><span>No incluidas en KEV · ${(100-ratio).toFixed(1)}%</span></button>
+    </div>
+    <div class="kev-split-track"><i style="width:${ratio.toFixed(2)}%"></i></div>`
     :'<span class="module-chart-empty">No hay registros para comparar.</span>';
   $("vulnChartNote").textContent=`Distribución calculada sobre ${Number((items||[]).length).toLocaleString("es-CL")} registros visibles con el filtro actual. KEV significa que CISA incluyó la CVE en su catálogo de explotación conocida; no estar en KEV no prueba ausencia de explotación.`;
+}
+
+function getFilteredVulnerabilities(){
+ if(!vulnDrillFilter)return vulnRowsCache;
+ return vulnRowsCache.filter(item=>{
+  if(vulnDrillFilter.type==="severity")return String(item.severity||"NONE").toUpperCase()===vulnDrillFilter.value;
+  if(vulnDrillFilter.type==="kev")return Boolean(Number(item.kev))===(vulnDrillFilter.value==="yes");
+  if(vulnDrillFilter.type==="epss"){
+   if(item.epss===null||item.epss===undefined||item.epss==="")return vulnDrillFilter.value==="unknown";
+   const value=Number(item.epss);
+   return vulnDrillFilter.value==="low"?value<0.1:vulnDrillFilter.value==="medium"?value>=0.1&&value<0.5:value>=0.5;
+  }
+  return true;
+ });
+}
+function renderVulnerabilityTable(){
+ const visible=getFilteredVulnerabilities();
+ const rows=visible.map(v=>{
+  const cvss=v.cvss==null?"—":`${Number(v.cvss).toFixed(1)} · ${esc(v.severity||"")}`;
+  const epss=v.epss==null?"—":`${(Number(v.epss)*100).toFixed(2)}%`;
+  const kev=Number(v.kev)?`<span class="vuln-kev">Sí · ${esc(v.ransomware_use||"Unknown")}</span>`:"No";
+  const publishedDate=v.published?new Date(v.published).toLocaleDateString("es-CL"):"—";
+  const modifiedDate=v.modified?new Date(v.modified).toLocaleString("es-CL"):"No informada";
+  const kevDate=v.kev_date?new Date(v.kev_date).toLocaleDateString("es-CL"):"—";
+  return `<tr class="vuln-click-row" data-cve="${esc(v.cve)}" tabindex="0" role="button" aria-label="Abrir detalle de ${esc(v.cve)}"><td><button type="button" class="vuln-open" data-cve="${esc(v.cve)}">${esc(v.cve)}</button></td><td><b>${esc(v.title||v.cve)}</b><small>${esc([v.vendor,v.product].filter(Boolean).join(" · "))}</small><p>${esc(v.description||"")}</p><span class="vuln-row-hint">Ver ficha técnica y mitigaciones ↗</span></td><td>${cvss}</td><td>${epss}</td><td>${kev}</td><td>${esc(publishedDate)}</td><td><time datetime="${esc(v.modified||"")}">${esc(modifiedDate)}</time></td><td>${esc(kevDate)}</td><td><a href="${esc(v.source_url)}" target="_blank" rel="noopener" data-no-vuln-detail>NVD ↗</a></td></tr>`;
+ }).join("");
+ $("vulnRows").innerHTML=rows||'<tr><td colspan="9">No hay CVE que coincidan con el filtro del gráfico.</td></tr>';
+ $("vulnCount").textContent=`${visible.length} / ${vulnRowsCache.length}`;
+ const filterLabels={severity:`Severidad: ${vulnDrillFilter?.value||""}`,epss:`EPSS: ${vulnDrillFilter?.value||""}`,kev:`CISA KEV: ${vulnDrillFilter?.value==="yes"?"Sí":"No"}`};
+ renderDrillFilter("vulnDrillFilter",vulnDrillFilter?filterLabels[vulnDrillFilter.type]:"",()=>{vulnDrillFilter=null;renderVulnerabilityTable();renderVulnerabilityAnalytics(vulnRowsCache);});
 }
 
 function renderVulnerabilities(data) {
   vulnRowsCache = data.items || [];
   renderVulnerabilityAnalytics(vulnRowsCache);
-  $("vulnCount").textContent = data.count || 0;
   $("vulnKevCount").textContent = data.kev_count || "—";
   $("vulnNvdCount").textContent = data.nvd_count || "—";
   $("vulnLastRefresh").textContent = data.last_refresh ? new Date(data.last_refresh).toLocaleString("es-CL") : "Pendiente";
-  const rows = vulnRowsCache.map(v => {
-    const cvss = v.cvss == null ? "—" : `${Number(v.cvss).toFixed(1)} · ${esc(v.severity || "")}`;
-    const epss = v.epss == null ? "—" : `${(Number(v.epss)*100).toFixed(2)}%`;
-    const kev = Number(v.kev) ? `<span class="vuln-kev">Sí · ${esc(v.ransomware_use || "Unknown")}</span>` : "No";
-    const publishedDate = v.published ? new Date(v.published).toLocaleDateString("es-CL") : "—";
-    const modifiedDate = v.modified ? new Date(v.modified).toLocaleString("es-CL") : "No informada";
-    const kevDate = v.kev_date ? new Date(v.kev_date).toLocaleDateString("es-CL") : "—";
-    return `<tr class="vuln-click-row" data-cve="${esc(v.cve)}" tabindex="0" role="button" aria-label="Abrir detalle de ${esc(v.cve)}"><td><button type="button" class="vuln-open" data-cve="${esc(v.cve)}">${esc(v.cve)}</button></td><td><b>${esc(v.title || v.cve)}</b><small>${esc([v.vendor,v.product].filter(Boolean).join(" · "))}</small><p>${esc(v.description || "")}</p><span class="vuln-row-hint">Ver ficha técnica y mitigaciones ↗</span></td><td>${cvss}</td><td>${epss}</td><td>${kev}</td><td>${esc(publishedDate)}</td><td><time datetime="${esc(v.modified || "")}">${esc(modifiedDate)}</time></td><td>${esc(kevDate)}</td><td><a href="${esc(v.source_url)}" target="_blank" rel="noopener" data-no-vuln-detail>NVD ↗</a></td></tr>`;
-  }).join("");
-  $("vulnRows").innerHTML = rows || '<tr><td colspan="9">No hay registros para este filtro. Actualiza las fuentes públicas.</td></tr>';
+  renderVulnerabilityTable();
 }
+
 function detailCell(value) {
   if (value === null || value === undefined || value === "") return "No informado";
   return esc(String(value).replaceAll("_", " "));
@@ -827,7 +922,7 @@ $("refreshVulns").addEventListener("click", async () => {
     toast("No se pudo actualizar vulnerabilidades: " + e.message);
   } finally { button.disabled = false; button.textContent = "↻ Actualizar vulnerabilidades"; }
 });
-$("vulnPeriod").addEventListener("change", loadVulnerabilities);
+$("vulnPeriod").addEventListener("change", () => {vulnDrillFilter=null;loadVulnerabilities();});
 $("vulnSort").addEventListener("change", loadVulnerabilities);
 let vulnSearchTimer;
 $("vulnSearch").addEventListener("input", () => { clearTimeout(vulnSearchTimer); vulnSearchTimer = setTimeout(loadVulnerabilities, 250); });

@@ -9,8 +9,9 @@ def test_news_source_filter_is_present_and_combines_with_category():
     assert 'id="intelSourceFilter"' in html
     assert "let intelSource = \"all\"" in js
     assert "intelSourceResults.map" in js
-    assert "const categoryMatch" in js
-    assert "const sourceMatch" in js
+    assert "const chartItems = intelItems.filter" in js
+    assert 'intelCategory === "all" || (item.categories || []).includes(intelCategory)' in js
+    assert 'intelSource === "all" || item.source === intelSource' in js
     assert 'value="all">Todas las fuentes' in js
 
 
