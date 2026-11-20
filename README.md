@@ -182,3 +182,32 @@ Cada proveedor se consulta de forma independiente; un fallo de una fuente no deb
 - La selección del módulo activo se resalta en el menú lateral; ya no es necesario volver a Inicio para cambiar de sección.
 
 - Versión de paquete: `1.9.0-phase1-nav`; las tarjetas grandes se sustituyen por navegación lateral y el panel ejecutivo sigue siendo la vista de inicio.
+
+
+## v1.9.0 — Fase 2: Inteligencia visual por módulo
+
+### Estado de plataformas
+- Distribución por estado actual (operativas, avisos, degradadas, indisponibles, mantenimiento, manual y sin información).
+- Barras apiladas por categoría de plataforma.
+- Transiciones registradas en los últimos 7 días a partir del historial real de eventos. No se interpreta como disponibilidad continua.
+
+### Ataques y amenazas publicados
+- Evolución de publicaciones por fecha publicada: 7 días (diario) o 24 horas (bloques de 4 horas).
+- Distribución por categoría temática y fuente, usando los filtros actuales de período, fuente y categoría.
+- Los conteos corresponden a las noticias almacenadas en caché, no a un total global de incidentes.
+
+### Ransomware tracker
+- Evolución por fecha observada: 7 días (diario) o 24 horas (bloques de 4 horas).
+- Desglose de grupos con observaciones por RansomLook y Ransomware.live.
+- Se agrega al endpoint de caché un timeline de conteos agregados por fuente y período. No contiene nombres de víctimas ni detalles individuales de publicaciones de Ransomware.live.
+
+### Vulnerability Intelligence
+- Distribución de los registros visibles por severidad CVSS.
+- Bandas EPSS: <10%, 10–<50%, ≥50% y sin puntaje.
+- Proporción de registros visibles incluidos/no incluidos en CISA KEV.
+- Las distribuciones reflejan los registros devueltos por el filtro actual y no el universo completo de NVD.
+
+### Implementación
+- Visualizaciones construidas con HTML/CSS/JavaScript nativo; no se agrega una dependencia de gráficos externa.
+- Los módulos conservan sus tablas, filtros, mapas, fuentes y botones actuales.
+- Los gráficos se recalculan al cambiar período, filtros o refrescar el módulo correspondiente.

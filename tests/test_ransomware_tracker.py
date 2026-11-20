@@ -175,3 +175,50 @@ def test_source_breakdown_distinguishes_visible_rows_from_processed_counts(tmp_p
     assert countries["CL"]["source_counts"]["RansomLook"] == 1
     assert countries["NL"]["source_counts"]["Ransomware.live"] == 1
     assert data["top_groups"][0]["source_counts"]["Ransomware.live"] == 1
+
+
+def test_ransomware_cache_exposes_seven_day_source_timeline_without_claim_details(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, "DB_PATH", str(tmp_path / "ransom-timeline.sqlite3"))
+    main.init_db()
+    current = datetime.now(timezone.utc)
+    recent = current.isoformat()
+    yesterday = (current - timedelta(days=1)).isoformat()
+    with main.db() as c:
+        for row_id, source, discovered in [
+            ("timeline-look", "RansomLook", recent),
+            ("timeline-live", "Ransomware.live", yesterday),
+        ]:
+            c.execute("""INSERT INTO ransomware_posts
+                (id,victim,group_name,discovered_at,description,source_link,country_code,
+                 country_name,country_lat,country_lon,country_basis,cached_at,source)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (row_id,"Private victim label","Example Group",discovered,"Metadata only",
+                 "https://www.ransomlook.io/recent",None,None,None,None,None,recent,source))
+    data = main.get_cached_ransomware("7d")
+    assert len(data["timeline"]) == 7
+    assert data["timeline_unit"] == "day"
+    assert sum(item["total"] for item in data["timeline"]) == 2
+    assert sum(item["RansomLook"] for item in data["timeline"]) == 1
+    assert sum(item["Ransomware.live"] for item in data["timeline"]) == 1
+    # The timeline schema is aggregate-only and does not contain victim names.
+    assert all("victim" not in item and "group_name" not in item for item in data["timeline"])
+
+
+def test_ransomware_cache_exposes_six_four_hour_buckets_for_24h(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, "DB_PATH", str(tmp_path / "ransom-timeline-24h.sqlite3"))
+    main.init_db()
+    current = datetime.now(timezone.utc)
+    recent = current.isoformat()
+    old = (current - timedelta(hours=30)).isoformat()
+    with main.db() as c:
+        for row_id, discovered in [("in-window", recent), ("out-window", old)]:
+            c.execute("""INSERT INTO ransomware_posts
+                (id,victim,group_name,discovered_at,description,source_link,country_code,
+                 country_name,country_lat,country_lon,country_basis,cached_at,source)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (row_id,"Example","Group",discovered,"", "https://www.ransomlook.io/recent",
+                 None,None,None,None,None,recent,"RansomLook"))
+    data = main.get_cached_ransomware("24h")
+    assert len(data["timeline"]) == 6
+    assert data["timeline_unit"] == "4h"
+    assert sum(item["total"] for item in data["timeline"]) == 1

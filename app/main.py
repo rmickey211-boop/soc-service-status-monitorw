@@ -20,7 +20,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.8 (+public status and ransomware metadata)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.9.0-phase1-nav")
+app = FastAPI(title="SOC Service Status Monitor", version="1.9.0-phase2")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -952,6 +952,63 @@ def get_cached_ransomware(period="7d"):
             entry["count"] += 1
             entry["source_counts"][source] = entry["source_counts"].get(source, 0) + 1
 
+    # Temporal aggregation exposes only counts by source and time bucket.
+    # It intentionally omits victim names and other individual claim details.
+    timeline = []
+    if period == "24h":
+        bucket_seconds = 4 * 60 * 60
+        current_bucket = int(datetime.now(timezone.utc).timestamp() // bucket_seconds * bucket_seconds)
+        bucket_starts = [
+            datetime.fromtimestamp(current_bucket - offset * bucket_seconds, timezone.utc)
+            for offset in reversed(range(6))
+        ]
+        buckets = {
+            bucket.strftime("%Y-%m-%dT%H:%M:%SZ"): {
+                "label": bucket.strftime("%H:%M"), "total": 0,
+                "RansomLook": 0, "Ransomware.live": 0
+            }
+            for bucket in bucket_starts
+        }
+        for row in rows:
+            discovered = _news_parse_date(row["discovered_at"])
+            if not discovered or discovered < cutoff:
+                continue
+            bucket_start = int(discovered.timestamp() // bucket_seconds * bucket_seconds)
+            key = datetime.fromtimestamp(bucket_start, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            if key not in buckets:
+                continue
+            source = row["source"] if "source" in row.keys() and row["source"] else "RansomLook"
+            if source not in {"RansomLook", "Ransomware.live"}:
+                continue
+            buckets[key]["total"] += 1
+            buckets[key][source] += 1
+        timeline = list(buckets.values())
+        timeline_unit = "4h"
+    else:
+        today = datetime.now(timezone.utc).date()
+        bucket_dates = [today - timedelta(days=offset) for offset in reversed(range(7))]
+        buckets = {
+            bucket_date.isoformat(): {
+                "label": bucket_date.strftime("%d %b"), "total": 0,
+                "RansomLook": 0, "Ransomware.live": 0
+            }
+            for bucket_date in bucket_dates
+        }
+        for row in rows:
+            discovered = _news_parse_date(row["discovered_at"])
+            if not discovered or discovered < cutoff:
+                continue
+            key = discovered.astimezone(timezone.utc).date().isoformat()
+            if key not in buckets:
+                continue
+            source = row["source"] if "source" in row.keys() and row["source"] else "RansomLook"
+            if source not in {"RansomLook", "Ransomware.live"}:
+                continue
+            buckets[key]["total"] += 1
+            buckets[key][source] += 1
+        timeline = list(buckets.values())
+        timeline_unit = "day"
+
     countries = sorted(country_counts.values(), key=lambda x: (-x["count"], x["name"]))
     groups = sorted(group_counts.values(), key=lambda x: (-x["count"], x["name"].casefold()))[:8]
     try:
@@ -982,6 +1039,7 @@ def get_cached_ransomware(period="7d"):
         "listed_items_count": len(posts), "processed_items_count": total_processed,
         "groups_count": len(group_counts), "top_groups": groups,
         "countries": countries, "countries_count": len(countries),
+        "timeline": timeline, "timeline_unit": timeline_unit,
         "unmapped_count": unmapped_count,
         "last_refresh": meta.get("last_refresh"),
         "sources": source_results, "source_stats": source_output,

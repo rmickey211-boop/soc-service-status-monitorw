@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.9.0-phase1-nav"></head>
+<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.9.0-phase2"></head>
 <body>
 <header class="topbar"><button type="button" id="mobileMenuToggle" class="mobile-menu-toggle" aria-label="Abrir menú de módulos" aria-expanded="false">☰</button><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · THREAT INTELLIGENCE</small></div></div>
 <div class="top-right"><span class="live-dot"></span><span>CONSULTA A DEMANDA</span><span id="clock">--:--:--</span></div></header>
@@ -138,6 +138,24 @@
 <button type="button" class="metric metric-filter" data-filter="stale" aria-pressed="false" title="Filtrar plataformas con datos antiguos"><span>DATOS ANTIGUOS (+60 MIN)</span><strong id="stale">—</strong><i class="yellow"></i></button>
 </section>
 <section class="freshness"><div><span class="eyebrow">FRESCURA DE DATOS</span><b id="updated">Aún no consultado</b></div><div class="freshness-right"><span id="freshSummary">Presiona «Actualizar ahora» para consultar las fuentes.</span><span class="muted">La antigüedad se calcula desde la última respuesta exitosa.</span></div></section>
+<section class="module-visuals platform-visuals" aria-label="Gráficos de estado de plataformas">
+ <div class="module-visuals-heading"><div><h2>Analítica de plataformas</h2><p>Distribución actual y cambios registrados por las consultas.</p></div><span class="chart-window-label">ESTADO ACTUAL + HISTORIAL DISPONIBLE</span></div>
+ <div class="module-chart-grid platform-chart-grid">
+  <article class="module-chart-panel">
+   <div class="module-chart-heading"><div><h3>Distribución por estado</h3><p>Catálogo completo de plataformas</p></div></div>
+   <div class="module-donut-layout"><div id="platformStateDonut" class="module-donut"><div><strong id="platformStateTotal">—</strong><small>servicios</small></div></div><div id="platformStateLegend" class="module-chart-legend"><span class="module-chart-empty">Esperando datos.</span></div></div>
+  </article>
+  <article class="module-chart-panel module-chart-wide">
+   <div class="module-chart-heading"><div><h3>Estado por categoría</h3><p>Comparación de proveedores y servicios agrupados</p></div></div>
+   <div id="platformCategoryBars" class="module-horizontal-bars"><span class="module-chart-empty">Esperando datos.</span></div>
+  </article>
+  <article class="module-chart-panel">
+   <div class="module-chart-heading"><div><h3>Transiciones de estado</h3><p>Cambios detectados en las consultas</p></div><span class="chart-window-label">ÚLTIMOS 7 DÍAS</span></div>
+   <div id="platformEventTrend" class="module-timeline"><span class="module-chart-empty">Sin historial suficiente.</span></div>
+   <div id="platformEventNote" class="module-chart-note">El gráfico contabiliza cambios registrados, no sondeos periódicos.</div>
+  </article>
+ </div>
+</section>
 <section class="section-head"><div><h2>Plataformas monitoreadas</h2><p>Las fuentes manuales requieren abrir el portal oficial; no se presentan como operativas.</p></div></section>
 <div class="toolbar"><input id="search" type="search" placeholder="Buscar plataforma…" aria-label="Buscar plataforma"><select id="category" aria-label="Filtrar categoría"><option value="">Todas las categorías</option></select><select id="state" aria-label="Filtrar estado"><option value="">Todos los estados</option><option value="operational">Operativo</option><option value="info">Aviso</option><option value="degraded">Degradado</option><option value="outage">Indisponibilidad</option><option value="maintenance">Mantenimiento</option><option value="manual">Consulta manual</option><option value="unknown">Sin información</option></select><select id="freshFilter" aria-label="Filtrar antigüedad"><option value="">Cualquier antigüedad</option><option value="fresh">Actualizados (menos de 60 min)</option><option value="stale">Antiguos (60 min o más)</option><option value="never">Nunca consultados</option></select></div>
 <section id="services" class="services"><div class="loading">Aún no se ha realizado una consulta. Presiona «Actualizar ahora».</div></section>
@@ -182,7 +200,24 @@
   <span id="intelCount">0 publicaciones</span>
   <span id="intelSourceSummary" aria-live="polite">Nueve fuentes públicas · actualización manual · resultados en caché.</span>
  </div>
- <div id="intelNewsList" class="intel-news-grid">
+ <section class="module-visuals intel-visuals" aria-label="Gráficos de amenazas publicadas">
+  <div class="module-visuals-heading"><div><h2>Analítica de amenazas</h2><p>Actividad de publicaciones, clasificación temática y aporte de fuentes.</p></div><span id="intelChartWindow" class="chart-window-label">ÚLTIMOS 7 DÍAS</span></div>
+  <div class="module-chart-grid news-chart-grid">
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Evolución de publicaciones</h3><p>Volumen según fecha publicada</p></div></div>
+    <div id="intelTrendChart" class="module-timeline"><span class="module-chart-empty">Aún no hay publicaciones.</span></div>
+   </article>
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Publicaciones por categoría</h3><p>Una noticia puede tener más de una etiqueta</p></div></div>
+    <div id="intelCategoryChart" class="module-horizontal-bars"><span class="module-chart-empty">Aún no hay publicaciones.</span></div>
+   </article>
+   <article class="module-chart-panel module-chart-wide">
+    <div class="module-chart-heading"><div><h3>Actividad por fuente</h3><p>Noticias incluidas en los filtros seleccionados</p></div></div>
+    <div id="intelSourceChart" class="module-source-bars"><span class="module-chart-empty">Aún no hay publicaciones.</span></div>
+   </article>
+  </div>
+ </section>
+<div id="intelNewsList" class="intel-news-grid">
   <div class="intel-empty">
    <b>Aún no hay noticias en caché</b>
    <span>Presiona «Actualizar inteligencia» para consultar las fuentes públicas.</span>
@@ -232,7 +267,21 @@
   <div class="rw-kpi"><span>PAÍSES ASOCIADOS</span><b id="rwCountryCount">—</b></div>
   <div class="rw-kpi"><span>SIN PAÍS ASIGNABLE</span><b id="rwUnknownCount">—</b></div>
  </div>
- <div class="rw-map-layout">
+ <section class="module-visuals ransomware-visuals" aria-label="Gráficos de actividad ransomware">
+  <div class="module-visuals-heading"><div><h2>Analítica de ransomware</h2><p>Observaciones por fecha y concentración por grupo. Incluye aportes agregados de ambas fuentes.</p></div><span id="rwChartWindow" class="chart-window-label">ÚLTIMOS 7 DÍAS</span></div>
+  <div class="module-chart-grid ransomware-chart-grid">
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Evolución de observaciones</h3><p>Publicaciones procesadas por fecha</p></div></div>
+    <div id="rwTimelineChart" class="module-timeline"><span class="module-chart-empty">Aún no hay observaciones.</span></div>
+    <div class="module-chart-note">Son observaciones de fuentes, no incidentes confirmados ni víctimas únicas.</div>
+   </article>
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Grupos con mayor actividad</h3><p>Observaciones agrupadas por proveedor</p></div></div>
+    <div id="rwGroupChart" class="module-horizontal-bars"><span class="module-chart-empty">Aún no hay grupos.</span></div>
+   </article>
+  </div>
+ </section>
+<div class="rw-map-layout">
   <div class="rw-map-panel">
    <div class="rw-panel-heading"><div><b>Distribución geográfica</b><small>Marcadores agrupados por país mencionado en el contexto público</small></div><span id="rwMapStatus" class="rw-map-status">Esperando datos</span></div>
    <div id="rwMap" role="img" aria-label="Mapa mundial de países asociados a publicaciones ransomware"></div>
@@ -280,7 +329,25 @@
   <div><span>NVD últimos 30 días</span><b id="vulnNvdCount">—</b></div>
   <div><span>Última actualización</span><b id="vulnLastRefresh">Pendiente</b></div>
  </div>
- <div class="vuln-tools">
+ <section class="module-visuals vuln-visuals" aria-label="Gráficos de vulnerabilidades">
+  <div class="module-visuals-heading"><div><h2>Analítica de vulnerabilidades</h2><p>Distribución de los registros visibles según severidad, EPSS y explotación conocida.</p></div><span id="vulnChartWindow" class="chart-window-label">30 DÍAS + KEV</span></div>
+  <div class="module-chart-grid vuln-chart-grid">
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Severidad CVSS</h3><p>Distribución de los registros visibles</p></div></div>
+    <div id="vulnSeverityChart" class="module-horizontal-bars"><span class="module-chart-empty">Aún no hay CVE en caché.</span></div>
+   </article>
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Bandas de probabilidad EPSS</h3><p>Estimación de explotación en los próximos 30 días</p></div></div>
+    <div id="vulnEpssChart" class="module-horizontal-bars"><span class="module-chart-empty">Aún no hay puntajes EPSS.</span></div>
+   </article>
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Explotación conocida · CISA KEV</h3><p>Presencia en el catálogo de vulnerabilidades explotadas</p></div></div>
+    <div id="vulnKevChart" class="module-donut-breakdown"><span class="module-chart-empty">Aún no hay CVE en caché.</span></div>
+   </article>
+  </div>
+  <div id="vulnChartNote" class="module-chart-note">Las visualizaciones se calculan sobre los registros devueltos por el filtro actual; no representan todos los CVE existentes en NVD.</div>
+ </section>
+<div class="vuln-tools">
   <input id="vulnSearch" type="search" placeholder="Buscar CVE, proveedor o producto…">
   <select id="vulnPeriod" aria-label="Filtrar período"><option value="30d">Últimos 30 días + KEV</option><option value="7d">Últimos 7 días + KEV</option><option value="all">Todos los almacenados</option></select>
   <label class="vuln-sort-label" for="vulnSort">Ordenar por
@@ -302,7 +369,7 @@
 <section class="section-head history-head"><div><h2>Historial de cambios de estado</h2><p>Transiciones detectadas entre consultas manuales.</p></div></section>
 <section class="table-wrap"><table><thead><tr><th>FECHA (UTC)</th><th>PLATAFORMA</th><th>CAMBIO</th><th>DETALLE</th></tr></thead><tbody id="events"><tr><td colspan="4">Sin cambios de estado registrados.</td></tr></tbody></table></section>
 </div>
-<footer><span>SOC SERVICE STATUS MONITOR · v1.9.0</span><span>Consulta de fuentes públicas · Inteligencia de amenazas</span></footer>
+<footer><span>SOC SERVICE STATUS MONITOR · v1.9.0 · PHASE 2</span><span>Consulta de fuentes públicas · Inteligencia de amenazas</span></footer>
  </div>
 </div>
 </main><dialog id="vulnDetailDialog" class="vuln-detail-dialog" aria-labelledby="vulnDetailTitle">
@@ -317,4 +384,4 @@
   <div id="detailBody" class="detail-body"><div class="loading">Consultando información de la fuente…</div></div>
  </div>
 </dialog>
-<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.9.0-phase1-nav"></script></body></html>
+<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.9.0-phase2"></script></body></html>
