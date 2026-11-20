@@ -20,7 +20,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.8 (+public status and ransomware metadata)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.8.8")
+app = FastAPI(title="SOC Service Status Monitor", version="1.8.9")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -461,6 +461,10 @@ NEWS_FEEDS = [
     {"id": "talos", "name": "Cisco Talos", "url": "https://blog.talosintelligence.com/rss/"},
     {"id": "google-ti", "name": "Google Threat Intelligence", "url": "https://feeds.feedburner.com/threatintelligence/pvexyqv7v0v"},
     {"id": "cybersecuritynews", "name": "Cyber Security News", "url": "https://cybersecuritynews.com/feed/"},
+    {"id": "securityweek-vuln", "name": "SecurityWeek · Vulnerabilities", "url": "https://www.securityweek.com/category/vulnerabilities/feed/"},
+    {"id": "thehackernews", "name": "The Hacker News", "url": "https://thehackernews.com/feeds/posts/default?alt=rss"},
+    {"id": "csirt-chile", "name": "CSIRT Chile", "url": "https://csirt.gob.cl/rss/alertas"},
+
 ]
 
 NEWS_CATEGORIES = {
@@ -547,18 +551,24 @@ def _news_classify(title, summary):
             "cyber espionage", "cyberespionage", "espionage", "state-sponsored",
             "nation-state", "nation state", "advanced persistent threat",
             "government-linked hackers", "spying campaign",
+            "ciberespionaje", "espionaje cibernético", "amenaza persistente avanzada",
         ],
         "leaks": [
             "data breach", "data leak", "leaked data", "stolen data", "exposed data",
             "data stolen", "breach exposes", "records exposed", "database leak",
+            "filtración de datos", "datos filtrados", "datos expuestos", "robo de información",
+            "fuga de información", "exposición de datos",
         ],
         "ddos": [
             "ddos", "denial-of-service", "denial of service", "distributed denial",
-            "botnet attack", "traffic-flooding",
+            "botnet attack", "traffic-flooding", "denegación de servicio",
+            "ataque de denegación de servicio",
         ],
         "malware": [
             "malware", "trojan", "infostealer", "infostealing", "botnet", "wiper",
             "spyware", "rootkit", "backdoor", "loader", "malicious", "phishing campaign",
+            "software malicioso", "troyano", "gusano informático", "código malicioso",
+            "campaña de phishing", "suplantación de identidad",
         ],
         "vulnerabilities": [
             "vulnerability", "vulnerabilities", "security flaw", "software flaw",
@@ -568,6 +578,11 @@ def _news_classify(title, summary):
             "sql injection", "command injection", "memory corruption",
             "improper access control", "improper input validation",
             "actively exploited vulnerability", "actively exploited flaw",
+            "vulnerabilidad", "vulnerabilidades", "falla de seguridad", "fallo de seguridad",
+            "parche de seguridad", "actualización de seguridad", "ejecución remota de código",
+            "escalada de privilegios", "omisión de autenticación", "inyección sql",
+            "inyección de comandos", "día cero", "vulnerabilidad de día cero",
+            "vulnerabilidad crítica", "explotación de vulnerabilidad",
         ],
     }
     matched = [category for category, terms in patterns.items() if any(term in text for term in terms)]

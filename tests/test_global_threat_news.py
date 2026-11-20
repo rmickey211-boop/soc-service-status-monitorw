@@ -46,8 +46,8 @@ def test_news_refresh_writes_cache_and_24h_and_7d_filters(tmp_path, monkeypatch)
     with patch.object(main, "_fetch_news_feed", side_effect=fake_fetch):
         result = main.refresh_threat_news()
 
-    assert result["successful_sources"] == 6
-    assert result["fetched"] == 6  # same URL from each feed; cache deduplicates on upsert
+    assert result["successful_sources"] == 9
+    assert result["fetched"] == 9  # same URL from each feed; cache deduplicates on upsert
     seven_days = main.get_cached_threat_news("7d")
     one_day = main.get_cached_threat_news("24h")
     assert seven_days["count"] == 1
@@ -66,7 +66,7 @@ def test_news_refresh_api_uses_only_public_feed_functions():
         with TestClient(main.app) as client:
             response = client.post("/api/threat-intel/news/refresh")
     assert response.status_code == 200
-    assert response.json()["successful_sources"] == 6
+    assert response.json()["successful_sources"] == 9
 
 
 def test_cybersecurity_news_is_configured_as_public_rss_source():
@@ -88,7 +88,7 @@ def test_cybersecurity_news_entries_are_ingested_and_attributed():
         return sample if feed["id"] == "cybersecuritynews" else []
     with patch.object(main, "_fetch_news_feed", side_effect=fake_fetch):
         result = main.refresh_threat_news()
-    assert result["successful_sources"] == 6
+    assert result["successful_sources"] == 9
     data = main.get_cached_threat_news("7d")
     item = next(item for item in data["items"] if item["source"] == "Cyber Security News")
     assert item["link"].startswith("https://cybersecuritynews.com/")
@@ -118,3 +118,31 @@ def test_news_classifier_supports_vulnerability_subcategory():
 
 def test_news_categories_include_vulnerabilities_label():
     assert main.NEWS_CATEGORIES["vulnerabilities"] == "Vulnerabilidades"
+
+
+def test_additional_public_sources_are_configured():
+    feeds = {item["id"]: item for item in main.NEWS_FEEDS}
+    assert feeds["securityweek-vuln"]["name"] == "SecurityWeek · Vulnerabilities"
+    assert feeds["securityweek-vuln"]["url"] == "https://www.securityweek.com/category/vulnerabilities/feed/"
+    assert feeds["thehackernews"]["url"] == "https://thehackernews.com/feeds/posts/default?alt=rss"
+    assert feeds["csirt-chile"]["url"] == "https://csirt.gob.cl/rss/alertas"
+
+
+def test_spanish_csirt_vulnerability_and_threat_terms_are_classified():
+    vulnerability = main._news_classify(
+        "Alerta de seguridad: vulnerabilidad crítica en producto VPN",
+        "Se recomienda instalar el parche de seguridad para evitar ejecución remota de código."
+    )
+    assert "vulnerabilities" in vulnerability
+
+    malware = main._news_classify(
+        "CSIRT advierte campaña de phishing y software malicioso",
+        "La campaña busca robar credenciales."
+    )
+    assert "malware" in malware
+
+    leakage = main._news_classify(
+        "Alerta por filtración de datos personales",
+        "Se detectó exposición de datos."
+    )
+    assert "leaks" in leakage

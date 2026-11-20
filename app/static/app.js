@@ -205,7 +205,7 @@ $("refreshIntel").addEventListener("click", async () => {
   const button = $("refreshIntel");
   button.disabled = true;
   button.textContent = "Consultando fuentes…";
-  $("intelSourceSummary").textContent = "Consultando seis fuentes públicas en paralelo. Puede tardar varios segundos…";
+  $("intelSourceSummary").textContent = "Consultando nueve fuentes públicas en paralelo. Puede tardar varios segundos…";
   $("intelNewsList").innerHTML = '<div class="intel-empty"><b>Consultando fuentes públicas…</b><span>Se está actualizando la caché. No cierres esta pestaña durante la consulta.</span></div>';
   try {
     const response = await fetch("/api/threat-intel/news/refresh", {

@@ -126,3 +126,13 @@ python -m pytest -q
 - El filtro por fuente se combina con el período y la subcategoría elegida, sin reemplazar los filtros existentes.
 - Se conserva la opción "Todas las fuentes".
 - Se incluye en la interfaz la subcategoría "Vulnerabilidades" junto con su etiqueta visual.
+
+
+## v1.8.9 — fuentes especializadas y CSIRT Chile
+Se agregan tres fuentes RSS públicas al módulo Ataques y amenazas publicados:
+- SecurityWeek · Vulnerabilities: https://www.securityweek.com/category/vulnerabilities/feed/
+- The Hacker News: https://thehackernews.com/feeds/posts/default?alt=rss
+- CSIRT Chile: https://csirt.gob.cl/rss/alertas
+
+El módulo pasa de seis a nueve fuentes. El filtro por fuente se alimenta automáticamente con los nombres devueltos por el backend. La clasificación incorpora términos de ciberseguridad en español (vulnerabilidades, parches, ejecución remota de código, phishing, malware, filtración de datos y otros) para mejorar la categorización de alertas CSIRT Chile.
+Cada proveedor se consulta de forma independiente; un fallo de una fuente no debe impedir procesar las demás. Los titulares y extractos siguen enlazando al artículo o alerta original.
