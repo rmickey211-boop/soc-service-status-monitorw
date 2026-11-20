@@ -622,19 +622,56 @@ loadVulnerabilities();
 
 // v1.8.1: módulo de inicio y navegación por tarjetas
 const moduleTitles={platforms:"Estado de plataformas",news:"Ataques y amenazas publicados",ransomware:"Ransomware tracker y mapa geográfico",vulns:"Vulnerability Intelligence"};
+function setActiveNavigation(name){
+  document.querySelectorAll(".soc-nav-item[data-nav]").forEach(item=>{
+    const active=item.dataset.nav===name;
+    item.classList.toggle("active",active);
+    if(active)item.setAttribute("aria-current","page");
+    else item.removeAttribute("aria-current");
+  });
+}
+function closeMobileSidebar(){
+  $("appShell").classList.remove("mobile-sidebar-open");
+  $("mobileMenuToggle").setAttribute("aria-expanded","false");
+}
+function showHome(){
+  $("moduleHome").hidden=false;
+  $("moduleNav").hidden=true;
+  document.querySelectorAll(".module-view").forEach(v=>v.hidden=true);
+  setActiveNavigation("home");
+  closeMobileSidebar();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
 function showModule(name){
+  if(!moduleTitles[name])return;
   $("moduleHome").hidden=true;
   $("moduleNav").hidden=false;
   document.querySelectorAll(".module-view").forEach(v=>v.hidden=true);
   const view=$("view-"+name); if(view) view.hidden=false;
-  $("activeModuleName").textContent=moduleTitles[name]||"";
+  $("activeModuleName").textContent=moduleTitles[name];
+  setActiveNavigation(name);
+  closeMobileSidebar();
+  window.scrollTo({top:0,behavior:"smooth"});
   if(name==="ransomware" && rwMapInstance) setTimeout(()=>rwMapInstance.invalidateSize(),220);
   if(name==="ransomware" && !rwItems.length) loadRansomware();
 }
-document.querySelectorAll("[data-open-module]").forEach(card=>card.addEventListener("click",()=>showModule(card.dataset.openModule)));
-$("backHome").addEventListener("click",()=>{
-  document.querySelectorAll(".module-view").forEach(v=>v.hidden=true);
-  $("moduleNav").hidden=true; $("moduleHome").hidden=false;
+document.querySelectorAll(".soc-nav-item[data-nav]").forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=item.dataset.nav;
+    if(target==="home")showHome();
+    else showModule(target);
+  });
+});
+$("sidebarCollapse").addEventListener("click",()=>{
+  $("appShell").classList.toggle("sidebar-collapsed");
+});
+$("mobileMenuToggle").addEventListener("click",()=>{
+  const opened=$("appShell").classList.toggle("mobile-sidebar-open");
+  $("mobileMenuToggle").setAttribute("aria-expanded",String(opened));
+});
+$("sidebarScrim").addEventListener("click",closeMobileSidebar);
+document.addEventListener("keydown",event=>{
+  if(event.key==="Escape")closeMobileSidebar();
 });
 async function runGlobalRefresh() {
   const button = $("homeRefresh");

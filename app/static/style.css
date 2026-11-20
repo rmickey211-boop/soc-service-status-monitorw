@@ -446,3 +446,74 @@
 @media(max-width:900px){.exec-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.exec-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.exec-dashboard{padding:13px;margin:20px 0}.exec-dashboard-heading{align-items:flex-start;flex-direction:column}.exec-snapshot{white-space:normal}.exec-chart-grid{grid-template-columns:1fr}.exec-platform-chart{gap:14px}.exec-donut{width:115px;height:115px}.exec-donut:before{inset:15px}.exec-status-grid{grid-template-columns:1fr 1fr}.exec-ransom-summary strong{font-size:18px}}
 @media(max-width:420px){.exec-kpis{grid-template-columns:1fr 1fr;gap:7px}.exec-kpi{padding:11px;min-height:105px}.exec-kpi>strong{font-size:25px}.exec-kpi-top{font-size:8px}.exec-platform-chart{flex-direction:column}.exec-legend{width:100%}.exec-mini-columns{gap:9px}}
+
+
+/* ========================================================================
+   v1.9.0 Phase 1.1 — persistent collapsible left navigation
+   ======================================================================== */
+.topbar{position:sticky;top:0;z-index:110;padding:0 24px}
+.mobile-menu-toggle{display:none;align-items:center;justify-content:center;width:38px;height:36px;border:1px solid #30465f;border-radius:8px;background:#14253a;color:#c7d8e9;font-size:17px}
+.app-shell{width:100%;max-width:none;margin:0;display:grid;grid-template-columns:246px minmax(0,1fr);align-items:stretch;min-height:calc(100vh - 68px)}
+.soc-sidebar{position:sticky;top:68px;height:calc(100vh - 68px);min-height:440px;display:flex;flex-direction:column;gap:16px;padding:20px 13px 14px;background:linear-gradient(180deg,#101d2d 0%,#0c1725 100%);border-right:1px solid #263b53;overflow-x:hidden;overflow-y:auto;z-index:80}
+.sidebar-top{display:flex;align-items:center;justify-content:space-between;padding:0 6px 8px}
+.sidebar-section-label{padding:0 8px;color:#607b98;font-size:8px;font-weight:900;letter-spacing:1.5px;white-space:nowrap}
+.sidebar-collapse{width:27px;height:26px;border:1px solid #2c425b;border-radius:6px;background:#14253a;color:#a9bfd6;font-size:18px;line-height:1}
+.soc-sidebar-nav{display:flex;flex-direction:column;gap:5px}
+.modules-label{margin:13px 0 5px}
+.soc-nav-item{position:relative;width:100%;min-height:43px;display:flex;align-items:center;gap:12px;padding:9px 10px;text-align:left;border:1px solid transparent;border-radius:8px;background:transparent;color:#a7bbd0;font:inherit;font-size:11px;font-weight:650;transition:background .15s,border-color .15s,color .15s}
+.soc-nav-item:hover{background:#162a40;border-color:#263e59;color:#ecf5ff}
+.soc-nav-item.active{background:linear-gradient(100deg,#183a3b,#172b3e);border-color:#2d665b;color:#a8f4d6;box-shadow:inset 2px 0 #4bd5aa}
+.soc-nav-icon{width:24px;min-width:24px;height:24px;display:grid;place-items:center;border-radius:7px;background:#1a3045;color:#7dc9ed;font-size:16px}
+.soc-nav-item.active .soc-nav-icon{background:#17443d;color:#5ce0b1}
+.soc-nav-label{white-space:normal;line-height:1.35}
+.sidebar-footer{display:flex;align-items:center;gap:9px;margin-top:auto;padding:13px 8px 5px;border-top:1px solid #22364c;color:#7089a3;font-size:9px}
+.sidebar-footer-dot{width:7px;height:7px;border-radius:50%;background:#48d2a5;box-shadow:0 0 9px #48d2a577;flex:none}
+.app-content{min-width:0;width:100%;padding:24px clamp(18px,2.5vw,38px) 30px}
+.app-content>footer{margin-top:26px}
+.app-shell.sidebar-collapsed{grid-template-columns:70px minmax(0,1fr)}
+.app-shell.sidebar-collapsed .soc-sidebar{padding-left:9px;padding-right:9px}
+.app-shell.sidebar-collapsed .sidebar-section-label,
+.app-shell.sidebar-collapsed .soc-nav-label,
+.app-shell.sidebar-collapsed .sidebar-footer .soc-nav-label{display:none}
+.app-shell.sidebar-collapsed .sidebar-top{justify-content:center;padding-left:0;padding-right:0}
+.app-shell.sidebar-collapsed .sidebar-collapse{transform:rotate(180deg)}
+.app-shell.sidebar-collapsed .soc-nav-item{justify-content:center;padding:9px 5px}
+.app-shell.sidebar-collapsed .soc-nav-icon{width:31px;height:31px}
+.module-home{padding:5px 0 22px;min-height:auto;display:block}
+.module-home-heading{align-items:center;margin-bottom:18px}
+.module-home-heading h1{font-size:30px}
+.module-nav{margin:0 0 20px;padding:3px 0 14px;border-bottom:1px solid #263b53}
+.module-nav-kicker{font-size:8px;letter-spacing:1.3px;font-weight:900;color:#58d7ad}
+#activeModuleName{font-size:16px;color:#e5effb}
+.sidebar-scrim{display:none}
+@media(max-width:850px){
+ .topbar{padding:0 16px;justify-content:flex-start;gap:12px}
+ .mobile-menu-toggle{display:inline-flex;flex:none}
+ .top-right{margin-left:auto}
+ .app-shell{display:block;min-height:calc(100vh - 68px)}
+ .soc-sidebar{position:fixed;left:0;top:68px;bottom:0;width:258px;height:auto;min-height:0;transform:translateX(-105%);transition:transform .22s ease;box-shadow:12px 0 35px #0006}
+ .app-shell.mobile-sidebar-open .soc-sidebar{transform:translateX(0)}
+ .sidebar-collapse{display:none}
+ .app-shell.sidebar-collapsed{display:block}
+ .app-shell.sidebar-collapsed .soc-sidebar{width:258px}
+ .app-shell.sidebar-collapsed .sidebar-section-label,
+ .app-shell.sidebar-collapsed .soc-nav-label,
+ .app-shell.sidebar-collapsed .sidebar-footer .soc-nav-label{display:block}
+ .app-shell.sidebar-collapsed .soc-nav-item{justify-content:flex-start;padding:9px 10px}
+ .app-shell.sidebar-collapsed .soc-nav-icon{width:24px;height:24px}
+ .app-shell.mobile-sidebar-open .sidebar-scrim{display:block;position:fixed;inset:68px 0 0;background:#02081399;border:0;z-index:70}
+ .app-content{padding:20px 16px 26px}
+}
+@media(max-width:520px){
+ .topbar{height:60px}
+ .app-shell{min-height:calc(100vh - 60px)}
+ .soc-sidebar{top:60px}
+ .app-shell.mobile-sidebar-open .sidebar-scrim{inset:60px 0 0}
+ .app-content{padding:17px 12px 22px}
+ .module-home-heading{align-items:flex-start;flex-direction:column}
+ .home-refresh-wrap{align-items:flex-start;max-width:none;min-width:0;width:100%}
+ .home-refresh-summary{text-align:left}
+}
+
+/* Sidebar layout uses the full available viewport width. */
+main{max-width:none;margin:0;padding:0;min-height:calc(100vh - 68px)}

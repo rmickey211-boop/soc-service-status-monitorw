@@ -5,9 +5,9 @@ ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "app" / "static" / "index.html").read_text(encoding="utf-8")
 JS = (ROOT / "app" / "static" / "app.js").read_text(encoding="utf-8")
 
-def test_four_module_cards_have_matching_views():
+def test_sidebar_navigation_has_matching_module_views():
     for name in ("platforms", "news", "ransomware", "vulns"):
-        assert f'data-open-module="{name}"' in HTML
+        assert f'data-nav="{name}"' in HTML
         assert f'id="view-{name}"' in HTML
         assert f'{name}:"' in JS
 

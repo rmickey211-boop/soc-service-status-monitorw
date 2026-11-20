@@ -171,3 +171,14 @@ Cada proveedor se consulta de forma independiente; un fallo de una fuente no deb
 - Los períodos se identifican explícitamente: noticias 7 días, ransomware 7 días y vulnerabilidades 30 días + KEV.
 - Los gráficos reflejan las cachés reales; no se crean series históricas ni eventos ficticios.
 - La actualización ejecutiva se refresca al abrir la página, al terminar la actualización global y después de las actualizaciones individuales de cada módulo.
+
+
+## v1.9.0 — Fase 1.1: navegación lateral
+- Se reemplazan las cuatro tarjetas grandes de módulo por un menú lateral persistente.
+- El menú ofrece Inicio ejecutivo y acceso directo a Estado de plataformas, Ataques y amenazas, Ransomware tracker y Vulnerability Intelligence.
+- En escritorio, el menú puede contraerse a una barra de iconos.
+- En móviles, el menú funciona como panel lateral desplegable con fondo oscurecido y cierre mediante selección, botón menú, fondo o tecla Escape.
+- Se mantiene el Executive Dashboard como pantalla inicial y se conserva el botón de actualización global.
+- La selección del módulo activo se resalta en el menú lateral; ya no es necesario volver a Inicio para cambiar de sección.
+
+- Versión de paquete: `1.9.0-phase1-nav`; las tarjetas grandes se sustituyen por navegación lateral y el panel ejecutivo sigue siendo la vista de inicio.
