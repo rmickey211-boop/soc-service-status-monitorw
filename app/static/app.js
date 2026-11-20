@@ -505,10 +505,11 @@ function renderVulnerabilities(data) {
     const epss = v.epss == null ? "—" : `${(Number(v.epss)*100).toFixed(2)}%`;
     const kev = Number(v.kev) ? `<span class="vuln-kev">Sí · ${esc(v.ransomware_use || "Unknown")}</span>` : "No";
     const publishedDate = v.published ? new Date(v.published).toLocaleDateString("es-CL") : "—";
+    const modifiedDate = v.modified ? new Date(v.modified).toLocaleString("es-CL") : "No informada";
     const kevDate = v.kev_date ? new Date(v.kev_date).toLocaleDateString("es-CL") : "—";
-    return `<tr class="vuln-click-row" data-cve="${esc(v.cve)}" tabindex="0" role="button" aria-label="Abrir detalle de ${esc(v.cve)}"><td><button type="button" class="vuln-open" data-cve="${esc(v.cve)}">${esc(v.cve)}</button></td><td><b>${esc(v.title || v.cve)}</b><small>${esc([v.vendor,v.product].filter(Boolean).join(" · "))}</small><p>${esc(v.description || "")}</p><span class="vuln-row-hint">Ver ficha técnica y mitigaciones ↗</span></td><td>${cvss}</td><td>${epss}</td><td>${kev}</td><td>${esc(publishedDate)}</td><td>${esc(kevDate)}</td><td><a href="${esc(v.source_url)}" target="_blank" rel="noopener" data-no-vuln-detail>NVD ↗</a></td></tr>`;
+    return `<tr class="vuln-click-row" data-cve="${esc(v.cve)}" tabindex="0" role="button" aria-label="Abrir detalle de ${esc(v.cve)}"><td><button type="button" class="vuln-open" data-cve="${esc(v.cve)}">${esc(v.cve)}</button></td><td><b>${esc(v.title || v.cve)}</b><small>${esc([v.vendor,v.product].filter(Boolean).join(" · "))}</small><p>${esc(v.description || "")}</p><span class="vuln-row-hint">Ver ficha técnica y mitigaciones ↗</span></td><td>${cvss}</td><td>${epss}</td><td>${kev}</td><td>${esc(publishedDate)}</td><td><time datetime="${esc(v.modified || "")}">${esc(modifiedDate)}</time></td><td>${esc(kevDate)}</td><td><a href="${esc(v.source_url)}" target="_blank" rel="noopener" data-no-vuln-detail>NVD ↗</a></td></tr>`;
   }).join("");
-  $("vulnRows").innerHTML = rows || '<tr><td colspan="8">No hay registros para este filtro. Actualiza las fuentes públicas.</td></tr>';
+  $("vulnRows").innerHTML = rows || '<tr><td colspan="9">No hay registros para este filtro. Actualiza las fuentes públicas.</td></tr>';
 }
 function detailCell(value) {
   if (value === null || value === undefined || value === "") return "No informado";
@@ -571,8 +572,9 @@ $("vulnDetailDialog").addEventListener("click",event=>{if(event.target===$("vuln
 async function loadVulnerabilities() {
   const period = $("vulnPeriod").value;
   const search = $("vulnSearch").value.trim();
+  const sort = $("vulnSort").value || "modified_desc";
   try {
-    const response = await fetch(`/api/threat-intel/vulnerabilities?period=${encodeURIComponent(period)}&search=${encodeURIComponent(search)}`, {cache:"no-store"});
+    const response = await fetch(`/api/threat-intel/vulnerabilities?period=${encodeURIComponent(period)}&search=${encodeURIComponent(search)}&sort=${encodeURIComponent(sort)}`, {cache:"no-store"});
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
     renderVulnerabilities(data);
@@ -598,6 +600,7 @@ $("refreshVulns").addEventListener("click", async () => {
   } finally { button.disabled = false; button.textContent = "↻ Actualizar vulnerabilidades"; }
 });
 $("vulnPeriod").addEventListener("change", loadVulnerabilities);
+$("vulnSort").addEventListener("change", loadVulnerabilities);
 let vulnSearchTimer;
 $("vulnSearch").addEventListener("input", () => { clearTimeout(vulnSearchTimer); vulnSearchTimer = setTimeout(loadVulnerabilities, 250); });
 document.addEventListener("click",event=>{

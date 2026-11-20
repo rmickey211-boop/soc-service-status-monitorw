@@ -335,3 +335,33 @@
 .intel-source-filter select{min-width:190px;max-width:260px;border:1px solid #304a66;border-radius:6px;padding:7px 28px 7px 9px;background:#101e30;color:#dce9f7;font:inherit;font-size:10px;outline:none}
 .intel-source-filter select:focus{border-color:#5b91c6;box-shadow:0 0 0 2px #4779a633}
 @media(max-width:700px){.intel-toolbar{align-items:flex-start;flex-direction:column}.intel-toolbar-controls{width:100%;align-items:stretch;flex-direction:column}.intel-source-filter{justify-content:space-between}.intel-source-filter select{flex:1;min-width:0;max-width:none}}
+
+/* v1.8.10 — NVD last modified visibility and server-side sort */
+.vuln-sort-label{display:inline-flex;align-items:center;gap:8px;color:var(--muted,#91a1b2);font-size:10px;font-weight:700;white-space:nowrap}
+.vuln-sort-label select{background:#0b141d;color:inherit;border:1px solid var(--line,#263545);border-radius:8px;padding:10px;min-width:245px}
+.vuln-table{min-width:1180px}
+.vuln-table th:nth-child(1){width:135px}
+.vuln-table th:nth-child(2){width:28%}
+.vuln-table th:nth-child(3),.vuln-table th:nth-child(4){width:72px}
+.vuln-table th:nth-child(5){width:105px}
+.vuln-table th:nth-child(6){width:120px}
+.vuln-table th:nth-child(7){width:150px}
+.vuln-table th:nth-child(8){width:105px}
+.vuln-table th:nth-child(9){width:75px}
+.vuln-table td time{white-space:nowrap;font-size:10px;color:#d6e5f4}
+@media(max-width:760px){.vuln-sort-label{width:100%;justify-content:space-between}.vuln-sort-label select{min-width:0;flex:1}}
+
+/* v1.8.10 — NVD Last Modified and sorting */
+.vuln-sort-label{display:inline-flex;align-items:center;gap:8px;color:var(--muted,#91a1b2);font-size:10px;font-weight:700;white-space:nowrap}
+.vuln-sort-label select{background:#0b141d;color:inherit;border:1px solid var(--line,#263545);border-radius:8px;padding:10px;min-width:245px}
+.vuln-table{min-width:1180px}
+.vuln-table th:nth-child(1){width:135px}
+.vuln-table th:nth-child(2){width:28%}
+.vuln-table th:nth-child(3),.vuln-table th:nth-child(4){width:72px}
+.vuln-table th:nth-child(5){width:105px}
+.vuln-table th:nth-child(6){width:120px}
+.vuln-table th:nth-child(7){width:150px}
+.vuln-table th:nth-child(8){width:105px}
+.vuln-table th:nth-child(9){width:75px}
+.vuln-table td time{white-space:nowrap;font-size:10px;color:#d6e5f4}
+@media(max-width:760px){.vuln-sort-label{width:100%;justify-content:space-between}.vuln-sort-label select{min-width:0;flex:1}}

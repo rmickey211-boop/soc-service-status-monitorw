@@ -136,3 +136,19 @@ Se agregan tres fuentes RSS públicas al módulo Ataques y amenazas publicados:
 
 El módulo pasa de seis a nueve fuentes. El filtro por fuente se alimenta automáticamente con los nombres devueltos por el backend. La clasificación incorpora términos de ciberseguridad en español (vulnerabilidades, parches, ejecución remota de código, phishing, malware, filtración de datos y otros) para mejorar la categorización de alertas CSIRT Chile.
 Cada proveedor se consulta de forma independiente; un fallo de una fuente no debe impedir procesar las demás. Los titulares y extractos siguen enlazando al artículo o alerta original.
+
+
+## v1.8.10 — NVD Last Modified y ordenamiento
+- Se agrega la columna NVD LAST MODIFIED a la tabla principal, además de NVD PUBLISHED DATE y ALTA CISA KEV.
+- El orden predeterminado pasa a ser última modificación NVD más reciente primero.
+- El selector permite ordenar por última modificación, fecha de publicación, EPSS, CVSS o prioridad CISA KEV.
+- El orden se aplica en SQL antes del límite de 500 filas, evitando que se pierdan CVE recientes por el orden anterior.
+- La ficha de detalle mantiene las fechas de publicación y modificación.
+
+
+## v1.8.10 — NVD Last Modified y ordenamiento
+- Se agrega la columna NVD LAST MODIFIED a la tabla principal, además de NVD PUBLISHED DATE y ALTA CISA KEV.
+- El orden predeterminado pasa a ser última modificación NVD más reciente primero.
+- El selector permite ordenar por última modificación, fecha de publicación, EPSS, CVSS o prioridad CISA KEV.
+- El orden se aplica en SQL antes del límite de 500 filas, evitando que se pierdan CVE recientes por el orden anterior.
+- La ficha de detalle mantiene las fechas de publicación y modificación.

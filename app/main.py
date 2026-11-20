@@ -20,7 +20,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.8 (+public status and ransomware metadata)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.8.9")
+app = FastAPI(title="SOC Service Status Monitor", version="1.8.10")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -1193,8 +1193,18 @@ def refresh_vulnerability_intel():
             "sources": [{"name":"CISA KEV","ok":True},{"name":"NVD CVE API","ok":True},
                         {"name":"FIRST EPSS","ok":bool(epss_map),"note":"EPSS es enriquecimiento opcional; puede no estar disponible temporalmente." if not epss_map else "Puntajes EPSS actuales."}]}
 
-def get_vulnerability_intel(period="30d", search=""):
-    if period not in {"7d","30d","all"}: raise HTTPException(400, "Período inválido.")
+def get_vulnerability_intel(period="30d", search="", sort="modified_desc"):
+    if period not in {"7d","30d","all"}:
+        raise HTTPException(400, "Período inválido.")
+    sort_expressions = {
+        "modified_desc": "CASE WHEN modified IS NULL OR modified='' THEN 1 ELSE 0 END, modified DESC, kev DESC",
+        "published_desc": "CASE WHEN published IS NULL OR published='' THEN 1 ELSE 0 END, published DESC, kev DESC",
+        "epss_desc": "CASE WHEN epss IS NULL THEN 1 ELSE 0 END, epss DESC, kev DESC",
+        "cvss_desc": "CASE WHEN cvss IS NULL THEN 1 ELSE 0 END, cvss DESC, kev DESC",
+        "kev_desc": "kev DESC, CASE WHEN modified IS NULL OR modified='' THEN 1 ELSE 0 END, modified DESC",
+    }
+    if sort not in sort_expressions:
+        raise HTTPException(400, "Criterio de ordenamiento inválido.")
     cutoff = (datetime.now(timezone.utc)-timedelta(days=7 if period=="7d" else 30)).isoformat() if period!="all" else None
     query = "SELECT * FROM vulnerability_items"
     params = []
@@ -1204,11 +1214,14 @@ def get_vulnerability_intel(period="30d", search=""):
     if search:
         query += (" AND" if params else " WHERE") + " (cve LIKE ? OR title LIKE ? OR vendor LIKE ? OR product LIKE ?)"
         params += [f"%{search}%"]*4
-    query += " ORDER BY kev DESC, COALESCE(epss,0) DESC, COALESCE(cvss,0) DESC LIMIT 500"
-    with db() as c: rows = [dict(r) for r in c.execute(query, params).fetchall()]
-    for row in rows: row.pop("details_json", None)
+    query += f" ORDER BY {sort_expressions[sort]} LIMIT 500"
+    with db() as c:
+        rows = [dict(r) for r in c.execute(query, params).fetchall()]
+    for row in rows:
+        row.pop("details_json", None)
     return {"items": rows, "count": len(rows), "last_refresh": _vuln_meta("last_refresh"),
-            "kev_count": _vuln_meta("kev_count"), "nvd_count": _vuln_meta("nvd_count")}
+            "kev_count": _vuln_meta("kev_count"), "nvd_count": _vuln_meta("nvd_count"),
+            "sort": sort}
 
 def _clean_html(value):
     value = re.sub(r"<[^>]+>", " ", str(value or ""))
@@ -1608,8 +1621,8 @@ def api_vulnerability_detail(cve_id: str):
 
 
 @app.get("/api/threat-intel/vulnerabilities")
-def api_vulnerability_intel(period: str = "30d", search: str = ""):
-    return get_vulnerability_intel(period, search[:100])
+def api_vulnerability_intel(period: str = "30d", search: str = "", sort: str = "modified_desc"):
+    return get_vulnerability_intel(period, search[:100], sort)
 
 @app.post("/api/threat-intel/vulnerabilities/refresh")
 def api_refresh_vulnerability_intel():

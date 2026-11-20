@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.9-newsources"></head>
+<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.10-nvdmodified"></head>
 <body>
 <header class="topbar"><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · THREAT INTELLIGENCE</small></div></div>
 <div class="top-right"><span class="live-dot"></span><span>CONSULTA A DEMANDA</span><span id="clock">--:--:--</span></div></header>
@@ -174,10 +174,19 @@
  </div>
  <div class="vuln-tools">
   <input id="vulnSearch" type="search" placeholder="Buscar CVE, proveedor o producto…">
-  <select id="vulnPeriod"><option value="30d">Últimos 30 días + KEV</option><option value="7d">Últimos 7 días + KEV</option><option value="all">Todos los almacenados</option></select>
+  <select id="vulnPeriod" aria-label="Filtrar período"><option value="30d">Últimos 30 días + KEV</option><option value="7d">Últimos 7 días + KEV</option><option value="all">Todos los almacenados</option></select>
+  <label class="vuln-sort-label" for="vulnSort">Ordenar por
+   <select id="vulnSort" aria-label="Ordenar vulnerabilidades">
+    <option value="modified_desc" selected>Última modificación NVD · más reciente</option>
+    <option value="published_desc">Publicación NVD · más reciente</option>
+    <option value="epss_desc">EPSS · mayor probabilidad</option>
+    <option value="cvss_desc">CVSS · mayor severidad</option>
+    <option value="kev_desc">CISA KEV · primero</option>
+   </select>
+  </label>
  </div>
- <div class="vuln-table-wrap"><table class="vuln-table"><thead><tr><th>CVE</th><th>VULNERABILIDAD</th><th>CVSS</th><th>EPSS</th><th>CISA KEV</th><th>PUBLICACIÓN NVD</th><th>ALTA CISA KEV</th><th>FUENTE</th></tr></thead>
- <tbody id="vulnRows"><tr><td colspan="8">Aún no hay datos. Pulsa «Actualizar vulnerabilidades».</td></tr></tbody></table></div>
+ <div class="vuln-table-wrap"><table class="vuln-table"><thead><tr><th>CVE</th><th>VULNERABILIDAD</th><th>CVSS</th><th>EPSS</th><th>CISA KEV</th><th>NVD PUBLISHED DATE</th><th>NVD LAST MODIFIED</th><th>ALTA CISA KEV</th><th>FUENTE</th></tr></thead>
+ <tbody id="vulnRows"><tr><td colspan="9">Aún no hay datos. Pulsa «Actualizar vulnerabilidades».</td></tr></tbody></table></div>
  <div id="vulnMessage" class="vuln-message" role="status">Fuentes pendientes de primera consulta.</div>
  <div class="vuln-disclaimer">Interpretación: CISA KEV identifica vulnerabilidades con explotación conocida; CVSS expresa severidad técnica; EPSS estima la probabilidad de explotación en los próximos 30 días y no confirma explotación. La ausencia de una CVE en KEV no demuestra que no esté siendo explotada. Los resultados son inteligencia pública y no se correlacionan con activos internos ni indican exposición de la organización.</div>
  <div class="vuln-attribution">Fuentes: <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener">CISA KEV</a> · <a href="https://nvd.nist.gov/developers/vulnerabilities" target="_blank" rel="noopener">NVD</a> · <a href="https://www.first.org/epss/" target="_blank" rel="noopener">FIRST EPSS</a></div>
@@ -198,4 +207,4 @@
   <div id="detailBody" class="detail-body"><div class="loading">Consultando información de la fuente…</div></div>
  </div>
 </dialog>
-<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.9-newsources"></script></body></html>
+<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.10-nvdmodified"></script></body></html>
