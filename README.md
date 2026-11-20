@@ -152,3 +152,12 @@ Cada proveedor se consulta de forma independiente; un fallo de una fuente no deb
 - El selector permite ordenar por última modificación, fecha de publicación, EPSS, CVSS o prioridad CISA KEV.
 - El orden se aplica en SQL antes del límite de 500 filas, evitando que se pierdan CVE recientes por el orden anterior.
 - La ficha de detalle mantiene las fechas de publicación y modificación.
+
+
+## v1.8.11 — actualización global de los cuatro módulos
+- El botón de la pantalla inicial consulta las cuatro rutas existentes: estado de plataformas, noticias RSS, tracker ransomware y Vulnerability Intelligence.
+- Las cuatro solicitudes se ejecutan en paralelo para evitar que el fallo de un módulo bloquee a los demás.
+- Al terminar, vuelve a cargar las cuatro vistas y sus contadores desde sus respectivas cachés.
+- Se muestra un resumen por módulo con estado completo, parcial o error.
+- El tracker ransomware conserva el intervalo mínimo de caché de 15 minutos; una actualización global dentro de ese intervalo puede reutilizar sus datos recientes en lugar de repetir solicitudes.
+- Los botones de actualización individuales de cada módulo se mantienen.

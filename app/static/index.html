@@ -1,12 +1,18 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.10-nvdmodified"></head>
+<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.11-refreshall"></head>
 <body>
 <header class="topbar"><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · THREAT INTELLIGENCE</small></div></div>
 <div class="top-right"><span class="live-dot"></span><span>CONSULTA A DEMANDA</span><span id="clock">--:--:--</span></div></header>
 <main>
 <section id="moduleHome" class="module-home">
- <div class="module-home-heading"><div><div class="eyebrow">SOC OPERATIONS CENTER</div><h1>Centro de inteligencia</h1><p>Selecciona un módulo para consultar su información.</p></div><button type="button" id="homeRefresh" class="refresh">↻ Actualizar estado</button></div>
+ <div class="module-home-heading">
+  <div><div class="eyebrow">SOC OPERATIONS CENTER</div><h1>Centro de inteligencia</h1><p>Selecciona un módulo para consultar su información.</p></div>
+  <div class="home-refresh-wrap">
+   <button type="button" id="homeRefresh" class="refresh">↻ Actualizar todos los módulos</button>
+   <span id="homeRefreshSummary" class="home-refresh-summary" role="status" aria-live="polite">Actualización manual de los cuatro módulos.</span>
+  </div>
+ </div>
  <div class="module-cards">
   <button class="module-card" data-open-module="platforms"><span class="module-icon">◉</span><span class="module-card-title">Estado de plataformas</span><span class="module-card-desc">Disponibilidad, degradaciones, mantenimientos y cambios de estado.</span><span class="module-card-foot">Abrir módulo ↗</span></button>
   <button class="module-card" data-open-module="news"><span class="module-icon">⌁</span><span class="module-card-title">Ataques y amenazas publicados</span><span class="module-card-desc">Noticias globales, malware, espionaje, filtraciones y DDoS.</span><span class="module-card-foot">Abrir módulo ↗</span></button>
@@ -207,4 +213,4 @@
   <div id="detailBody" class="detail-body"><div class="loading">Consultando información de la fuente…</div></div>
  </div>
 </dialog>
-<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.10-nvdmodified"></script></body></html>
+<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.11-refreshall"></script></body></html>

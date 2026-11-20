@@ -633,4 +633,97 @@ $("backHome").addEventListener("click",()=>{
   document.querySelectorAll(".module-view").forEach(v=>v.hidden=true);
   $("moduleNav").hidden=true; $("moduleHome").hidden=false;
 });
-$("homeRefresh").addEventListener("click",()=>{$("refresh").click()});
+async function runGlobalRefresh() {
+  const button = $("homeRefresh");
+  const summary = $("homeRefreshSummary");
+  if (button.disabled) return;
+  button.disabled = true;
+  button.textContent = "Actualizando los cuatro módulos…";
+  summary.textContent = "Consultando plataformas, noticias, ransomware y vulnerabilidades en paralelo.";
+
+  const jobs = [
+    { key: "platforms", label: "Plataformas", url: "/api/poll" },
+    { key: "news", label: "Noticias", url: "/api/threat-intel/news/refresh" },
+    { key: "ransomware", label: "Ransomware", url: "/api/threat-intel/ransomware/refresh" },
+    { key: "vulnerabilities", label: "Vulnerabilidades", url: "/api/threat-intel/vulnerabilities/refresh" }
+  ];
+
+  const results = await Promise.all(jobs.map(async job => {
+    try {
+      const response = await fetch(job.url, {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Accept": "application/json" }
+      });
+      let payload;
+      try { payload = await response.json(); }
+      catch { throw new Error(`HTTP ${response.status}: respuesta no válida`); }
+      if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+      return { ...job, ok: payload.ok !== false, payload };
+    } catch (error) {
+      return { ...job, ok: false, error: error.message };
+    }
+  }));
+
+  // Each view is refreshed from its own cache, even if another source failed.
+  const reloads = await Promise.allSettled([
+    load(),
+    loadIntelNews(),
+    loadRansomware(),
+    loadVulnerabilities()
+  ]);
+
+  const byKey = Object.fromEntries(results.map(item => [item.key, item]));
+  const platform = byKey.platforms;
+  const news = byKey.news;
+  const ransom = byKey.ransomware;
+  const vulns = byKey.vulnerabilities;
+
+  const platformErrors = Number(platform.payload?.errors || 0);
+  const platformText = platform.ok
+    ? `${Number(platform.payload.success || 0)} con respuesta · ${platformErrors} con error · ${Number(platform.payload.manual || 0)} manuales`
+    : `Error: ${platform.error}`;
+  const platformState = !platform.ok ? "error" : (platformErrors ? "parcial" : "completo");
+  const newsTotal = Number(news.payload?.sources?.length || 0);
+  const newsGood = Number(news.payload?.successful_sources || 0);
+  const newsText = news.ok
+    ? `${newsGood}/${newsTotal} fuentes RSS respondieron`
+    : `Error: ${news.error}`;
+  const newsState = !news.ok || !newsGood ? "error" : (newsGood < newsTotal ? "parcial" : "completo");
+  const ransomGood = Number(ransom.payload?.successful_sources || 0);
+  const ransomTotal = Number(ransom.payload?.sources?.length || 0);
+  const ransomText = ransom.ok
+    ? (ransom.payload?.skipped
+        ? `Caché reutilizada · ${ransomGood}/${ransomTotal} fuentes disponibles`
+        : `${ransomGood}/${ransomTotal} fuentes respondieron`)
+    : `Error: ${ransom.error}`;
+  const ransomState = !ransom.ok || !ransomGood ? "error" : (ransomGood < ransomTotal ? "parcial" : "completo");
+  const vulnText = vulns.ok
+    ? `${Number(vulns.payload.kev_count || 0)} CISA KEV · ${Number(vulns.payload.nvd_count || 0)} NVD · ${Number(vulns.payload.epss_enriched || 0)} EPSS`
+    : `Error: ${vulns.error}`;
+  const vulnState = vulns.ok ? "completo" : "error";
+
+  const states = [platformState, newsState, ransomState, vulnState];
+  const reloadErrors = reloads.filter(item => item.status === "rejected").length;
+  const summaryParts = [
+    `Plataformas: ${platformText} [${platformState}]`,
+    `Noticias: ${newsText} [${newsState}]`,
+    `Ransomware: ${ransomText} [${ransomState}]`,
+    `Vulnerabilidades: ${vulnText} [${vulnState}]`
+  ];
+  const completedCount = states.filter(state => state === "completo").length;
+  const partialCount = states.filter(state => state === "parcial").length;
+  const failedCount = states.filter(state => state === "error").length;
+  const completedAt = new Date().toLocaleTimeString("es-CL");
+  summary.textContent = `Última actualización global (${completedAt}) · ${completedCount}/4 completos · ${partialCount} parciales · ${failedCount} con error. ${summaryParts.join(" | ")}`;
+  summary.classList.toggle("has-errors", partialCount > 0 || failedCount > 0 || reloadErrors > 0);
+  if (partialCount || failedCount || reloadErrors) {
+    toast(`Actualización finalizada con resultados parciales. ${completedCount} completos, ${partialCount} parciales y ${failedCount} con error.`);
+  } else {
+    toast("Actualización global completada. Los cuatro módulos y sus fuentes respondieron.");
+  }
+
+  button.disabled = false;
+  button.textContent = "↻ Actualizar todos los módulos";
+}
+$("homeRefresh").addEventListener("click", runGlobalRefresh);
