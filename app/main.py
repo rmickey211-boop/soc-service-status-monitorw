@@ -19,8 +19,10 @@ load_dotenv(BASE / ".env")
 CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
-HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.8 (+public status and ransomware metadata)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.9.0-phase3")
+HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.9 (+public status and threat intelligence)"}
+APP_VERSION = "1.9.0-phase4"
+APP_STARTED_AT = datetime.now(timezone.utc).isoformat()
+app = FastAPI(title="SOC Service Status Monitor", version=APP_VERSION)
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -48,6 +50,9 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT, analyst TEXT NOT NULL, shift_name TEXT NOT NULL,
             checkpoint TEXT NOT NULL, checked_services TEXT NOT NULL, total_services INTEGER NOT NULL,
             notes TEXT, created_at TEXT NOT NULL)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS refresh_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, module TEXT NOT NULL, attempted_at TEXT NOT NULL,
+            ok INTEGER NOT NULL, summary TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}')""")
         c.execute("""CREATE TABLE IF NOT EXISTS threat_news (
             id TEXT PRIMARY KEY, title TEXT NOT NULL, summary TEXT, link TEXT NOT NULL,
             source TEXT NOT NULL, published_at TEXT NOT NULL, categories TEXT NOT NULL,
@@ -72,12 +77,36 @@ def init_db():
         c.execute("""CREATE TABLE IF NOT EXISTS vulnerability_meta (
             key TEXT PRIMARY KEY, value TEXT)""")
         cols = {r[1] for r in c.execute("PRAGMA table_info(services)").fetchall()}
-        for name, typ in [("category", "TEXT"), ("portal_label", "TEXT"), ("source_status", "TEXT"), ("error", "TEXT")]:
+        for name, typ in [("category", "TEXT"), ("portal_label", "TEXT"), ("source_status", "TEXT"), ("error", "TEXT"), ("last_success_at", "TEXT")]:
             if name not in cols:
                 c.execute(f"ALTER TABLE services ADD COLUMN {name} {typ}")
         vuln_cols = {r[1] for r in c.execute("PRAGMA table_info(vulnerability_items)").fetchall()}
         if "details_json" not in vuln_cols:
             c.execute("ALTER TABLE vulnerability_items ADD COLUMN details_json TEXT")
+
+
+def record_refresh_run(module, ok, summary, details=None):
+    """Store a compact audit row for each manually triggered module refresh."""
+    try:
+        init_db()
+        with db() as c:
+            c.execute(
+                "INSERT INTO refresh_runs(module,attempted_at,ok,summary,details_json) VALUES(?,?,?,?,?)",
+                (str(module)[:40], now(), int(bool(ok)), str(summary)[:300],
+                 json.dumps(details or {}, ensure_ascii=False)[:6000])
+            )
+            c.execute("DELETE FROM refresh_runs WHERE id NOT IN (SELECT id FROM refresh_runs ORDER BY id DESC LIMIT 100)")
+    except Exception:
+        # Audit logging must never turn a successful source refresh into a failure.
+        pass
+
+
+def _read_meta_table(table):
+    if table not in {"threat_news_meta", "ransomware_meta", "vulnerability_meta"}:
+        raise ValueError("Tabla de metadatos no permitida")
+    with db() as c:
+        rows = c.execute(f"SELECT key,value FROM {table}").fetchall()
+    return {row["key"]: row["value"] for row in rows}
 
 
 def load_config():
@@ -347,16 +376,18 @@ def fetch_service(service, google_payload=None):
 
 def store_result(service, status, description, source_url, raw, error=None):
     checked = None if status == "manual" else now()
+    success_at = checked if status not in {"unknown", "manual"} and not error else None
     with db() as c:
         previous = c.execute("SELECT status FROM services WHERE id=?", (service["id"],)).fetchone()
         old = previous["status"] if previous else None
-        c.execute("""INSERT INTO services(id,name,category,portal_label,status,description,source_url,checked_at,source_status,error)
-            VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+        c.execute("""INSERT INTO services(id,name,category,portal_label,status,description,source_url,checked_at,last_success_at,source_status,error)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
             name=excluded.name,category=excluded.category,portal_label=excluded.portal_label,status=excluded.status,
             description=excluded.description,source_url=excluded.source_url,checked_at=excluded.checked_at,
+            last_success_at=COALESCE(excluded.last_success_at,services.last_success_at),
             source_status=excluded.source_status,error=excluded.error""",
             (service["id"], service["name"], service.get("category", "General"), service.get("portal_label", "Abrir portal oficial"),
-             status, description, source_url, checked, raw, error))
+             status, description, source_url, checked, success_at, raw, error))
         if old is not None and status not in {"unknown", "manual"} and old not in {"unknown", "manual"} and old != status:
             c.execute("INSERT INTO events(service_id,service_name,old_status,new_status,description,occurred_at,source_url) VALUES(?,?,?,?,?,?,?)",
                       (service["id"], service["name"], old, status, description, checked, source_url))
@@ -385,12 +416,18 @@ def poll_once():
     with ThreadPoolExecutor(max_workers=8) as pool:
         futures = [pool.submit(run_one, service) for service in enabled]
         for future in as_completed(futures): results.append(future.result())
-    return {"ok": True, "checked": len(results),
+    success_count = sum(1 for r in results if r["status"] not in {"unknown", "manual"})
+    error_count = sum(1 for r in results if r["status"] == "unknown")
+    response = {"ok": success_count > 0, "partial": success_count > 0 and error_count > 0,
+            "checked": len(results),
             "automated": sum(1 for s in enabled if s.get("type") != "manual"),
             "manual": sum(1 for s in enabled if s.get("type") == "manual"),
-            "success": sum(1 for r in results if r["status"] not in {"unknown", "manual"}),
-            "errors": sum(1 for r in results if r["status"] == "unknown"),
+            "success": success_count, "errors": error_count,
             "results": results, "completed_at": now()}
+    record_refresh_run("platforms", response["ok"],
+        f"{success_count} fuentes con respuesta; {error_count} errores; {response['manual']} manuales",
+        {"checked": len(results), "success": success_count, "errors": error_count, "manual": response["manual"]})
+    return response
 
 
 @app.on_event("startup")
@@ -429,6 +466,7 @@ def get_status():
             ),
             "source_url": current.get("source_url") or item.get("base_url", ""),
             "checked_at": current.get("checked_at"),
+            "last_success_at": current.get("last_success_at"),
             "source_status": current.get("source_status"),
             "error": current.get("error"),
             "type": source_type
@@ -603,11 +641,19 @@ def refresh_threat_news():
     init_db()
     cutoff = datetime.now(timezone.utc) - timedelta(days=8)
     fetched, source_results = [], []
+    prior_meta = _read_meta_table("threat_news_meta")
+    try:
+        prior_results = json.loads(prior_meta.get("source_results", "[]"))
+    except Exception:
+        prior_results = []
+    prior_by_name = {item.get("source"): item for item in prior_results if isinstance(item, dict)}
 
-    with ThreadPoolExecutor(max_workers=len(NEWS_FEEDS)) as pool:
+    with ThreadPoolExecutor(max_workers=max(1, len(NEWS_FEEDS))) as pool:
         futures = {pool.submit(_fetch_news_feed, feed): feed for feed in NEWS_FEEDS}
         for future in as_completed(futures):
             feed = futures[future]
+            checked_at = now()
+            previous = prior_by_name.get(feed["name"], {})
             try:
                 items = future.result()
                 count = 0
@@ -621,14 +667,19 @@ def refresh_threat_news():
                     fetched.append((
                         item_id, item["title"][:300], item["summary"][:420],
                         stable_link, feed["name"], item["published_at"],
-                        json.dumps(categories), now()
+                        json.dumps(categories), checked_at
                     ))
                     count += 1
-                source_results.append({"source": feed["name"], "ok": True, "items": count})
+                source_results.append({"source": feed["name"], "ok": True, "items": count,
+                    "checked_at": checked_at, "last_success": checked_at})
             except Exception as exc:
-                source_results.append({"source": feed["name"], "ok": False, "error": str(exc)[:180]})
+                source_results.append({"source": feed["name"], "ok": False,
+                    "error": str(exc)[:180], "checked_at": checked_at,
+                    "last_success": previous.get("last_success") or (prior_meta.get("last_refresh") if previous.get("ok") else None)})
 
-    refreshed_at = now()
+    attempted_at = now()
+    successful_sources = sum(1 for item in source_results if item["ok"])
+    failed_sources = len(source_results) - successful_sources
     with db() as c:
         if fetched:
             c.executemany("""INSERT INTO threat_news
@@ -638,24 +689,26 @@ def refresh_threat_news():
                 title=excluded.title, summary=excluded.summary, link=excluded.link,
                 source=excluded.source, published_at=excluded.published_at,
                 categories=excluded.categories, cached_at=excluded.cached_at""", fetched)
-        c.execute(
-            "DELETE FROM threat_news WHERE published_at < ?",
-            ((datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),)
-        )
-        c.execute("""INSERT INTO threat_news_meta(key,value) VALUES('last_refresh',?)
-                     ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (refreshed_at,))
-        c.execute("""INSERT INTO threat_news_meta(key,value) VALUES('source_results',?)
-                     ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+        c.execute("DELETE FROM threat_news WHERE published_at < ?",
+            ((datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),))
+        c.execute("INSERT INTO threat_news_meta(key,value) VALUES('last_attempt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (attempted_at,))
+        if successful_sources:
+            c.execute("INSERT INTO threat_news_meta(key,value) VALUES('last_refresh',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (attempted_at,))
+        c.execute("INSERT INTO threat_news_meta(key,value) VALUES('source_results',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                   (json.dumps(source_results, ensure_ascii=False),))
         total = c.execute("SELECT COUNT(*) FROM threat_news").fetchone()[0]
 
-    return {
-        "ok": True, "fetched": len(fetched), "cache_total": total,
-        "last_refresh": refreshed_at, "sources": source_results,
-        "successful_sources": sum(1 for x in source_results if x["ok"]),
-        "failed_sources": sum(1 for x in source_results if not x["ok"])
+    response = {
+        "ok": successful_sources > 0, "partial": successful_sources > 0 and failed_sources > 0,
+        "fetched": len(fetched), "cache_total": total,
+        "last_refresh": attempted_at if successful_sources else prior_meta.get("last_refresh"),
+        "last_attempt": attempted_at, "sources": source_results,
+        "successful_sources": successful_sources, "failed_sources": failed_sources
     }
-
+    record_refresh_run("news", response["ok"],
+        f"{successful_sources}/{len(source_results)} fuentes RSS respondieron; {len(fetched)} registros procesados",
+        {"successful_sources": successful_sources, "failed_sources": failed_sources, "fetched": len(fetched)})
+    return response
 
 def get_cached_threat_news(period="7d"):
     init_db()
@@ -685,7 +738,7 @@ def get_cached_threat_news(period="7d"):
         source_results = []
     return {
         "period": period, "items": items, "count": len(items),
-        "last_refresh": meta.get("last_refresh"),
+        "last_refresh": meta.get("last_refresh"), "last_attempt": meta.get("last_attempt"),
         "sources": source_results, "available_categories": NEWS_CATEGORIES
     }
 
@@ -851,9 +904,16 @@ def refresh_ransomware_tracker(force=False):
                 "sources": sources,
                 "successful_sources": sum(1 for x in sources if x.get("ok")),
                 "failed_sources": sum(1 for x in sources if not x.get("ok"))}
+    try:
+        prior_results = json.loads(meta.get("source_results", "[]"))
+    except Exception:
+        prior_results = []
+    prior_by_name = {item.get("source"): item for item in prior_results if isinstance(item, dict)}
     source_results, total_fetched = [], 0
     for source_name, fetcher in (("RansomLook", _fetch_ransomlook_posts),
                                   ("Ransomware.live", _fetch_ransomwarelive_rss)):
+        checked_at = now()
+        previous = prior_by_name.get(source_name, {})
         try:
             source_items = fetcher()
             rows, cutoff = [], datetime.now(timezone.utc) - timedelta(days=8)
@@ -877,9 +937,12 @@ def refresh_ransomware_tracker(force=False):
                         country_lat=excluded.country_lat,country_lon=excluded.country_lon,
                         country_basis=excluded.country_basis,cached_at=excluded.cached_at,source=excluded.source""", rows)
             total_fetched += len(rows)
-            source_results.append({"source": source_name, "ok": True, "items": len(rows)})
+            source_results.append({"source": source_name, "ok": True, "items": len(rows),
+                                   "checked_at": checked_at, "last_success": checked_at})
         except Exception as exc:
-            source_results.append({"source": source_name, "ok": False, "error": str(exc)[:220]})
+            source_results.append({"source": source_name, "ok": False, "error": str(exc)[:220],
+                                   "checked_at": checked_at,
+                                   "last_success": previous.get("last_success") or (meta.get("last_refresh") if previous.get("ok") else None)})
     with db() as c:
         c.execute("DELETE FROM ransomware_posts WHERE discovered_at < ?",
                   ((datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),))
@@ -894,10 +957,17 @@ def refresh_ransomware_tracker(force=False):
             ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
             (json.dumps(source_results, ensure_ascii=False),))
         total = c.execute("SELECT COUNT(*) FROM ransomware_posts").fetchone()[0]
-    return {"ok": any(x["ok"] for x in source_results), "fetched": total_fetched,
-            "cache_total": total, "last_refresh": refreshed_at, "sources": source_results,
-            "successful_sources": sum(1 for x in source_results if x["ok"]),
-            "failed_sources": sum(1 for x in source_results if not x["ok"])}
+    success_count = sum(1 for x in source_results if x["ok"])
+    failure_count = len(source_results) - success_count
+    response = {"ok": success_count > 0, "partial": success_count > 0 and failure_count > 0,
+            "fetched": total_fetched, "cache_total": total,
+            "last_refresh": refreshed_at if success_count else meta.get("last_refresh"),
+            "last_attempt": refreshed_at, "sources": source_results,
+            "successful_sources": success_count, "failed_sources": failure_count}
+    record_refresh_run("ransomware", response["ok"],
+        f"{success_count}/{len(source_results)} fuentes respondieron; {total_fetched} observaciones procesadas",
+        {"successful_sources": success_count, "failed_sources": failure_count, "fetched": total_fetched})
+    return response
 
 
 def get_cached_ransomware(period="7d"):
@@ -1031,6 +1101,8 @@ def get_cached_ransomware(period="7d"):
             "processed": stats["processed"], "rows_visible": stats["rows_visible"],
             "groups_count": len(stats["groups"]), "countries_count": len(stats["countries"]),
             "last_refresh": meta.get("last_refresh"),
+            "last_success": result.get("last_success") or (meta.get("last_refresh") if result.get("ok") else None),
+            "checked_at": result.get("checked_at"),
         })
     total_processed = sum(item["processed"] for item in source_output)
     try:
@@ -1047,7 +1119,7 @@ def get_cached_ransomware(period="7d"):
         "countries": countries, "countries_count": len(countries),
         "timeline": timeline, "timeline_unit": timeline_unit,
         "unmapped_count": unmapped_count,
-        "last_refresh": meta.get("last_refresh"),
+        "last_refresh": meta.get("last_refresh"), "last_attempt": meta.get("last_attempt"),
         "sources": source_results, "source_stats": source_output,
         "source_home": RANSOMLOOK_HOME, "ransomwarelive_home": RANSOMWARELIVE_HOME,
         "source_attribution": "RansomLook · Ransomware.live",
@@ -1153,7 +1225,10 @@ def _workaround_guidance(record, details):
 
 
 def refresh_vulnerability_intel():
+    init_db()
     # CISA KEV is the authoritative list of vulnerabilities known to be exploited.
+    attempted_at = now()
+    _vuln_meta("last_attempt", attempted_at)
     kev_resp = requests.get(CISA_KEV_URL, timeout=TIMEOUT, headers=HEADERS)
     kev_resp.raise_for_status()
     kev_payload = kev_resp.json()
@@ -1163,10 +1238,16 @@ def refresh_vulnerability_intel():
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=30)
     params = {"pubStartDate": start.strftime("%Y-%m-%dT%H:%M:%S.000Z"), "pubEndDate": end.strftime("%Y-%m-%dT%H:%M:%S.000Z"), "resultsPerPage": 2000}
-    nvd_resp = requests.get(NVD_API_URL, params=params, timeout=TIMEOUT, headers=HEADERS)
-    nvd_resp.raise_for_status()
-    nvd_payload = nvd_resp.json()
-    nvd_items = nvd_payload.get("vulnerabilities", [])
+    nvd_error = None
+    try:
+        nvd_resp = requests.get(NVD_API_URL, params=params, timeout=TIMEOUT, headers=HEADERS)
+        nvd_resp.raise_for_status()
+        nvd_payload = nvd_resp.json()
+        nvd_items = nvd_payload.get("vulnerabilities", [])
+    except Exception as exc:
+        # Preserve a usable CISA KEV refresh when NVD is temporarily unavailable.
+        nvd_items = []
+        nvd_error = str(exc)[:220]
     # Prioritize KEV + recent NVD entries; enrich a bounded batch with current EPSS.
     records = {}
     for item in nvd_items:
@@ -1220,17 +1301,21 @@ def refresh_vulnerability_intel():
     # EPSS is a probability estimate, not evidence of exploitation. Query the most relevant 100 CVEs.
     ranked = sorted(records.values(), key=lambda x: (x.get("kev", 0), x.get("published", "")), reverse=True)[:100]
     epss_map = {}
+    epss_errors = []
+    epss_attempted = bool(ranked)
+    epss_success = False
     for offset in range(0, len(ranked), 40):
         ids = [x["cve"] for x in ranked[offset:offset+40]]
         if not ids: continue
         try:
             er = requests.get(EPSS_API_URL, params={"cve": ",".join(ids)}, timeout=TIMEOUT, headers=HEADERS)
             er.raise_for_status()
+            epss_success = True
             for row in er.json().get("data", []):
                 epss_map[row.get("cve")] = (float(row["epss"]), float(row["percentile"]))
-        except Exception:
+        except Exception as exc:
             # EPSS is an enrichment; keep KEV/NVD data if its API is temporarily unavailable.
-            pass
+            epss_errors.append(str(exc)[:180])
     stamp = now()
     with db() as c:
         for rec in records.values():
@@ -1249,13 +1334,33 @@ def refresh_vulnerability_intel():
                rec.get("kev_date"),rec.get("ransomware_use"),ep[0],ep[1],rec.get("source_url"),stamp,
                json.dumps(rec.get("details") or {},ensure_ascii=False)))
         c.execute("DELETE FROM vulnerability_items WHERE cached_at < ?", ((datetime.now(timezone.utc)-timedelta(days=45)).isoformat(),))
+    source_results = [
+        {"source": "CISA KEV", "ok": True, "items": len(kev_items), "checked_at": stamp, "last_success": stamp},
+        {"source": "NVD CVE API", "ok": nvd_error is None, "items": len(nvd_items), "checked_at": stamp,
+         "last_success": stamp if nvd_error is None else _vuln_meta("nvd_last_success") , **({"error": nvd_error} if nvd_error else {})},
+        {"source": "FIRST EPSS", "ok": (epss_success or not epss_attempted) and not epss_errors,
+         "items": len(epss_map), "checked_at": stamp, "last_success": stamp if (epss_success or not epss_attempted) else _vuln_meta("epss_last_success"),
+         "note": "Sin CVE para enriquecer en esta consulta." if not epss_attempted else ("EPSS es un enriquecimiento opcional." if epss_errors else "Puntajes EPSS consultados."),
+         **({"error": "; ".join(epss_errors)[:220]} if epss_errors else {})}
+    ]
     _vuln_meta("last_refresh", stamp)
+    _vuln_meta("last_success", stamp)
+    _vuln_meta("cisa_last_success", stamp)
+    if nvd_error is None: _vuln_meta("nvd_last_success", stamp)
+    if epss_success or not epss_attempted: _vuln_meta("epss_last_success", stamp)
+    _vuln_meta("source_results", json.dumps(source_results, ensure_ascii=False))
     _vuln_meta("kev_count", len(kev_items))
-    _vuln_meta("nvd_count", len(nvd_items))
-    return {"ok": True, "kev_count": len(kev_items), "nvd_count": len(nvd_items),
-            "epss_enriched": len(epss_map), "last_refresh": stamp,
-            "sources": [{"name":"CISA KEV","ok":True},{"name":"NVD CVE API","ok":True},
-                        {"name":"FIRST EPSS","ok":bool(epss_map),"note":"EPSS es enriquecimiento opcional; puede no estar disponible temporalmente." if not epss_map else "Puntajes EPSS actuales."}]}
+    if nvd_error is None:
+        _vuln_meta("nvd_count", len(nvd_items))
+    effective_nvd_count = int(_vuln_meta("nvd_count") or 0)
+    response = {"ok": True, "partial": nvd_error is not None or bool(epss_errors),
+            "kev_count": len(kev_items), "nvd_count": effective_nvd_count,
+            "epss_enriched": len(epss_map), "last_refresh": stamp, "last_attempt": attempted_at,
+            "sources": source_results}
+    record_refresh_run("vulnerabilities", True,
+        f"CISA KEV: {len(kev_items)}; NVD: {effective_nvd_count} (caché); EPSS: {len(epss_map)} enriquecidas",
+        {"sources": source_results})
+    return response
 
 def get_vulnerability_intel(period="30d", search="", sort="modified_desc"):
     if period not in {"7d","30d","all"}:
@@ -1283,7 +1388,12 @@ def get_vulnerability_intel(period="30d", search="", sort="modified_desc"):
         rows = [dict(r) for r in c.execute(query, params).fetchall()]
     for row in rows:
         row.pop("details_json", None)
+    try:
+        sources = json.loads(_vuln_meta("source_results") or "[]")
+    except Exception:
+        sources = []
     return {"items": rows, "count": len(rows), "last_refresh": _vuln_meta("last_refresh"),
+            "last_attempt": _vuln_meta("last_attempt"), "sources": sources,
             "kev_count": _vuln_meta("kev_count"), "nvd_count": _vuln_meta("nvd_count"),
             "sort": sort}
 
@@ -1693,8 +1803,128 @@ def api_refresh_vulnerability_intel():
     try:
         return refresh_vulnerability_intel()
     except Exception as exc:
+        attempted = now()
+        _vuln_meta("last_attempt", attempted)
+        try:
+            previous = json.loads(_vuln_meta("source_results") or "[]")
+        except Exception:
+            previous = []
+        prior = {x.get("source"): x for x in previous if isinstance(x, dict)}
+        failed = []
+        for name in ("CISA KEV", "NVD CVE API", "FIRST EPSS"):
+            old = prior.get(name, {})
+            failed.append({"source": name, "ok": False, "checked_at": attempted,
+                           "last_success": old.get("last_success"),
+                           "error": str(exc)[:220] if name == "CISA KEV" else "No se ejecutó por fallo de la fuente primaria."})
+        _vuln_meta("source_results", json.dumps(failed, ensure_ascii=False))
+        record_refresh_run("vulnerabilities", False, f"Error en actualización: {str(exc)[:200]}", {"sources": failed})
         raise HTTPException(502, f"No se pudo actualizar inteligencia de vulnerabilidades: {str(exc)[:220]}")
 
+
+
+def _health_age_minutes(timestamp):
+    parsed = _news_parse_date(timestamp) if timestamp else None
+    if not parsed:
+        return None
+    return max(0, int((datetime.now(timezone.utc) - parsed).total_seconds() // 60))
+
+
+def _classify_health_source(source, fallback_success=None, stale_after_minutes=1440):
+    checked = source.get("checked_at") or source.get("last_attempt")
+    last_success = source.get("last_success") or fallback_success
+    age = _health_age_minutes(last_success)
+    if checked is None and last_success is None:
+        state = "pending"
+    elif source.get("ok") is False:
+        state = "error" if age is None or age >= stale_after_minutes else "warning"
+    elif age is None:
+        state = "pending"
+    elif age >= stale_after_minutes:
+        state = "stale"
+    else:
+        state = "healthy"
+    return {**source, "status": state, "age_minutes": age,
+            "checked_at": checked, "last_success": last_success}
+
+
+def _health_module(sources, attempted=None, last_success=None, manual=0, warning=None, stale_after_minutes=1440):
+    normalized = [_classify_health_source(item, fallback_success=last_success,
+                  stale_after_minutes=stale_after_minutes) for item in sources]
+    healthy = sum(1 for item in normalized if item["status"] == "healthy")
+    failed = sum(1 for item in normalized if item["status"] == "error")
+    stale = sum(1 for item in normalized if item["status"] == "stale")
+    warnings = sum(1 for item in normalized if item["status"] == "warning")
+    pending = sum(1 for item in normalized if item["status"] == "pending")
+    if not normalized or pending == len(normalized): state = "pending"
+    elif failed == len(normalized): state = "error"
+    elif failed or stale or warnings: state = "partial"
+    elif pending: state = "partial"
+    else: state = "healthy"
+    return {"status": state, "sources": normalized, "healthy": healthy,
+            "failed": failed, "stale": stale, "warnings": warnings,
+            "pending": pending, "manual": manual, "last_attempt": attempted,
+            "last_success": last_success, "warning": warning}
+
+
+@app.get("/api/health")
+def api_health():
+    """Cache-only diagnostics: checks local DB and the latest saved source results, never calls vendors."""
+    init_db()
+    generated = now()
+    db_ok = False
+    counts = {}
+    with db() as c:
+        c.execute("SELECT 1").fetchone()
+        db_ok = True
+        for table in ("services", "events", "threat_news", "ransomware_posts", "vulnerability_items", "refresh_runs"):
+            counts[table] = int(c.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+        recent_runs = [dict(row) for row in c.execute(
+            "SELECT id,module,attempted_at,ok,summary,details_json FROM refresh_runs ORDER BY id DESC LIMIT 15").fetchall()]
+    services = get_status().get("services", [])
+    automatic = [item for item in services if item.get("type") != "manual"]
+    manual_count = sum(1 for item in services if item.get("type") == "manual")
+    platform_sources = []
+    for item in automatic:
+        platform_sources.append({"source": item["name"], "ok": not bool(item.get("error")) and bool(item.get("checked_at")),
+            "checked_at": item.get("checked_at"), "last_success": item.get("last_success_at"),
+            "error": item.get("error"), "service_status": item.get("status"), "note": item.get("description", "")[:180]})
+    platform_last = max((item.get("checked_at") for item in automatic if item.get("checked_at")), default=None)
+    modules = {"platforms": _health_module(platform_sources, attempted=platform_last,
+                manual=manual_count, stale_after_minutes=60)}
+
+    news_meta = _read_meta_table("threat_news_meta")
+    try: news_sources = json.loads(news_meta.get("source_results", "[]"))
+    except Exception: news_sources = []
+    modules["news"] = _health_module(news_sources, news_meta.get("last_attempt"), news_meta.get("last_refresh"))
+
+    ransom_meta = _get_ransom_meta()
+    try: ransom_sources = json.loads(ransom_meta.get("source_results", "[]"))
+    except Exception: ransom_sources = []
+    modules["ransomware"] = _health_module(ransom_sources, ransom_meta.get("last_attempt"), ransom_meta.get("last_refresh"))
+
+    vuln_meta = _read_meta_table("vulnerability_meta")
+    try: vuln_sources = json.loads(vuln_meta.get("source_results", "[]"))
+    except Exception: vuln_sources = []
+    if not vuln_sources and vuln_meta.get("last_refresh"):
+        vuln_sources = [
+            {"source": "CISA KEV", "ok": True, "last_success": vuln_meta.get("last_refresh")},
+            {"source": "NVD CVE API", "ok": True, "last_success": vuln_meta.get("last_refresh")},
+            {"source": "FIRST EPSS", "ok": None, "note": "Sin detalle histórico de esta versión."}
+        ]
+    modules["vulnerabilities"] = _health_module(vuln_sources, vuln_meta.get("last_attempt"), vuln_meta.get("last_refresh"))
+
+    module_states = [item["status"] for item in modules.values()]
+    overall = "healthy" if module_states and all(x == "healthy" for x in module_states) else (
+        "error" if module_states and all(x == "error" for x in module_states) else
+        "partial" if any(x in {"error", "partial", "stale"} for x in module_states) else "pending")
+    for item in recent_runs:
+        try: item["details"] = json.loads(item.pop("details_json") or "{}")
+        except Exception: item["details"] = {}; item.pop("details_json", None)
+    return {"ok": db_ok, "version": APP_VERSION, "generated_at": generated,
+        "started_at": APP_STARTED_AT, "overall": overall, "modules": modules,
+        "database": {"ok": db_ok, "engine": "SQLite", "counts": counts,
+            "persistence": "ephemeral", "warning": "La base SQLite reside en el sistema de archivos local. En Render Free puede perderse al reiniciar, suspenderse o redesplegarse."},
+        "recent_refreshes": recent_runs}
 
 
 @app.get("/api/executive-summary")

@@ -1,4 +1,4 @@
-# SOC Service Status Monitor — v1.9.0 (Fase 3 · análisis interactivo)
+# SOC Service Status Monitor — v1.9.0 (Fase 4 · diagnóstico y confiabilidad)
 
 Panel web de consulta del estado de plataformas y de inteligencia pública de ciberamenazas. Esta entrega corrige la navegación de la interfaz modular.
 
@@ -23,7 +23,7 @@ Panel web de consulta del estado de plataformas y de inteligencia pública de ci
 - Runtime: Python 3
 - Build: `pip install -r requirements.txt`
 - Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- Health check: `/api/status`
+- Health check: `/api/health` (consulta SQLite y metadatos guardados; no consulta proveedores externos)
 - No requiere API keys ni variables de entorno adicionales para las fuentes públicas incluidas.
 
 Para actualizar: reemplazar el contenido del repositorio GitHub existente con el contenido de esta carpeta, conservar `.git` si se utiliza GitHub Desktop, realizar commit/push y ejecutar **Manual Deploy → Deploy latest commit** en el servicio Render actual. No crear un servicio nuevo.
@@ -234,3 +234,21 @@ Cada proveedor se consulta de forma independiente; un fallo de una fuente no deb
 
 ### Limitaciones de comparación histórica
 Las fuentes actuales entregan ventanas activas (24 horas/7 días en noticias y ransomware) y el historial de estados disponible (100 transiciones más recientes). No existe una serie histórica uniforme y persistente para comparar períodos consecutivos sin introducir una nueva estrategia de almacenamiento. Por ello, esta fase habilita filtrado por ventana y detalle de registros, pero no presenta comparaciones históricas simuladas.
+
+
+## v1.9.0 — Fase 4: diagnóstico operativo y trazabilidad
+
+- Nuevo endpoint `GET /api/health`, sin llamadas externas, que resume conectividad SQLite, fuentes, última consulta, último éxito y frescura de datos por módulo.
+- Panel de diagnóstico en Inicio ejecutivo con estado correcto, parcial, error, datos antiguos y pendientes por fuente.
+- Historial local de las últimas 100 actualizaciones manuales, con resultados resumidos por módulo.
+- Noticias y ransomware separan último intento de última consulta exitosa; un fallo total ya no renueva falsamente la fecha del último éxito y se conserva la caché previa.
+- Plataformas guarda `checked_at` y `last_success_at` por separado; un fallo temporal no borra el último éxito conocido y el diagnóstico distingue error reciente de datos antiguos.
+- Vulnerability Intelligence mantiene la actualización de CISA KEV aunque NVD esté temporalmente indisponible; la interfaz informa el resultado parcial y conserva el detalle de la fuente fallida. EPSS continúa como enriquecimiento opcional.
+- El diagnóstico no consulta proveedores, evita tráfico adicional y no incorpora nuevas dependencias, servicios, API keys ni costos.
+- El health check de Render apunta a `/api/health`.
+
+### Limitaciones importantes
+- La aplicación sigue usando SQLite local. Render Free utiliza un sistema de archivos efímero: los datos locales pueden perderse al reiniciar, suspenderse o redesplegarse. El historial local es diagnóstico operativo, no una bitácora persistente de auditoría.
+- No se agregaron alertas por correo, SMS o push: requieren un canal de entrega y un proceso de ejecución programada que el despliegue actual no tiene.
+- El endpoint de salud evalúa la última respuesta guardada, no realiza un sondeo vivo de cada proveedor. Para verificar una fuente se debe ejecutar la actualización manual del módulo.
+- Fuentes manuales (por ejemplo portales que requieren login o no exponen un feed público) no se cuentan como fallidas: permanecen identificadas como revisión manual.

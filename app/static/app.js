@@ -380,7 +380,7 @@ async function loadIntelNews() {
     $("intelLastRefresh").textContent = data.last_refresh
       ? `Última consulta: ${date(data.last_refresh)}`
       : "Sin actualización registrada";
-    const totalSources = (data.sources || []).length || 5;
+    const totalSources = (data.sources || []).length || 9;
     $("intelSourceSummary").textContent = `${data.sources?.filter(x => x.ok).length || 0} de ${totalSources} fuentes respondieron en la última consulta`;
     renderIntelSources(data.sources || []);
     renderIntelNews();
@@ -414,10 +414,12 @@ $("refreshIntel").addEventListener("click", async () => {
     const loaded = await loadIntelNews();
     await loadExecutiveDashboard();
     if (!loaded) throw new Error("La consulta terminó, pero no fue posible recuperar las publicaciones guardadas.");
-    const totalSources = (result.sources || []).length || 5;
+    const totalSources = (result.sources || []).length || 9;
     const successful = Number(result.successful_sources || 0);
-    $("intelSourceSummary").textContent = `Consulta completada: ${successful} de ${totalSources} fuentes disponibles · ${result.fetched || 0} registros procesados.`;
-    toast(`Inteligencia actualizada: ${result.fetched || 0} publicaciones procesadas · ${successful}/${totalSources} fuentes disponibles.`);
+    const failed = Number(result.failed_sources || 0);
+    $("intelSourceSummary").textContent = `${result.ok === false ? "Consulta sin fuentes disponibles" : result.partial ? "Consulta parcial" : "Consulta completada"}: ${successful}/${totalSources} fuentes disponibles · ${failed} fallidas · ${result.fetched || 0} registros procesados.`;
+    if (result.ok === false) toast("No respondió ninguna fuente RSS. Se conserva la última caché exitosa.");
+    else toast(`Inteligencia actualizada: ${result.fetched || 0} publicaciones · ${successful}/${totalSources} fuentes disponibles.`);
   } catch (error) {
     $("intelSourceSummary").textContent = `No se pudo actualizar: ${error.message}`;
     $("intelNewsList").innerHTML = `<div class="intel-empty"><b>No se pudo actualizar la inteligencia</b><span>${esc(error.message)}. Verifica que Render haya terminado de iniciar y vuelve a intentarlo.</span></div>`;
@@ -915,8 +917,9 @@ $("refreshVulns").addEventListener("click", async () => {
     if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
     await loadVulnerabilities();
     await loadExecutiveDashboard();
-    $("vulnMessage").textContent = `Actualizado: ${result.kev_count} registros CISA KEV · ${result.nvd_count} CVE NVD · ${result.epss_enriched} enriquecidas con EPSS.`;
-    toast("Inteligencia de vulnerabilidades actualizada.");
+    const partialNote = result.partial ? " · Resultado parcial: revisa el diagnóstico de fuentes." : "";
+    $("vulnMessage").textContent = `${result.partial ? "Actualización parcial" : "Actualizado"}: ${result.kev_count} registros CISA KEV · ${result.nvd_count} CVE NVD · ${result.epss_enriched} enriquecidas con EPSS.${partialNote}`;
+    toast(result.partial ? "Actualización parcial de vulnerabilidades. Consulta el diagnóstico de fuentes." : "Inteligencia de vulnerabilidades actualizada.");
   } catch(e) {
     $("vulnMessage").textContent = "Error al actualizar: " + e.message + ". Se conserva la caché anterior.";
     toast("No se pudo actualizar vulnerabilidades: " + e.message);
@@ -1019,7 +1022,15 @@ async function runGlobalRefresh() {
       try { payload = await response.json(); }
       catch { throw new Error(`HTTP ${response.status}: respuesta no válida`); }
       if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
-      return { ...job, ok: payload.ok !== false, payload };
+      const successful = payload.ok !== false;
+      const failureMessage = job.key === "platforms"
+        ? "Ninguna fuente automática de plataformas respondió correctamente."
+        : job.key === "news"
+          ? "Ninguna fuente RSS respondió correctamente."
+          : job.key === "ransomware"
+            ? (payload.sources?.find(source => !source.ok)?.error || "Ninguna fuente ransomware respondió correctamente.")
+            : "La actualización no se completó.";
+      return { ...job, ok: successful, error: successful ? null : failureMessage, payload };
     } catch (error) {
       return { ...job, ok: false, error: error.message };
     }
@@ -1042,13 +1053,13 @@ async function runGlobalRefresh() {
   const platformErrors = Number(platform.payload?.errors || 0);
   const platformText = platform.ok
     ? `${Number(platform.payload.success || 0)} con respuesta · ${platformErrors} con error · ${Number(platform.payload.manual || 0)} manuales`
-    : `Error: ${platform.error}`;
+    : `Error: ${platform.error || "sin respuesta válida"}`;
   const platformState = !platform.ok ? "error" : (platformErrors ? "parcial" : "completo");
   const newsTotal = Number(news.payload?.sources?.length || 0);
   const newsGood = Number(news.payload?.successful_sources || 0);
   const newsText = news.ok
     ? `${newsGood}/${newsTotal} fuentes RSS respondieron`
-    : `Error: ${news.error}`;
+    : `Error: ${news.error || "ninguna fuente respondió"}`;
   const newsState = !news.ok || !newsGood ? "error" : (newsGood < newsTotal ? "parcial" : "completo");
   const ransomGood = Number(ransom.payload?.successful_sources || 0);
   const ransomTotal = Number(ransom.payload?.sources?.length || 0);
@@ -1056,12 +1067,12 @@ async function runGlobalRefresh() {
     ? (ransom.payload?.skipped
         ? `Caché reutilizada · ${ransomGood}/${ransomTotal} fuentes disponibles`
         : `${ransomGood}/${ransomTotal} fuentes respondieron`)
-    : `Error: ${ransom.error}`;
+    : `Error: ${ransom.error || "ninguna fuente respondió"}`;
   const ransomState = !ransom.ok || !ransomGood ? "error" : (ransomGood < ransomTotal ? "parcial" : "completo");
   const vulnText = vulns.ok
     ? `${Number(vulns.payload.kev_count || 0)} CISA KEV · ${Number(vulns.payload.nvd_count || 0)} NVD · ${Number(vulns.payload.epss_enriched || 0)} EPSS`
-    : `Error: ${vulns.error}`;
-  const vulnState = vulns.ok ? "completo" : "error";
+    : `Error: ${vulns.error || "fuentes no disponibles"}`;
+  const vulnState = !vulns.ok ? "error" : (vulns.payload?.partial ? "parcial" : "completo");
 
   const states = [platformState, newsState, ransomState, vulnState];
   await loadExecutiveDashboard();
@@ -1222,18 +1233,77 @@ function renderExecutiveDashboard(data) {
   renderExecModuleStatus(data);
 }
 
+function healthStateLabel(state) {
+  return ({healthy:"Correcto",partial:"Parcial",error:"Error",stale:"Antiguo",pending:"Pendiente",warning:"Última consulta falló"})[state] || "Sin estado";
+}
+function healthTime(value) {
+  return value ? new Date(value).toLocaleString("es-CL") : "Sin consulta exitosa";
+}
+function renderHealthDiagnostics(data) {
+  const labels = {platforms:"Plataformas",news:"Noticias",ransomware:"Ransomware",vulnerabilities:"Vulnerabilidades"};
+  const overall = data.overall || "pending";
+  const badge = $("execHealthBadge");
+  badge.textContent = healthStateLabel(overall);
+  badge.className = `health-badge ${overall}`;
+  const modules = data.modules || {};
+  const allSources = Object.values(modules).flatMap(module => module.sources || []);
+  const healthy = allSources.filter(x => x.status === "healthy").length;
+  const failed = allSources.filter(x => x.status === "error").length;
+  const stale = allSources.filter(x => x.status === "stale").length;
+  const warnings = allSources.filter(x => x.status === "warning").length;
+  const pending = allSources.filter(x => x.status === "pending").length;
+  $("execHealthSummary").innerHTML = [
+    [healthy,"Fuentes correctas","healthy"],[warnings+failed,"Con errores recientes","error"],
+    [stale,"Datos antiguos","stale"],[pending,"Pendientes","pending"]
+  ].map(([value,label,state]) => `<div class="exec-health-kpi ${state}"><b>${execNumber(value)}</b><span>${label}</span></div>`).join("");
+  $("execHealthModules").innerHTML = Object.entries(labels).map(([key,label]) => {
+    const module = modules[key] || {};
+    const sources = module.sources || [];
+    const sourceRows = sources.map(source => `<div class="exec-health-source">
+      <span class="health-dot ${esc(source.status || "pending")}"></span>
+      <span class="exec-health-source-name">${esc(source.source || source.name || "Fuente")}</span>
+      <span class="exec-health-source-state">${esc(healthStateLabel(source.status))}</span>
+      <small>${esc(source.last_success ? healthTime(source.last_success) : (source.checked_at ? `Intento: ${healthTime(source.checked_at)}` : "Sin consulta registrada"))}</small>
+      ${source.error ? `<em title="${esc(source.error)}">${esc(source.error)}</em>` : ""}
+    </div>`).join("");
+    return `<details class="exec-health-module"><summary><span>${esc(label)}</span><b class="health-badge ${esc(module.status || "pending")}">${esc(healthStateLabel(module.status))}</b><small>${execNumber(module.healthy)}/${execNumber(sources.length)} fuentes correctas${module.manual ? ` · ${execNumber(module.manual)} manuales` : ""}</small></summary>
+      <div class="exec-health-source-list">${sourceRows || '<span class="exec-empty">Todavía no existen resultados de consulta.</span>'}</div></details>`;
+  }).join("");
+  const runs = data.recent_refreshes || [];
+  $("execRefreshHistory").innerHTML = runs.length ? runs.map(run => `<div class="exec-refresh-run"><span class="health-dot ${run.ok ? "healthy" : "error"}"></span><b>${esc(labels[run.module] || run.module)}</b><span>${esc(run.summary || "")}</span><small>${esc(healthTime(run.attempted_at))}</small></div>`).join("") : '<span class="exec-empty">Todavía no hay actualizaciones manuales registradas.</span>';
+  $("execPersistenceWarning").textContent = data.database?.warning || "No fue posible determinar la persistencia de los datos.";
+}
+
 async function loadExecutiveDashboard() {
+  const [summaryResult, healthResult] = await Promise.allSettled([
+    fetch("/api/executive-summary", {cache:"no-store"}),
+    fetch("/api/health", {cache:"no-store"})
+  ]);
+  let loaded = false;
   try {
-    const response = await fetch("/api/executive-summary", {cache:"no-store"});
+    if (summaryResult.status !== "fulfilled") throw summaryResult.reason;
+    const response = summaryResult.value;
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
     renderExecutiveDashboard(data);
-    return true;
+    loaded = true;
   } catch (error) {
     $("execSnapshot").textContent = `No se pudo cargar el resumen: ${error.message}`;
     $("execModuleStatus").innerHTML = '<span class="exec-empty">El resumen ejecutivo no está disponible. Los módulos individuales siguen funcionando.</span>';
-    return false;
   }
+  try {
+    if (healthResult.status !== "fulfilled") throw healthResult.reason;
+    const response = healthResult.value;
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    renderHealthDiagnostics(data);
+  } catch (error) {
+    $("execHealthBadge").textContent = "No disponible";
+    $("execHealthBadge").className = "health-badge error";
+    $("execHealthSummary").innerHTML = `<span class="exec-empty">No se pudo consultar el diagnóstico: ${esc(error.message)}</span>`;
+    $("execHealthModules").innerHTML = "";
+  }
+  return loaded;
 }
 
 loadExecutiveDashboard();

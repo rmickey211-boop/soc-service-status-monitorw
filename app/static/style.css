@@ -652,3 +652,24 @@ main{max-width:none;margin:0;padding:0;min-height:calc(100vh - 68px)}
 .module-stack-label b{flex:none;color:#e8f1f9;font-size:9px;font-variant-numeric:tabular-nums}
 .module-stack-track{display:flex;width:100%;height:10px;overflow:hidden;border-radius:20px;background:#263b52}
 .module-stack-track .stack-segment{display:block;height:100%;min-width:2px;border-radius:0}
+
+
+/* v1.9.0 Phase 4 — source health and refresh audit */
+.exec-health-panel{margin-top:14px;padding:16px;border:1px solid #2d435c;border-radius:12px;background:#0d1928}
+.exec-health-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:13px 0}
+.exec-health-kpi{display:flex;flex-direction:column;gap:4px;padding:10px;border:1px solid #2b4057;border-radius:8px;background:#122136}
+.exec-health-kpi b{font-size:20px;color:#eaf3fc;font-variant-numeric:tabular-nums}
+.exec-health-kpi span{font-size:9px;color:#91a7bf}
+.health-badge{display:inline-flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:20px;border:1px solid #40536b;background:#182638;color:#a8bad0;font-size:8px;font-weight:800;letter-spacing:.4px;white-space:nowrap}
+.health-badge.healthy{border-color:#286b59;background:#12352d;color:#8ce2c2}.health-badge.partial,.health-badge.warning{border-color:#80653b;background:#332a1c;color:#f0cf91}.health-badge.error{border-color:#78404a;background:#351d29;color:#ffabb4}.health-badge.stale{border-color:#77613b;background:#302718;color:#e9c77f}.health-badge.pending{color:#a0aec0}
+.exec-health-modules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.exec-health-module{min-width:0;border:1px solid #2a3e55;border-radius:8px;background:#111f30;overflow:hidden}
+.exec-health-module>summary{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 8px;align-items:center;padding:11px 12px;cursor:pointer;list-style:none}
+.exec-health-module>summary::-webkit-details-marker{display:none}.exec-health-module>summary>span{color:#dce9f8;font-size:10px;font-weight:800}.exec-health-module>summary>small{grid-column:1/-1;color:#8ea5bd;font-size:8px}
+.exec-health-source-list{padding:0 10px 9px;border-top:1px solid #24374c}
+.exec-health-source{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:5px 7px;align-items:center;padding:8px 2px;border-bottom:1px solid #203247}
+.exec-health-source:last-child{border-bottom:0}.exec-health-source-name{font-size:9px;color:#c9d7e7;overflow-wrap:anywhere}.exec-health-source-state{font-size:8px;color:#94a9c0}.exec-health-source>small{grid-column:2/-1;color:#7189a3;font-size:8px}.exec-health-source>em{grid-column:2/-1;color:#edaa84;font-size:8px;font-style:normal;overflow-wrap:anywhere;line-height:1.4}
+.health-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#65758a}.health-dot.healthy{background:#40c998;box-shadow:0 0 8px #40c99855}.health-dot.error{background:#ee747d}.health-dot.warning,.health-dot.partial{background:#e5b95d}.health-dot.stale{background:#b99a5f}.health-dot.pending{background:#72839a}
+.exec-refresh-history{margin-top:12px;border-top:1px solid #283b51;padding-top:10px}.exec-refresh-history>summary{cursor:pointer;color:#a9c0d8;font-size:9px;font-weight:800}.exec-refresh-runs{display:grid;gap:6px;margin-top:9px}.exec-refresh-run{display:grid;grid-template-columns:8px 100px minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 8px;border:1px solid #263b52;border-radius:6px;background:#101d2d}.exec-refresh-run b{font-size:8px;color:#c9d8e8}.exec-refresh-run span:nth-of-type(2){font-size:8px;color:#8da4bd;overflow-wrap:anywhere}.exec-refresh-run small{font-size:8px;color:#778da7;text-align:right}
+.exec-persistence-warning{margin:11px 0 0;padding:9px 10px;border:1px solid #705a34;border-radius:7px;background:#2c251a;color:#e4c990;font-size:8px;line-height:1.5}
+@media(max-width:760px){.exec-health-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.exec-health-modules{grid-template-columns:1fr}.exec-refresh-run{grid-template-columns:8px minmax(75px,auto) 1fr}.exec-refresh-run small{grid-column:2/-1;text-align:left}}
