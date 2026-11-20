@@ -77,7 +77,7 @@ async function load(){try{const [sr,er,cr]=await Promise.all([fetch("/api/status
  const cats=[...new Set(config.services.map(s=>s.category||"General"))].sort(),old=$("category").value;$("category").innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");$("category").value=cats.includes(old)?old:"";render();
  $("events").innerHTML=events.length?events.map(e=>`<tr><td>${date(e.occurred_at)}</td><td><b>${esc(e.service_name)}</b></td><td class="change">${labels[e.old_status]||e.old_status} → ${labels[e.new_status]||e.new_status}</td><td>${esc(e.description)}</td></tr>`).join(""):'<tr><td colspan="4">Sin cambios de estado registrados.</td></tr>';
  }catch(e){$("services").innerHTML='<div class="loading">No se pudo conectar con el backend. Intenta nuevamente.</div>';$("freshSummary").textContent="No fue posible cargar los datos."}}
-$("refresh").addEventListener("click",async()=>{$("refresh").disabled=true;$("refresh").textContent="Consultando fuentes…";try{const r=await fetch("/api/poll",{method:"POST"});const result=await r.json();if(!r.ok)throw new Error(result.detail||"Error");await load();toast(`Consulta finalizada: ${result.success} fuentes con respuesta, ${result.errors} sin información y ${result.manual} para revisar manualmente.`)}catch(e){toast("No se pudo completar la consulta: "+e.message)}finally{$("refresh").disabled=false;$("refresh").textContent="↻ Actualizar ahora"}});
+$("refresh").addEventListener("click",async()=>{$("refresh").disabled=true;$("refresh").textContent="Consultando fuentes…";try{const r=await fetch("/api/poll",{method:"POST"});const result=await r.json();if(!r.ok)throw new Error(result.detail||"Error");await load();await loadExecutiveDashboard();toast(`Consulta finalizada: ${result.success} fuentes con respuesta, ${result.errors} sin información y ${result.manual} para revisar manualmente.`)}catch(e){toast("No se pudo completar la consulta: "+e.message)}finally{$("refresh").disabled=false;$("refresh").textContent="↻ Actualizar ahora"}});
 document.querySelectorAll(".metric-filter").forEach(card=>card.addEventListener("click",()=>{
  const key=card.dataset.filter;
  $("search").value="";
@@ -221,6 +221,7 @@ $("refreshIntel").addEventListener("click", async () => {
     }
     if (!response.ok) throw new Error(result.detail || `El servidor respondió HTTP ${response.status}.`);
     const loaded = await loadIntelNews();
+    await loadExecutiveDashboard();
     if (!loaded) throw new Error("La consulta terminó, pero no fue posible recuperar las publicaciones guardadas.");
     const totalSources = (result.sources || []).length || 5;
     const successful = Number(result.successful_sources || 0);
@@ -460,6 +461,7 @@ $("refreshRansomware").addEventListener("click", async () => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
     const loaded = await loadRansomware();
+    await loadExecutiveDashboard();
     if (!loaded) throw new Error("La fuente respondió, pero no se pudo recuperar la caché local.");
     if (result.skipped) {
       toast(result.message || "Se reutilizó la caché reciente.");
@@ -592,6 +594,7 @@ $("refreshVulns").addEventListener("click", async () => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
     await loadVulnerabilities();
+    await loadExecutiveDashboard();
     $("vulnMessage").textContent = `Actualizado: ${result.kev_count} registros CISA KEV · ${result.nvd_count} CVE NVD · ${result.epss_enriched} enriquecidas con EPSS.`;
     toast("Inteligencia de vulnerabilidades actualizada.");
   } catch(e) {
@@ -704,6 +707,7 @@ async function runGlobalRefresh() {
   const vulnState = vulns.ok ? "completo" : "error";
 
   const states = [platformState, newsState, ransomState, vulnState];
+  await loadExecutiveDashboard();
   const reloadErrors = reloads.filter(item => item.status === "rejected").length;
   const summaryParts = [
     `Plataformas: ${platformText} [${platformState}]`,
@@ -727,3 +731,152 @@ async function runGlobalRefresh() {
   button.textContent = "↻ Actualizar todos los módulos";
 }
 $("homeRefresh").addEventListener("click", runGlobalRefresh);
+
+
+// ---------------------------------------------------------------------------
+// v1.9.0 Phase 1 — SOC Executive Dashboard (cache-backed summary)
+// ---------------------------------------------------------------------------
+const execStatusLabels = {
+  operational: "Operativas", info: "Avisos", degraded: "Degradadas",
+  outage: "Indisponibles", maintenance: "Mantenimiento",
+  manual: "Consulta manual", unknown: "Sin información"
+};
+const execStatusColors = {
+  operational: "#35c99a", info: "#5daaf5", degraded: "#efbd5d",
+  outage: "#ef777d", maintenance: "#9b8be9", manual: "#8796aa",
+  unknown: "#56677b"
+};
+const execCategoryLabels = {
+  ransomware: "Ransomware", espionage: "Espionaje", leaks: "Filtraciones",
+  ddos: "DDoS", malware: "Malware", vulnerabilities: "Vulnerabilidades"
+};
+const execNumber = value => Number(value || 0).toLocaleString("es-CL");
+const execTime = value => value ? date(value) : "Sin actualización";
+
+function renderExecPlatformChart(platforms) {
+  const counts = platforms.counts || {};
+  const keys = ["operational","info","degraded","outage","maintenance","manual","unknown"];
+  const total = Number(platforms.total || 0);
+  $("execPlatformDonutTotal").textContent = execNumber(total);
+  if (!total) {
+    $("execPlatformDonut").style.background = "conic-gradient(#27384c 0 100%)";
+    $("execPlatformLegend").innerHTML = '<span class="exec-empty">No hay estados almacenados. Actualiza el módulo de plataformas.</span>';
+    $("execPlatformNote").textContent = "El catálogo está disponible, pero todavía no hay resultados de consulta.";
+    return;
+  }
+  let cursor = 0;
+  const segments = [];
+  keys.forEach(key => {
+    const value = Number(counts[key] || 0);
+    if (!value) return;
+    const start = cursor;
+    cursor += value / total * 100;
+    segments.push(`${execStatusColors[key]} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`);
+  });
+  $("execPlatformDonut").style.background = `conic-gradient(${segments.join(",")})`;
+  $("execPlatformLegend").innerHTML = keys.map(key => {
+    const value = Number(counts[key] || 0);
+    if (!value) return "";
+    const pct = (value / total * 100).toFixed(0);
+    return `<div class="exec-legend-row"><i style="background:${execStatusColors[key]}"></i><span>${execStatusLabels[key]}</span><b>${execNumber(value)}</b><small>${pct}%</small></div>`;
+  }).join("");
+  $("execPlatformNote").textContent =
+    `${execNumber(platforms.stale)} plataformas automáticas con datos de 60 minutos o más · ${execNumber(platforms.manual)} requieren revisión manual.`;
+}
+
+function renderExecBars(targetId, values, labels, color) {
+  const node = $(targetId);
+  const entries = Object.entries(values || {})
+    .map(([key,value]) => ({key, label:labels[key] || key, count:Number(value || 0)}))
+    .sort((a,b) => b.count - a.count);
+  const max = Math.max(1, ...entries.map(x => x.count));
+  const nonzero = entries.filter(x => x.count > 0);
+  if (!nonzero.length) {
+    node.innerHTML = '<span class="exec-empty">Sin registros en la ventana consultada.</span>';
+    return;
+  }
+  node.innerHTML = nonzero.map(item => {
+    const width = Math.max(2, item.count / max * 100);
+    return `<div class="exec-bar-row">
+      <div class="exec-bar-label"><span>${esc(item.label)}</span><b>${execNumber(item.count)}</b></div>
+      <div class="exec-bar-track"><i style="width:${width.toFixed(1)}%;background:${color}"></i></div>
+    </div>`;
+  }).join("");
+}
+
+function renderExecRankList(targetId, items, keyName) {
+  const node = $(targetId);
+  if (!items || !items.length) {
+    node.innerHTML = '<span class="exec-empty">Sin ubicaciones identificadas.</span>';
+    return;
+  }
+  node.innerHTML = items.slice(0,5).map(item => {
+    const label = item.name || item.country_name || item[keyName] || "No identificado";
+    const count = Number(item.count || 0);
+    return `<div class="exec-rank-row"><span>${esc(label)}</span><b>${execNumber(count)}</b></div>`;
+  }).join("");
+}
+
+function renderExecModuleStatus(data) {
+  const entries = [
+    {name:"Estado de plataformas", stamp:data.platforms.latest_check, detail:`${execNumber(data.platforms.total)} servicios · ${execNumber(data.platforms.stale)} datos antiguos`, state:data.platforms.latest_check?"Datos disponibles":"Pendiente"},
+    {name:"Ataques y amenazas", stamp:data.news.last_refresh, detail:`${execNumber(data.news.sources_ok)}/${execNumber(data.news.sources_total)} fuentes RSS respondieron`, state:data.news.last_refresh?"Caché disponible":"Pendiente"},
+    {name:"Ransomware tracker", stamp:data.ransomware.last_refresh, detail:`${execNumber(data.ransomware.sources_ok)}/${execNumber(data.ransomware.sources_total)} fuentes consultadas`, state:data.ransomware.last_refresh?"Caché disponible":"Pendiente"},
+    {name:"Vulnerability Intelligence", stamp:data.vulnerabilities.last_refresh, detail:`${execNumber(data.vulnerabilities.kev_count)} registros KEV · ${execNumber(data.vulnerabilities.nvd_count)} NVD`, state:data.vulnerabilities.last_refresh?"Caché disponible":"Pendiente"}
+  ];
+  $("execModuleStatus").innerHTML = entries.map(item => `
+    <div class="exec-status-item">
+      <div class="exec-status-name"><i class="${item.stamp?"is-ready":"is-pending"}"></i><b>${esc(item.name)}</b></div>
+      <span>${esc(item.detail)}</span>
+      <small>${esc(item.stamp ? execTime(item.stamp) : item.state)}</small>
+    </div>`).join("");
+}
+
+function renderExecutiveDashboard(data) {
+  const p = data.platforms || {}, n = data.news || {}, r = data.ransomware || {}, v = data.vulnerabilities || {};
+  $("execSnapshot").textContent = `Resumen consultado: ${execTime(data.generated_at)}`;
+  $("execGeneratedAt").textContent = `Actualizado: ${execTime(data.generated_at)}`;
+
+  $("execPlatformsTotal").textContent = execNumber(p.total);
+  $("execPlatformsFoot").textContent = `${execNumber(p.counts?.operational || 0)} operativas · ${execNumber(p.counts?.degraded || 0)} degradadas · ${execNumber(p.counts?.outage || 0)} indisponibles`;
+  $("execNewsTotal").textContent = execNumber(n.count);
+  $("execNewsFoot").textContent = `${execNumber(n.sources_ok)}/${execNumber(n.sources_total)} fuentes respondieron · 7 días`;
+  $("execRansomTotal").textContent = execNumber(r.processed);
+  $("execRansomFoot").textContent = `${execNumber(r.groups_count)} grupos · ${execNumber(r.countries_count)} países identificados`;
+  $("execKevTotal").textContent = execNumber(v.kev_count);
+  $("execKevFoot").textContent = `${execNumber(v.visible)} registros en vista 30 días + KEV`;
+
+  renderExecPlatformChart(p);
+  renderExecBars("execThreatBars", n.categories, execCategoryLabels, "#5daaf5");
+  $("execThreatNote").textContent = `${execNumber(n.count)} noticias publicadas en los últimos 7 días. Una noticia puede tener varias etiquetas.`;
+
+  $("execRansomCountries").textContent = execNumber(r.countries_count);
+  $("execRansomGroups").textContent = execNumber(r.groups_count);
+  $("execRansomVisible").textContent = execNumber(r.listed);
+  renderExecRankList("execTopGroups", r.top_groups, "name");
+  renderExecRankList("execTopCountries", r.top_countries, "name");
+  $("execRansomNote").textContent = `${execNumber(r.processed)} observaciones procesadas por las fuentes; ${execNumber(r.listed)} filas individuales visibles. Son publicaciones, no incidentes confirmados.`;
+
+  renderExecBars("execVulnBars", v.severity, {
+    CRITICAL:"Crítica", HIGH:"Alta", MEDIUM:"Media", LOW:"Baja", OTHER:"Otra / sin clasificación"
+  }, "#b18af0");
+  $("execEpssHigh").textContent = execNumber(v.epss_50_plus);
+  $("execNvdCount").textContent = execNumber(v.nvd_count);
+  renderExecModuleStatus(data);
+}
+
+async function loadExecutiveDashboard() {
+  try {
+    const response = await fetch("/api/executive-summary", {cache:"no-store"});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    renderExecutiveDashboard(data);
+    return true;
+  } catch (error) {
+    $("execSnapshot").textContent = `No se pudo cargar el resumen: ${error.message}`;
+    $("execModuleStatus").innerHTML = '<span class="exec-empty">El resumen ejecutivo no está disponible. Los módulos individuales siguen funcionando.</span>';
+    return false;
+  }
+}
+
+loadExecutiveDashboard();

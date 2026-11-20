@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.11-refreshall"></head>
+<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.9.0-phase1"></head>
 <body>
 <header class="topbar"><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · THREAT INTELLIGENCE</small></div></div>
 <div class="top-right"><span class="live-dot"></span><span>CONSULTA A DEMANDA</span><span id="clock">--:--:--</span></div></header>
@@ -13,6 +13,81 @@
    <span id="homeRefreshSummary" class="home-refresh-summary" role="status" aria-live="polite">Actualización manual de los cuatro módulos.</span>
   </div>
  </div>
+ <section id="executiveDashboard" class="exec-dashboard" aria-label="Resumen ejecutivo SOC">
+  <div class="exec-dashboard-heading">
+   <div>
+    <div class="exec-eyebrow">VISIÓN GENERAL · DATOS EN CACHÉ</div>
+    <h2>Panorama ejecutivo</h2>
+    <p>Resumen de plataformas, amenazas, ransomware y vulnerabilidades.</p>
+   </div>
+   <div class="exec-snapshot" id="execSnapshot">Leyendo datos disponibles…</div>
+  </div>
+  <div class="exec-kpis">
+   <article class="exec-kpi exec-kpi-platforms">
+    <div class="exec-kpi-top"><span>PLATAFORMAS MONITOREADAS</span><span class="exec-kpi-icon">◉</span></div>
+    <strong id="execPlatformsTotal">—</strong>
+    <div class="exec-kpi-foot"><span id="execPlatformsFoot">Estados aún no consultados</span></div>
+   </article>
+   <article class="exec-kpi exec-kpi-news">
+    <div class="exec-kpi-top"><span>AMENAZAS PUBLICADAS</span><span class="exec-kpi-icon">⌁</span></div>
+    <strong id="execNewsTotal">—</strong>
+    <div class="exec-kpi-foot"><span id="execNewsFoot">Ventana: últimos 7 días</span></div>
+   </article>
+   <article class="exec-kpi exec-kpi-ransom">
+    <div class="exec-kpi-top"><span>OBSERVACIONES RANSOMWARE</span><span class="exec-kpi-icon">⌖</span></div>
+    <strong id="execRansomTotal">—</strong>
+    <div class="exec-kpi-foot"><span id="execRansomFoot">RansomLook + Ransomware.live</span></div>
+   </article>
+   <article class="exec-kpi exec-kpi-vuln">
+    <div class="exec-kpi-top"><span>VULNERABILIDADES CISA KEV</span><span class="exec-kpi-icon">⌘</span></div>
+    <strong id="execKevTotal">—</strong>
+    <div class="exec-kpi-foot"><span id="execKevFoot">Catálogo KEV · CISA</span></div>
+   </article>
+  </div>
+  <div class="exec-chart-grid">
+   <article class="exec-panel">
+    <div class="exec-panel-heading"><div><h3>Estado de plataformas</h3><p>Distribución por estado informado</p></div><span class="exec-period">Catálogo actual</span></div>
+    <div class="exec-platform-chart">
+     <div id="execPlatformDonut" class="exec-donut"><div><strong id="execPlatformDonutTotal">—</strong><small>servicios</small></div></div>
+     <div id="execPlatformLegend" class="exec-legend"><span class="exec-empty">Sin datos de estado todavía.</span></div>
+    </div>
+    <div id="execPlatformNote" class="exec-panel-note">Los estados se obtienen de las últimas consultas guardadas.</div>
+   </article>
+   <article class="exec-panel">
+    <div class="exec-panel-heading"><div><h3>Amenazas por categoría</h3><p>Etiquetas asignadas a noticias de los últimos 7 días</p></div><span class="exec-period">7 días</span></div>
+    <div id="execThreatBars" class="exec-bar-list"><span class="exec-empty">Aún no hay noticias en caché.</span></div>
+    <div id="execThreatNote" class="exec-panel-note">Una noticia puede pertenecer a más de una categoría.</div>
+   </article>
+   <article class="exec-panel">
+    <div class="exec-panel-heading"><div><h3>Actividad ransomware</h3><p>Observaciones agregadas por ambas fuentes</p></div><span class="exec-period">7 días</span></div>
+    <div class="exec-ransom-summary">
+     <div><strong id="execRansomCountries">—</strong><span>Países identificados</span></div>
+     <div><strong id="execRansomGroups">—</strong><span>Grupos identificados</span></div>
+     <div><strong id="execRansomVisible">—</strong><span>Filas individuales visibles</span></div>
+    </div>
+    <div class="exec-mini-columns">
+     <div><h4>Grupos destacados</h4><div id="execTopGroups" class="exec-rank-list"><span class="exec-empty">Sin datos.</span></div></div>
+     <div><h4>Países asociados</h4><div id="execTopCountries" class="exec-rank-list"><span class="exec-empty">Sin datos.</span></div></div>
+    </div>
+    <div id="execRansomNote" class="exec-panel-note">Son observaciones de publicaciones, no incidentes confirmados ni víctimas únicas.</div>
+   </article>
+   <article class="exec-panel">
+    <div class="exec-panel-heading"><div><h3>Vulnerabilidades por severidad</h3><p>CVE almacenadas en la ventana de 30 días + KEV</p></div><span class="exec-period">NVD + KEV</span></div>
+    <div id="execVulnBars" class="exec-bar-list"><span class="exec-empty">Aún no hay vulnerabilidades en caché.</span></div>
+    <div class="exec-vuln-footer">
+     <div><strong id="execEpssHigh">—</strong><span>EPSS ≥ 50%</span></div>
+     <div><strong id="execNvdCount">—</strong><span>CVE NVD últimos 30 días</span></div>
+    </div>
+    <div id="execVulnNote" class="exec-panel-note">CVSS indica severidad; KEV indica explotación conocida; EPSS estima probabilidad.</div>
+   </article>
+  </div>
+  <div class="exec-module-status">
+   <div class="exec-module-status-head"><div><h3>Actualización de módulos</h3><p>Última información guardada en cada módulo</p></div><span id="execGeneratedAt">—</span></div>
+   <div id="execModuleStatus" class="exec-status-grid">
+    <span class="exec-empty">Consultando resúmenes…</span>
+   </div>
+  </div>
+ </section>
  <div class="module-cards">
   <button class="module-card" data-open-module="platforms"><span class="module-icon">◉</span><span class="module-card-title">Estado de plataformas</span><span class="module-card-desc">Disponibilidad, degradaciones, mantenimientos y cambios de estado.</span><span class="module-card-foot">Abrir módulo ↗</span></button>
   <button class="module-card" data-open-module="news"><span class="module-icon">⌁</span><span class="module-card-title">Ataques y amenazas publicados</span><span class="module-card-desc">Noticias globales, malware, espionaje, filtraciones y DDoS.</span><span class="module-card-foot">Abrir módulo ↗</span></button>
@@ -213,4 +288,4 @@
   <div id="detailBody" class="detail-body"><div class="loading">Consultando información de la fuente…</div></div>
  </div>
 </dialog>
-<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.11-refreshall"></script></body></html>
+<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.9.0-phase1"></script></body></html>

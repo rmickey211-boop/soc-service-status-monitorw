@@ -20,7 +20,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.8 (+public status and ransomware metadata)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.8.11")
+app = FastAPI(title="SOC Service Status Monitor", version="1.9.0-phase1")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -1630,6 +1630,98 @@ def api_refresh_vulnerability_intel():
         return refresh_vulnerability_intel()
     except Exception as exc:
         raise HTTPException(502, f"No se pudo actualizar inteligencia de vulnerabilidades: {str(exc)[:220]}")
+
+
+
+@app.get("/api/executive-summary")
+def api_executive_summary():
+    """Compact snapshot for the home dashboard, assembled only from existing caches."""
+    platforms = get_status()
+    news = get_cached_threat_news("7d")
+    ransomware = get_cached_ransomware("7d")
+    vulnerabilities = get_vulnerability_intel("30d", "", "modified_desc")
+
+    # Platform status and last successful observation.
+    platform_services = platforms.get("services") or []
+    platform_counts = platforms.get("counts") or {}
+    checked = [item.get("checked_at") for item in platform_services if item.get("checked_at")]
+    latest_platform_check = max(checked) if checked else None
+    automated = [item for item in platform_services if item.get("type") != "manual" and item.get("checked_at")]
+    stale_platforms = 0
+    for item in automated:
+        stamp = _news_parse_date(item.get("checked_at"))
+        if stamp and (datetime.now(timezone.utc) - stamp) >= timedelta(minutes=60):
+            stale_platforms += 1
+
+    # Count topical tags once per article. "global" is intentionally omitted.
+    category_counts = {key: 0 for key in NEWS_CATEGORIES if key != "global"}
+    for item in news.get("items", []):
+        for category in set(item.get("categories") or []):
+            if category in category_counts:
+                category_counts[category] += 1
+
+    # Ransomware observations are source observations, not unique confirmed incidents.
+    ransomware_sources = ransomware.get("source_stats") or []
+    ransomware_source_ok = sum(1 for item in ransomware_sources if item.get("ok") is True)
+    ransomware_source_total = len(ransomware_sources)
+    ransomware_groups = ransomware.get("top_groups") or []
+    ransomware_countries = ransomware.get("countries") or []
+
+    # Severity distribution uses the currently cached 30-day + KEV window.
+    vuln_items = vulnerabilities.get("items") or []
+    severity_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "OTHER": 0}
+    epss_over_50 = 0
+    for item in vuln_items:
+        severity = str(item.get("severity") or "OTHER").upper()
+        if severity not in severity_counts or severity in {"OTHER"}:
+            severity_counts["OTHER"] += 1
+        else:
+            severity_counts[severity] += 1
+        try:
+            if item.get("epss") is not None and float(item["epss"]) >= 0.5:
+                epss_over_50 += 1
+        except (TypeError, ValueError):
+            pass
+
+    return {
+        "generated_at": now(),
+        "windows": {"news": "7d", "ransomware": "7d", "vulnerabilities": "30d + KEV"},
+        "platforms": {
+            "total": len(platform_services),
+            "counts": platform_counts,
+            "stale": stale_platforms,
+            "manual": int(platform_counts.get("manual", 0)),
+            "latest_check": latest_platform_check,
+        },
+        "news": {
+            "count": int(news.get("count", 0)),
+            "categories": category_counts,
+            "sources_total": len(news.get("sources") or []),
+            "sources_ok": sum(1 for item in news.get("sources") or [] if item.get("ok")),
+            "last_refresh": news.get("last_refresh"),
+        },
+        "ransomware": {
+            "processed": int(ransomware.get("processed_items_count", ransomware.get("count", 0))),
+            "listed": int(ransomware.get("listed_items_count", len(ransomware.get("items") or []))),
+            "groups_count": int(ransomware.get("groups_count", 0)),
+            "countries_count": int(ransomware.get("countries_count", 0)),
+            "top_groups": ransomware_groups[:5],
+            "top_countries": ransomware_countries[:5],
+            "sources_total": ransomware_source_total,
+            "sources_ok": ransomware_source_ok,
+            "source_stats": ransomware_sources,
+            "last_refresh": ransomware.get("last_refresh"),
+        },
+        "vulnerabilities": {
+            "visible": int(vulnerabilities.get("count", len(vuln_items))),
+            "kev_count": int(vulnerabilities.get("kev_count") or 0),
+            "nvd_count": int(vulnerabilities.get("nvd_count") or 0),
+            "severity": severity_counts,
+            "epss_50_plus": epss_over_50,
+            "last_refresh": vulnerabilities.get("last_refresh"),
+        },
+    }
+
 
 @app.get("/api/config")
 def get_config():

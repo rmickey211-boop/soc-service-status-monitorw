@@ -161,3 +161,13 @@ Cada proveedor se consulta de forma independiente; un fallo de una fuente no deb
 - Se muestra un resumen por módulo con estado completo, parcial o error.
 - El tracker ransomware conserva el intervalo mínimo de caché de 15 minutos; una actualización global dentro de ese intervalo puede reutilizar sus datos recientes en lugar de repetir solicitudes.
 - Los botones de actualización individuales de cada módulo se mantienen.
+
+
+## v1.9.0 — Fase 1: Executive Dashboard
+- Se incorpora un resumen ejecutivo en la pantalla inicial con KPIs de plataformas, noticias, ransomware y CISA KEV.
+- Se agregan visualizaciones de distribución de estados, noticias por categoría, actividad ransomware y severidad de vulnerabilidades.
+- Se agrega el estado de actualización de los cuatro módulos y sus últimas fechas de consulta disponibles.
+- Nuevo endpoint GET `/api/executive-summary`, que consolida exclusivamente las cachés existentes y no realiza consultas externas.
+- Los períodos se identifican explícitamente: noticias 7 días, ransomware 7 días y vulnerabilidades 30 días + KEV.
+- Los gráficos reflejan las cachés reales; no se crean series históricas ni eventos ficticios.
+- La actualización ejecutiva se refresca al abrir la página, al terminar la actualización global y después de las actualizaciones individuales de cada módulo.
