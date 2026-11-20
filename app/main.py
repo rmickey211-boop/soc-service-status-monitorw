@@ -20,7 +20,7 @@ CONFIG_PATH = BASE / "config.json"
 DB_PATH = os.getenv("DATABASE_PATH", str(BASE / "data" / "status_monitor.db"))
 TIMEOUT = 12
 HEADERS = {"User-Agent": "SOC-Service-Status-Monitor/1.8 (+public status and ransomware metadata)"}
-app = FastAPI(title="SOC Service Status Monitor", version="1.8.6")
+app = FastAPI(title="SOC Service Status Monitor", version="1.8.8")
 app.mount("/static", StaticFiles(directory=str(BASE / "app" / "static")), name="static")
 
 
@@ -470,6 +470,7 @@ NEWS_CATEGORIES = {
     "leaks": "Filtraciones",
     "ddos": "DDoS",
     "malware": "Malware",
+    "vulnerabilities": "Vulnerabilidades",
 }
 
 
@@ -558,10 +559,21 @@ def _news_classify(title, summary):
         "malware": [
             "malware", "trojan", "infostealer", "infostealing", "botnet", "wiper",
             "spyware", "rootkit", "backdoor", "loader", "malicious", "phishing campaign",
-            "zero-day exploit",
+        ],
+        "vulnerabilities": [
+            "vulnerability", "vulnerabilities", "security flaw", "software flaw",
+            "zero-day", "zero day", "zero-click", "zero click", "security patch",
+            "security update", "remote code execution", "arbitrary code execution",
+            "privilege escalation", "authentication bypass", "buffer overflow",
+            "sql injection", "command injection", "memory corruption",
+            "improper access control", "improper input validation",
+            "actively exploited vulnerability", "actively exploited flaw",
         ],
     }
     matched = [category for category, terms in patterns.items() if any(term in text for term in terms)]
+    if re.search(r"\\bcve-\\d{4}-\\d{4,}\\b", text) or re.search(r"\\b(exploit|exploited|exploitation)\\b", text):
+        matched.append("vulnerabilities")
+    matched = list(dict.fromkeys(matched))
     # "Noticias mundiales" is the global view; topical tags remain additive.
     return ["global"] + matched
 

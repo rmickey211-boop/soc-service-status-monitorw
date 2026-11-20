@@ -95,20 +95,49 @@ function tick(){$("clock").textContent=new Date().toLocaleTimeString("es-CL",{ho
 // ---------------------------------------------------------------------------
 let intelPeriod = "7d";
 let intelCategory = "all";
+let intelSource = "all";
 let intelItems = [];
+let intelSourceResults = [];
 const intelCategoryNames = {
   global: "Noticias mundiales",
   ransomware: "Ransomware",
   espionage: "Espionaje",
   leaks: "Filtraciones",
   ddos: "DDoS",
-  malware: "Malware"
+  malware: "Malware",
+  vulnerabilities: "Vulnerabilidades"
 };
 
+function renderIntelSourceFilter() {
+  const select = $("intelSourceFilter");
+  if (!select) return;
+  const counts = new Map();
+  intelItems.forEach(item => {
+    const source = (item.source || "Fuente desconocida").trim();
+    counts.set(source, (counts.get(source) || 0) + 1);
+  });
+  const names = new Set([
+    ...intelSourceResults.map(item => item.source).filter(Boolean),
+    ...counts.keys(),
+    ...(intelSource !== "all" ? [intelSource] : [])
+  ]);
+  const sources = [...names].sort((a,b) => a.localeCompare(b, "es"));
+  select.innerHTML = '<option value="all">Todas las fuentes</option>' + sources.map(name => {
+    const count = counts.get(name) || 0;
+    const state = intelSourceResults.find(item => item.source === name);
+    const suffix = state && state.ok === false ? " · sin respuesta" : ` · ${count} noticias`;
+    return `<option value="${esc(name)}">${esc(name)}${esc(suffix)}</option>`;
+  }).join("");
+  select.value = intelSource;
+}
+
 function renderIntelNews() {
-  const visible = intelItems.filter(item =>
-    intelCategory === "all" || (item.categories || []).includes(intelCategory)
-  );
+  renderIntelSourceFilter();
+  const visible = intelItems.filter(item => {
+    const categoryMatch = intelCategory === "all" || (item.categories || []).includes(intelCategory);
+    const sourceMatch = intelSource === "all" || item.source === intelSource;
+    return categoryMatch && sourceMatch;
+  });
   $("intelCount").textContent = `${visible.length} publicaciones`;
   $("intelNewsList").innerHTML = visible.length ? visible.map(item => {
     const tags = (item.categories || []).map(key =>
@@ -156,6 +185,7 @@ async function loadIntelNews() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || "No se pudo leer la caché");
     intelItems = data.items || [];
+    intelSourceResults = data.sources || [];
     $("intelLastRefresh").textContent = data.last_refresh
       ? `Última consulta: ${date(data.last_refresh)}`
       : "Sin actualización registrada";
@@ -217,6 +247,10 @@ document.querySelectorAll(".intel-category").forEach(button => {
     intelCategory = button.dataset.intelCategory;
     renderIntelNews();
   });
+});
+$("intelSourceFilter").addEventListener("change", event => {
+  intelSource = event.target.value || "all";
+  renderIntelNews();
 });
 
 loadIntelNews();

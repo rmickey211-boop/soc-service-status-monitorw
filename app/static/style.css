@@ -322,3 +322,16 @@
 .rw-external-source-btn{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 13px;border:1px solid #32765f;border-radius:7px;background:#14382f;color:#8ce5c7;text-decoration:none;font-size:10px;font-weight:800;white-space:nowrap;transition:background .15s,border-color .15s}
 .rw-external-source-btn:hover{background:#1b4a3e;border-color:#48a988;color:#c0ffe9}
 @media(max-width:720px){.rw-list-heading{align-items:flex-start;flex-direction:column}.rw-list-heading-actions{width:100%;justify-content:space-between}}
+
+.tag-vulnerabilities{background:#3b3d25;color:#e5e9a6}
+
+.tag-vulnerabilities{background:#3b3d25;color:#e5e9a6}
+
+
+/* v1.8.8 — filter news by source while preserving period/category filters */
+.intel-toolbar-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.intel-source-filter{display:inline-flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid #2c4059;border-radius:9px;background:#0b1523}
+.intel-source-filter>span{font-size:9px;font-weight:800;color:#8fa8c4;text-transform:uppercase;letter-spacing:.45px;white-space:nowrap}
+.intel-source-filter select{min-width:190px;max-width:260px;border:1px solid #304a66;border-radius:6px;padding:7px 28px 7px 9px;background:#101e30;color:#dce9f7;font:inherit;font-size:10px;outline:none}
+.intel-source-filter select:focus{border-color:#5b91c6;box-shadow:0 0 0 2px #4779a633}
+@media(max-width:700px){.intel-toolbar{align-items:flex-start;flex-direction:column}.intel-toolbar-controls{width:100%;align-items:stretch;flex-direction:column}.intel-source-filter{justify-content:space-between}.intel-source-filter select{flex:1;min-width:0;max-width:none}}

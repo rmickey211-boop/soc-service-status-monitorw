@@ -46,9 +46,17 @@
   <button type="button" id="refreshIntel" class="refresh intel-refresh">↻ Actualizar inteligencia</button>
  </div>
  <div class="intel-toolbar">
-  <div class="intel-period" role="group" aria-label="Período de publicaciones">
-   <button type="button" class="intel-period-btn" data-period="24h">Últimas 24 horas</button>
-   <button type="button" class="intel-period-btn active" data-period="7d">Últimos 7 días</button>
+  <div class="intel-toolbar-controls">
+   <div class="intel-period" role="group" aria-label="Período de publicaciones">
+    <button type="button" class="intel-period-btn" data-period="24h">Últimas 24 horas</button>
+    <button type="button" class="intel-period-btn active" data-period="7d">Últimos 7 días</button>
+   </div>
+   <label class="intel-source-filter" for="intelSourceFilter">
+    <span>Filtrar por fuente</span>
+    <select id="intelSourceFilter" aria-label="Filtrar noticias por fuente">
+     <option value="all">Todas las fuentes</option>
+    </select>
+   </label>
   </div>
   <div class="intel-last-refresh" id="intelLastRefresh">Sin actualización registrada</div>
  </div>
@@ -60,6 +68,7 @@
   <button type="button" class="intel-category" data-intel-category="leaks">Filtraciones</button>
   <button type="button" class="intel-category" data-intel-category="ddos">DDoS</button>
   <button type="button" class="intel-category" data-intel-category="malware">Malware</button>
+  <button type="button" class="intel-category" data-intel-category="vulnerabilities">Vulnerabilidades</button>
  </div>
  <div class="intel-meta">
   <span id="intelCount">0 publicaciones</span>

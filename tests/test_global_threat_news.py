@@ -30,7 +30,8 @@ def test_news_classifier_supports_requested_categories():
     assert main._news_classify("Cyber policy debate worldwide", "") == ["global"]
 
 
-def test_news_refresh_writes_cache_and_24h_and_7d_filters():
+def test_news_refresh_writes_cache_and_24h_and_7d_filters(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, "DB_PATH", str(tmp_path / "news.sqlite3"))
     published = datetime.now(timezone.utc).isoformat()
     sample = [{
         "title": "Ransomware group targets public organization",
@@ -92,3 +93,28 @@ def test_cybersecurity_news_entries_are_ingested_and_attributed():
     item = next(item for item in data["items"] if item["source"] == "Cyber Security News")
     assert item["link"].startswith("https://cybersecuritynews.com/")
     assert "malware" in item["categories"]
+
+
+def test_news_classifier_supports_vulnerability_subcategory():
+    cve_tags = main._news_classify(
+        "CVE-2026-12345 exploited in the wild",
+        "Researchers report a critical remote code execution flaw."
+    )
+    assert "global" in cve_tags
+    assert "vulnerabilities" in cve_tags
+
+    zero_day_tags = main._news_classify(
+        "Zero-day vulnerability in enterprise VPN appliances",
+        "Vendor releases an emergency security patch."
+    )
+    assert "vulnerabilities" in zero_day_tags
+
+    general_tags = main._news_classify(
+        "New data center expansion announced",
+        "Company plans a new facility."
+    )
+    assert "vulnerabilities" not in general_tags
+
+
+def test_news_categories_include_vulnerabilities_label():
+    assert main.NEWS_CATEGORIES["vulnerabilities"] == "Vulnerabilidades"

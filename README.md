@@ -111,3 +111,18 @@ python -m pytest -q
 - Los artículos quedan atribuidos a Cyber Security News y enlazados al sitio original.
 - Se mantienen los filtros temáticos, la caché y la actualización manual.
 - Solo se almacenan metadatos, titulares y extractos breves; no se replica el artículo completo.
+
+
+## v1.8.7 — subcategoría Vulnerabilidades en noticias
+- Se agrega el filtro temático "Vulnerabilidades" dentro de Ataques y amenazas publicados.
+- La clasificación incluye referencias CVE, zero-day/zero-click, fallos de seguridad, RCE, escalada de privilegios, bypass de autenticación, inyección y explotación reportada.
+- Una noticia puede conservar otras etiquetas simultáneamente (por ejemplo ransomware + vulnerabilidades).
+- Este filtro es editorial/noticioso; el análisis técnico de CVE, CVSS, KEV y EPSS permanece en el módulo Vulnerability Intelligence.
+
+
+## v1.8.8 — filtro de noticias por fuente
+- Se incorpora un selector "Filtrar por fuente" junto al selector de período en Ataques y amenazas publicados.
+- Las fuentes se generan a partir del estado de las fuentes y de las publicaciones disponibles, mostrando cantidad de noticias y estado sin respuesta.
+- El filtro por fuente se combina con el período y la subcategoría elegida, sin reemplazar los filtros existentes.
+- Se conserva la opción "Todas las fuentes".
+- Se incluye en la interfaz la subcategoría "Vulnerabilidades" junto con su etiqueta visual.
