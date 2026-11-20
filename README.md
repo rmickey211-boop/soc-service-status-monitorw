@@ -211,3 +211,11 @@ Cada proveedor se consulta de forma independiente; un fallo de una fuente no deb
 - Visualizaciones construidas con HTML/CSS/JavaScript nativo; no se agrega una dependencia de gráficos externa.
 - Los módulos conservan sus tablas, filtros, mapas, fuentes y botones actuales.
 - Los gráficos se recalculan al cambiar período, filtros o refrescar el módulo correspondiente.
+
+
+## v1.9.0 — Fase 2.1: hotfix de ejecución
+
+- Se eliminó una expresión `async` aislada que provocaba `ReferenceError` al cargar `app.js` e interrumpía la ejecución completa del frontend.
+- Se incorporó una prueba de regresión para detectar nuevamente este patrón.
+- Se actualizó el identificador de caché de los recursos estáticos a `1.9.0-phase2.1` y el pie de página para verificar el despliegue correcto.
+- Validación: 68 pruebas aprobadas; compilación Python; sintaxis JavaScript; prueba local de navegador sin errores de ejecución y navegación entre módulos operativa.

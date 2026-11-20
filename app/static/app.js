@@ -69,7 +69,6 @@ $("services").addEventListener("keydown",e=>{
  if((e.key==="Enter"||e.key===" ")&&e.target.matches("[data-service-id]")){e.preventDefault();openServiceDetail(e.target.dataset.serviceId);}
 });
 
-async 
 // ---------------------------------------------------------------------------
 // Fase 2 — Visualizaciones del módulo Estado de plataformas
 // ---------------------------------------------------------------------------

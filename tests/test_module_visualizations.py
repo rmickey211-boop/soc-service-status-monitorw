@@ -35,3 +35,10 @@ def test_phase_two_charts_are_responsive_and_do_not_require_external_chart_libra
     assert ".module-chart-grid" in CSS
     assert "@media(max-width:650px)" in CSS
     assert "chart.js" not in HTML.lower()
+
+
+def test_phase_two_script_has_no_standalone_async_expression():
+    # A bare `async` is syntactically valid JavaScript but throws at runtime,
+    # aborting the entire app before any handlers or fetches are initialized.
+    import re
+    assert not re.search(r"(?m)^\s*async\s*$", JS)
