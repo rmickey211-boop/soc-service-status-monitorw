@@ -103,3 +103,11 @@ python -m pytest -q
 - Se etiqueta expresamente la tabla como publicaciones individuales de RansomLook.
 - Se explica que Ransomware.live aporta indicadores agregados visibles en las tarjetas superiores; sus nombres de víctimas no se redistribuyen en la tabla pública.
 - Se elimina el panel de estado duplicado del final de la tabla; el estado principal de fuentes permanece al inicio del módulo.
+
+
+## v1.8.6 — nueva fuente Cyber Security News
+- Se incorpora Cyber Security News mediante RSS público: https://cybersecuritynews.com/feed/
+- El catálogo de inteligencia pasa de cinco a seis fuentes.
+- Los artículos quedan atribuidos a Cyber Security News y enlazados al sitio original.
+- Se mantienen los filtros temáticos, la caché y la actualización manual.
+- Solo se almacenan metadatos, titulares y extractos breves; no se replica el artículo completo.

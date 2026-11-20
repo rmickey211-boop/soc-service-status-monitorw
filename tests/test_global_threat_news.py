@@ -45,8 +45,8 @@ def test_news_refresh_writes_cache_and_24h_and_7d_filters():
     with patch.object(main, "_fetch_news_feed", side_effect=fake_fetch):
         result = main.refresh_threat_news()
 
-    assert result["successful_sources"] == 5
-    assert result["fetched"] == 5  # same URL from each feed; cache deduplicates on upsert
+    assert result["successful_sources"] == 6
+    assert result["fetched"] == 6  # same URL from each feed; cache deduplicates on upsert
     seven_days = main.get_cached_threat_news("7d")
     one_day = main.get_cached_threat_news("24h")
     assert seven_days["count"] == 1
@@ -65,4 +65,30 @@ def test_news_refresh_api_uses_only_public_feed_functions():
         with TestClient(main.app) as client:
             response = client.post("/api/threat-intel/news/refresh")
     assert response.status_code == 200
-    assert response.json()["successful_sources"] == 5
+    assert response.json()["successful_sources"] == 6
+
+
+def test_cybersecurity_news_is_configured_as_public_rss_source():
+    feed = next((item for item in main.NEWS_FEEDS if item["id"] == "cybersecuritynews"), None)
+    assert feed is not None
+    assert feed["name"] == "Cyber Security News"
+    assert feed["url"] == "https://cybersecuritynews.com/feed/"
+
+
+def test_cybersecurity_news_entries_are_ingested_and_attributed():
+    published = datetime.now(timezone.utc).isoformat()
+    sample = [{
+        "title": "Critical malware campaign targets enterprise networks",
+        "summary": "Researchers observed a malware campaign.",
+        "link": "https://cybersecuritynews.com/example-malware-campaign/",
+        "published_at": published,
+    }]
+    def fake_fetch(feed):
+        return sample if feed["id"] == "cybersecuritynews" else []
+    with patch.object(main, "_fetch_news_feed", side_effect=fake_fetch):
+        result = main.refresh_threat_news()
+    assert result["successful_sources"] == 6
+    data = main.get_cached_threat_news("7d")
+    item = next(item for item in data["items"] if item["source"] == "Cyber Security News")
+    assert item["link"].startswith("https://cybersecuritynews.com/")
+    assert "malware" in item["categories"]
