@@ -944,7 +944,7 @@ document.addEventListener("keydown",event=>{
 loadVulnerabilities();
 
 // v1.8.1: módulo de inicio y navegación por tarjetas
-const moduleTitles={platforms:"Estado de plataformas",news:"Ataques y amenazas publicados",ransomware:"Ransomware tracker y mapa geográfico",vulns:"Vulnerability Intelligence"};
+const moduleTitles={platforms:"Estado de plataformas",news:"Ataques y amenazas publicados",ransomware:"Ransomware tracker y mapa geográfico",vulns:"Vulnerability Intelligence",phishing:"Phishing URL Reporter"};
 function setActiveNavigation(name){
   document.querySelectorAll(".soc-nav-item[data-nav]").forEach(item=>{
     const active=item.dataset.nav===name;
@@ -1307,3 +1307,225 @@ async function loadExecutiveDashboard() {
 }
 
 loadExecutiveDashboard();
+
+// v1.9.1 — Phishing URL Reporter (browser-only, no vendor APIs or extensions)
+(() => {
+  const $p = id => document.getElementById(id);
+  const vendorNames = {
+    virustotal: "VirusTotal", fortiguard: "FortiGuard", google: "Google Safe Browsing",
+    netcraft: "Netcraft", eset: "ESET", cloudflare: "Cloudflare",
+    urlabuse: "URLAbuse", watchguard: "WatchGuard"
+  };
+  let preparedPayload = null;
+  let vendorStates = {};
+  let activity = [];
+  const cards = [...document.querySelectorAll(".phishing-vendor-card")];
+
+  function escapeHTML(value) {
+    return String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+  }
+  function selectedVendors() {
+    return cards.filter(card => card.querySelector('input[type="checkbox"]').checked);
+  }
+  function updateSummary() {
+    $p("phishingSummaryUrls").textContent = preparedPayload ? preparedPayload.urls.length : 0;
+    $p("phishingSummaryOpened").textContent = Object.values(vendorStates).filter(state => state.opened).length;
+    $p("phishingSummarySent").textContent = Object.values(vendorStates).filter(state => state.confirmed).length;
+    $p("phishingCopyAll").disabled = !preparedPayload || selectedVendors().length === 0;
+  }
+  function addActivity(vendor, action, status) {
+    activity.unshift({time:new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit",second:"2-digit"}),vendor,action,status});
+    renderActivity();
+  }
+  function renderActivity() {
+    const body = $p("phishingActivityRows");
+    if (!activity.length) {
+      body.innerHTML = '<tr><td colspan="4">Todavía no hay actividad.</td></tr>';
+      return;
+    }
+    body.innerHTML = activity.map(item => `<tr><td>${escapeHTML(item.time)}</td><td>${escapeHTML(item.vendor)}</td><td>${escapeHTML(item.action)}</td><td>${escapeHTML(item.status)}</td></tr>`).join("");
+  }
+  function updateVendorCard(card) {
+    const key = card.dataset.vendor;
+    const state = vendorStates[key] || {};
+    const status = card.querySelector(".phishing-vendor-status");
+    const confirm = card.querySelector(".phishing-confirm");
+    status.textContent = state.confirmed ? "Confirmado por analista · " + state.confirmedAt : state.opened ? "Portal abierto · envío pendiente de confirmación" : state.blocked ? "El navegador bloqueó la pestaña · intenta nuevamente" : state.copied ? "Datos copiados · sin enviar" : "Preparado · sin iniciar";
+    status.classList.toggle("is-confirmed", !!state.confirmed);
+    status.classList.toggle("is-opened", !!state.opened && !state.confirmed);
+    confirm.disabled = !state.opened || !!state.confirmed;
+    confirm.textContent = state.confirmed ? "Gestión confirmada" : (key === "fortiguard" || key === "watchguard" ? "Confirmar gestión realizada" : "Confirmar reporte realizado");
+    const isSelected = card.querySelector('input[type="checkbox"]').checked;
+    card.querySelector(".vendor-copy").disabled = !preparedPayload || !isSelected;
+    card.querySelector(".vendor-open").disabled = !preparedPayload || !isSelected;
+  }
+  function resetVendorStates(message) {
+    vendorStates = {};
+    cards.forEach(card => {
+      const status = card.querySelector(".phishing-vendor-status");
+      status.textContent = message || "Sin iniciar";
+      status.className = "phishing-vendor-status";
+      const isSelected = card.querySelector('input[type="checkbox"]').checked;
+      card.querySelector(".vendor-copy").disabled = !preparedPayload || !isSelected;
+      card.querySelector(".vendor-open").disabled = !preparedPayload || !isSelected;
+      card.querySelector(".phishing-confirm").disabled = true;
+      card.querySelector(".phishing-confirm").textContent = card.dataset.vendor === "fortiguard" || card.dataset.vendor === "watchguard" ? "Confirmar gestión realizada" : "Confirmar reporte realizado";
+    });
+    updateSummary();
+  }
+  function buildReportText(vendorKey) {
+    if (!preparedPayload) return "";
+    const p = preparedPayload;
+    const lines = [
+      `SOC / MDR — ${vendorNames[vendorKey]} submission preparation`,
+      `Report type: ${p.category}`,
+      `Targeted brand: ${p.brand || "Not specified"}`,
+      `Analyst / reporter: ${p.analyst || "Not specified"}`,
+      `Internal reference: ${p.reference || "Not specified"}`,
+      "",
+      "URLs to review:",
+      ...p.urls.map((item, index) => `${index + 1}. ${item.url}`),
+      "",
+      "Description / evidence:",
+      p.description || "Suspected malicious URL identified during SOC/MDR monitoring. Please review and classify according to your abuse / phishing policies.",
+      "",
+      "This text was prepared in SOC Service Status Monitor. The analyst must review the vendor form and submit it manually."
+    ];
+    return lines.join("\n");
+  }
+  async function copyText(text, successMessage) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+      else {
+        const temp = document.createElement("textarea");
+        temp.value = text; temp.style.position = "fixed"; temp.style.opacity = "0";
+        document.body.appendChild(temp); temp.select();
+        const copied = document.execCommand("copy"); temp.remove();
+        if (!copied) throw new Error("El navegador no permitió copiar al portapapeles.");
+      }
+      toast(successMessage || "Datos copiados al portapapeles.");
+      return true;
+    } catch (error) {
+      toast("No se pudo copiar. Selecciona y copia los datos manualmente.");
+      return false;
+    }
+  }
+  function validateAndPrepare() {
+    const rawLines = $p("phishingUrls").value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    const feedback = $p("phishingUrlFeedback");
+    if (!rawLines.length) {
+      feedback.textContent = "Ingresa al menos una URL."; feedback.className = "phishing-feedback error";
+      return;
+    }
+    const valid = [], invalid = [], seen = new Set();
+    rawLines.forEach(raw => {
+      try {
+        const parsed = new URL(raw);
+        if (!["http:","https:"].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password) throw new Error("URL no admitida");
+        const normalized = parsed.href;
+        if (!seen.has(normalized)) { seen.add(normalized); valid.push({url:normalized,host:parsed.hostname}); }
+      } catch { invalid.push(raw); }
+    });
+    if (invalid.length) {
+      feedback.textContent = `${invalid.length} línea(s) no válida(s). Usa URLs completas con http:// o https://. No se preparó el lote.`;
+      feedback.className = "phishing-feedback error";
+      $p("phishingUrlCount").textContent = `${valid.length} / 20 válidas`;
+      return;
+    }
+    if (valid.length > 20) {
+      feedback.textContent = `El lote contiene ${valid.length} URLs únicas. El máximo permitido es 20; divide el reporte en varios lotes.`;
+      feedback.className = "phishing-feedback error";
+      $p("phishingUrlCount").textContent = `${valid.length} / 20`;
+      return;
+    }
+    preparedPayload = {
+      urls: valid,
+      brand: $p("phishingBrand").value.trim(),
+      analyst: $p("phishingAnalyst").value.trim(),
+      category: $p("phishingCategory").value,
+      reference: $p("phishingReference").value.trim(),
+      description: $p("phishingDescription").value.trim(),
+      preparedAt: new Date().toISOString()
+    };
+    resetVendorStates("Preparado · sin iniciar");
+    feedback.textContent = `${valid.length} URL(s) válidas y listas. ${rawLines.length - valid.length} duplicado(s) eliminado(s). Revisa los vendors seleccionados.`;
+    feedback.className = "phishing-feedback success";
+    $p("phishingUrlCount").textContent = `${valid.length} / 20`;
+    cards.forEach(updateVendorCard);
+    updateSummary();
+    toast("Lote validado y preparado.");
+  }
+
+  $p("phishingPrepare").addEventListener("click", validateAndPrepare);
+  $p("phishingUrls").addEventListener("input", () => {
+    const count = $p("phishingUrls").value.split(/\r?\n/).filter(line => line.trim()).length;
+    $p("phishingUrlCount").textContent = `${count} / 20`;
+  });
+  ["phishingUrls","phishingBrand","phishingAnalyst","phishingCategory","phishingReference","phishingDescription"].forEach(id => {
+    $p(id).addEventListener("input", () => {
+      if (!preparedPayload) return;
+      preparedPayload = null;
+      resetVendorStates("Datos modificados · vuelve a preparar el lote");
+      $p("phishingUrlFeedback").textContent = "Los datos cambiaron. Valida y prepara nuevamente antes de abrir un portal.";
+      $p("phishingUrlFeedback").className = "phishing-feedback warning";
+    });
+    $p(id).addEventListener("change", () => {
+      if (!preparedPayload) return;
+      preparedPayload = null;
+      resetVendorStates("Datos modificados · vuelve a preparar el lote");
+      $p("phishingUrlFeedback").textContent = "Los datos cambiaron. Valida y prepara nuevamente antes de abrir un portal.";
+      $p("phishingUrlFeedback").className = "phishing-feedback warning";
+    });
+  });
+  $p("phishingClear").addEventListener("click", () => {
+    ["phishingUrls","phishingBrand","phishingAnalyst","phishingReference","phishingDescription"].forEach(id => $p(id).value = "");
+    $p("phishingCategory").value = "Phishing";
+    $p("phishingUrlCount").textContent = "0 / 20";
+    $p("phishingUrlFeedback").textContent = "Ingresa una o más URLs para comenzar.";
+    $p("phishingUrlFeedback").className = "phishing-feedback";
+    preparedPayload = null; activity = []; renderActivity(); resetVendorStates("Sin iniciar");
+  });
+  $p("phishingSelectAll").addEventListener("click", () => { cards.forEach(card => { card.querySelector('input[type="checkbox"]').checked = true; updateVendorCard(card); }); updateSummary(); });
+  $p("phishingSelectNone").addEventListener("click", () => { cards.forEach(card => { card.querySelector('input[type="checkbox"]').checked = false; updateVendorCard(card); }); updateSummary(); });
+  cards.forEach(card => card.querySelector('input[type="checkbox"]').addEventListener("change", () => { updateVendorCard(card); updateSummary(); }));
+  cards.forEach(card => {
+    const key = card.dataset.vendor;
+    card.querySelector(".vendor-copy").addEventListener("click", async () => {
+      if (!preparedPayload) return;
+      const copied = await copyText(buildReportText(key), `Datos preparados para ${vendorNames[key]}.`);
+      if (copied) {
+        vendorStates[key] = {...vendorStates[key],copied:true};
+        if (!vendorStates[key]?.opened) card.querySelector(".phishing-vendor-status").textContent = "Datos copiados · sin enviar";
+        addActivity(vendorNames[key], "Datos del reporte copiados", "Preparado; no enviado");
+      }
+    });
+    card.querySelector(".vendor-open").addEventListener("click", () => {
+      if (!preparedPayload) return;
+      const target = card.querySelector(".vendor-open").dataset.url;
+      const opened = window.open(target, "_blank");
+      if (opened) opened.opener = null;
+      vendorStates[key] = {...vendorStates[key],opened:!!opened,blocked:!opened,confirmed:false};
+      updateVendorCard(card); updateSummary();
+      addActivity(vendorNames[key], "Apertura de portal solicitada", opened ? "Portal abierto; envío pendiente" : "Apertura bloqueada por el navegador");
+      if (!opened) toast("El navegador bloqueó la pestaña. Permite ventanas emergentes e intenta nuevamente.");
+    });
+    card.querySelector(".phishing-confirm").addEventListener("click", () => {
+      if (!vendorStates[key]?.opened || vendorStates[key]?.confirmed) return;
+      const verb = key === "fortiguard" || key === "watchguard" ? "la gestión" : "el reporte";
+      if (!window.confirm(`¿Confirmas que completaste y enviaste ${verb} en el portal de ${vendorNames[key]}? Esta confirmación es manual; la plataforma no puede verificar el envío.`)) return;
+      const time = new Date().toLocaleString("es-CL");
+      vendorStates[key] = {...vendorStates[key],confirmed:true,confirmedAt:time};
+      updateVendorCard(card); updateSummary();
+      addActivity(vendorNames[key], "Confirmación manual del analista", "Confirmado por analista");
+    });
+  });
+  $p("phishingCopyAll").addEventListener("click", () => {
+    if (!preparedPayload) return;
+    if (!selectedVendors().length) { toast("Selecciona al menos un vendor."); return; }
+    const text = ["SOC / MDR — PHISHING URL REPORT", ...selectedVendors().map(card => `\n===== ${vendorNames[card.dataset.vendor]} =====\n${buildReportText(card.dataset.vendor)}`)].join("\n");
+    copyText(text,"Resumen del lote copiado.");
+  });
+  $p("phishingClearActivity").addEventListener("click", () => {activity=[];renderActivity();});
+  updateSummary();
+})();
+

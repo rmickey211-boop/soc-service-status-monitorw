@@ -1,0 +1,34 @@
+SOC Service Status Monitor v1.9.1 — QA results
+
+Source package: soc-service-status-monitorw-main.zip supplied in this conversation.
+Release: Phishing URL Reporter — Stage 1.
+
+Automated tests
+- pytest -q: 82 passed.
+- Node.js syntax validation: app/static/app.js passed.
+- Python syntax validation: app/main.py passed.
+- FastAPI smoke test: GET /, /static/app.js, /static/style.css returned HTTP 200.
+- Health endpoint returned version 1.9.1-phishing-reporter.
+
+Browser interaction test (Chromium, isolated DOM test for the new module)
+- 8 vendor cards rendered.
+- Vendor actions remain disabled until a valid batch is prepared.
+- Non-HTTP/HTTPS URL rejected.
+- Duplicate URLs normalized and removed.
+- Two valid URLs prepared successfully.
+- Select all / deselect all updates vendor action availability.
+- Portal-open state recorded only after browser window.open returned a window.
+- Manual confirmation required before state changes to confirmed.
+- No JavaScript runtime errors during the tested interactions.
+
+Scope / safety
+- No vendor APIs added.
+- No browser extension, automation agent, CAPTCHA bypass, or external form submission.
+- No new Python dependencies, backend endpoints, or database tables.
+- URL and analyst data remain in page memory only; refreshing the page clears the session activity.
+- Opening a portal is not treated as a successful submission. The analyst must confirm manually.
+
+Warnings
+- Existing FastAPI startup event uses deprecated on_event API; unchanged in this release.
+- External vendors can change their forms, login requirements, CAPTCHA, and policies. Their sites must be checked during operational use.
+- Not every vendor form accepts bulk URLs. Netcraft and WatchGuard document multi-URL workflows; other forms may require one URL per submission.

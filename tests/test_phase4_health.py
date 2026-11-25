@@ -12,7 +12,7 @@ def test_health_endpoint_is_cache_only_and_reports_modules(tmp_path, monkeypatch
     assert response.status_code == 200
     data = response.json()
     assert data["ok"] is True
-    assert data["version"] == "1.9.0-phase4"
+    assert data["version"] == "1.9.1-phishing-reporter"
     assert set(data["modules"]) == {"platforms", "news", "ransomware", "vulnerabilities"}
     assert data["database"]["engine"] == "SQLite"
     assert data["database"]["persistence"] == "ephemeral"

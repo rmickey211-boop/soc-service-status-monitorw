@@ -1,4 +1,4 @@
-# SOC Service Status Monitor — v1.9.0 (Fase 4 · diagnóstico y confiabilidad)
+# SOC Service Status Monitor — v1.9.1 (Phishing URL Reporter · Etapa 1)
 
 Panel web de consulta del estado de plataformas y de inteligencia pública de ciberamenazas. Esta entrega corrige la navegación de la interfaz modular.
 
@@ -8,6 +8,7 @@ Panel web de consulta del estado de plataformas y de inteligencia pública de ci
 2. **SOC Global Threat Intelligence:** noticias públicas de ciberseguridad con filtros temporales y temáticos.
 3. **Ransomware Tracker:** publicaciones públicas de RansomLook, con filtros por período/grupo y mapa de países cuando el país puede identificarse explícitamente.
 4. **Vulnerability Intelligence:** CISA KEV, CVE de NVD y enriquecimiento EPSS de FIRST cuando está disponible.
+5. **Phishing URL Reporter:** preparación de reportes para VirusTotal, FortiGuard, Google Safe Browsing, Netcraft, ESET, Cloudflare, URLAbuse y WatchGuard.
 
 
 ## Fuentes y criterios
@@ -26,7 +27,34 @@ Panel web de consulta del estado de plataformas y de inteligencia pública de ci
 - Health check: `/api/health` (consulta SQLite y metadatos guardados; no consulta proveedores externos)
 - No requiere API keys ni variables de entorno adicionales para las fuentes públicas incluidas.
 
+La aplicación desplegada utiliza `app/main.py` y los recursos `app/static/index.html`, `app/static/app.js` y `app/static/style.css`. Los archivos duplicados de la raíz se conservan por compatibilidad histórica, pero no son los recursos servidos por el comando Render indicado.
+
 Para actualizar: reemplazar el contenido del repositorio GitHub existente con el contenido de esta carpeta, conservar `.git` si se utiliza GitHub Desktop, realizar commit/push y ejecutar **Manual Deploy → Deploy latest commit** en el servicio Render actual. No crear un servicio nuevo.
+
+
+## v1.9.1 — Phishing URL Reporter · Etapa 1
+
+- Nuevo módulo web integrado en la navegación lateral, sin modificar los cuatro módulos SOC existentes.
+- Preparación de lotes de hasta 20 URLs, una por línea, con validación HTTP/HTTPS, rechazo de credenciales embebidas y eliminación de duplicados normalizados.
+- Campos para marca suplantada, analista, categoría, referencia interna y descripción/evidencia.
+- Ocho portales oficiales con instrucciones que distinguen análisis de reputación, reportes de phishing y solicitudes de recategorización.
+- Copia de los datos preparados por vendor o del resumen del lote; apertura individual de cada portal.
+- Estado de actividad únicamente en memoria durante la sesión del navegador. La confirmación de envío requiere acción expresa del analista; abrir un portal no se registra como reporte enviado.
+- No incorpora APIs de vendors, extensiones, dependencias nuevas, endpoints de backend ni almacenamiento de URLs en el servidor. No automatiza el envío ni supera CAPTCHA, autenticación o controles de los proveedores.
+- VirusTotal se presenta como análisis de URL, no como reporte directo a todos sus motores. FortiGuard y WatchGuard se identifican como consulta/revisión de categoría.
+
+### Portales oficiales incluidos
+- VirusTotal: https://www.virustotal.com/gui/home/url
+- FortiGuard Web Filter: https://www.fortiguard.com/webfilter
+- Google Safe Browsing — phishing report: https://safebrowsing.google.com/safebrowsing/report_phish/
+- Netcraft: https://report.netcraft.com/report
+- ESET (español): https://phishing.eset.com/es-cl/report
+- Cloudflare Abuse: https://abuse.cloudflare.com/
+- URLAbuse: https://urlabuse.com/report
+- WatchGuard URL Categorization: https://www.watchguard.com/securityportal/UrlCategorization.aspx
+
+### Siguiente etapa
+La Etapa 2 queda pendiente de validación operativa: historial persistente y exportable, detección de duplicados históricos, plantillas afinadas por vendor y mejoras de seguimiento. Se mantendrá el alcance sin APIs ni extensiones.
 
 ## Rutas principales
 
