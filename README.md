@@ -1,4 +1,4 @@
-# SOC Service Status Monitor — v1.9.2 (Phishing URL Reporter · Etapa 2)
+# SOC Service Status Monitor — v1.9.3 (Phishing URL Reporter · precarga de formularios)
 
 Panel web de consulta del estado de plataformas y de inteligencia pública de ciberamenazas. Esta entrega corrige la navegación de la interfaz modular.
 
@@ -286,3 +286,13 @@ Las fuentes actuales entregan ventanas activas (24 horas/7 días en noticias y r
 - No se agregaron alertas por correo, SMS o push: requieren un canal de entrega y un proceso de ejecución programada que el despliegue actual no tiene.
 - El endpoint de salud evalúa la última respuesta guardada, no realiza un sondeo vivo de cada proveedor. Para verificar una fuente se debe ejecutar la actualización manual del módulo.
 - Fuentes manuales (por ejemplo portales que requieren login o no exponen un feed público) no se cuentan como fallidas: permanecen identificadas como revisión manual.
+
+
+## v1.9.3 — Precarga útil del formulario externo
+
+- Se elimina el texto genérico tipo plantilla como flujo principal. El botón de copia ahora genera datos breves y directamente útiles para los campos del vendor.
+- Para Google Safe Browsing, el botón de apertura construye un enlace con `hl=es` y `url=<URL codificada>` para intentar precargar el campo URL. Este parámetro `url` se ha utilizado históricamente en integraciones de navegador, pero no forma parte del enlace básico que Google publica actualmente; se debe validar en el formulario real y puede cambiar sin aviso.
+- Si el lote contiene varias URLs para Google, la tarjeta permite abrir una por una, ya que el formulario es de una URL por envío. El estado de gestión solo puede confirmarse después de haber abierto cada URL y de que el analista declare que completó todos los envíos.
+- Al abrir Google, los detalles adicionales (máximo 800 caracteres) se copian al portapapeles para pegarlos en el campo «Detalles adicionales». El tipo/categoría de amenaza y el botón de envío siguen siendo manuales.
+- Los demás vendors conservan enlaces directos y copia de datos; no se inventan parámetros de precarga no documentados.
+- Sin APIs de vendors, extensiones ni nuevas dependencias. El navegador no permite que la página SOC manipule directamente los campos internos de otro dominio ni pulse el botón de envío externo.

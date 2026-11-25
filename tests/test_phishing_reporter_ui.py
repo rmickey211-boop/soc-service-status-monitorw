@@ -19,7 +19,7 @@ def test_reporter_is_browser_only_and_does_not_add_backend_routes_or_dependencie
     base, _, js = _sources()
     main = (base / "app/main.py").read_text(encoding="utf-8")
     requirements = (base / "requirements.txt").read_text(encoding="utf-8")
-    marker = "// v1.9.2 — Phishing URL Reporter"
+    marker = "// v1.9.3 — Phishing URL Reporter"
     assert marker in js
     assert "localStorage" in js[js.index(marker):]
     assert "fetch(" not in js[js.index(marker):]
@@ -67,3 +67,20 @@ def test_report_requires_manual_confirmation_and_opening_portal_is_not_submissio
     assert 'Abrir el portal o copiar este texto no confirma un reporte.' in js
     assert 'status:"portal_opened"' in js
     assert 'status:"confirmed"' in js
+
+
+def test_google_portal_url_is_prefilled_and_details_are_copied():
+    _, html, js = _sources()
+    assert 'id="phishingUrlFeedback"' in html
+    assert 'class="vendor-url-select"' in html
+    assert 'target.searchParams.set("url", selectedUrl)' in js
+    assert 'target.searchParams.set("hl", "es")' in js
+    assert 'copyText(buildReportText(key, selectedUrl)' in js
+    assert 'El formulario es de una URL por envío' in html or 'Google admite una URL por envío' in html
+
+
+def test_google_report_text_is_short_and_vendor_specific():
+    _, _, js = _sources()
+    assert 'details.slice(0,800)' in js
+    assert 'URL preparada en el enlace de Google' in js
+    assert 'el botón de envío siguen siendo manuales' not in js  # documented in README

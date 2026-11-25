@@ -1308,7 +1308,7 @@ async function loadExecutiveDashboard() {
 
 loadExecutiveDashboard();
 
-// v1.9.2 — Phishing URL Reporter (local history, duplicate detection, vendor templates)
+// v1.9.3 — Phishing URL Reporter (prefill de URL y datos útiles por vendor)
 (() => {
   const $p = id => document.getElementById(id);
   const vendorNames = {
@@ -1361,7 +1361,7 @@ loadExecutiveDashboard();
   const vendorPortals = {
     virustotal:"https://www.virustotal.com/gui/home/url",
     fortiguard:"https://www.fortiguard.com/webfilter",
-    google:"https://safebrowsing.google.com/safebrowsing/report_phish/",
+    google:"https://www.google.com/safebrowsing/report_phish/",
     netcraft:"https://report.netcraft.com/report",
     eset:"https://phishing.eset.com/es-cl/report",
     cloudflare:"https://abuse.cloudflare.com/",
@@ -1436,6 +1436,7 @@ loadExecutiveDashboard();
       description: String(record.description || "").slice(0,1200),
       copiedAt: record.copiedAt || null,
       openedAt: record.openedAt || null,
+      openedUrls: Array.isArray(record.openedUrls) ? record.openedUrls.map(value => validUrl(value)?.url).filter(Boolean).slice(0,20) : [],
       confirmedAt: record.confirmedAt || null,
       note: String(record.note || "").slice(0,500)
     };
@@ -1505,7 +1506,23 @@ loadExecutiveDashboard();
     const status = card.querySelector(".phishing-vendor-status");
     const confirm = card.querySelector(".phishing-confirm");
     const duplicateCount = Number(state.duplicateCount || 0);
+    const googleOpened = Array.isArray(state.openedUrls) ? [...new Set(state.openedUrls)] : [];
+    const googleAllOpened = key === "google" && urls.length > 0 && urls.every(item => googleOpened.includes(item.url));
+    const picker = card.querySelector(".phishing-google-url-picker");
+    const pickerSelect = card.querySelector(".vendor-url-select");
+    if (picker && pickerSelect) {
+      if (key === "google" && urls.length > 1) {
+        const previous = pickerSelect.value;
+        pickerSelect.innerHTML = urls.map((item,index) => `<option value="${escapeHTML(item.url)}">${index + 1}. ${escapeHTML(item.host)}${googleOpened.includes(item.url) ? " · formulario abierto" : " · pendiente"}</option>`).join("");
+        if (urls.some(item => item.url === previous)) pickerSelect.value = previous;
+        picker.hidden = false;
+      } else {
+        picker.hidden = true;
+        pickerSelect.innerHTML = "";
+      }
+    }
     if (state.confirmed) status.textContent = `Confirmado por analista · ${state.confirmedAt || ""}`;
+    else if (key === "google" && googleOpened.length) status.textContent = `Formulario abierto para ${googleOpened.length}/${urls.length} URL(s) · completa cada envío antes de confirmar`;
     else if (state.opened) status.textContent = "Portal abierto · pendiente de confirmación manual";
     else if (state.blocked) status.textContent = "El navegador bloqueó la pestaña · intenta nuevamente";
     else if (!urls.length && duplicateCount) status.textContent = `Sin URLs nuevas · ${duplicateCount} repetida(s) omitida(s)`;
@@ -1513,8 +1530,8 @@ loadExecutiveDashboard();
     else if (urls.length) status.textContent = `Preparado · ${urls.length} URL(s)${duplicateCount ? ` nueva(s), ${duplicateCount} repetida(s) omitida(s)` : ""}`;
     else status.textContent = "Prepara un lote para comenzar";
     status.classList.toggle("is-confirmed", !!state.confirmed);
-    status.classList.toggle("is-opened", !!state.opened && !state.confirmed);
-    confirm.disabled = !state.opened || !!state.confirmed;
+    status.classList.toggle("is-opened", (!!state.opened || googleOpened.length > 0) && !state.confirmed);
+    confirm.disabled = key === "google" ? (!googleAllOpened || !!state.confirmed) : (!state.opened || !!state.confirmed);
     confirm.textContent = state.confirmed ? "Gestión confirmada" : actionLabel(key);
     const isSelected = card.querySelector('input[type="checkbox"]').checked;
     card.querySelector(".vendor-copy").disabled = !preparedPayload || !isSelected || !urls.length;
@@ -1561,31 +1578,47 @@ loadExecutiveDashboard();
     if (vendor === "cloudflare") return "abuse-report";
     return "phishing-report";
   }
-  function buildReportText(vendorKey) {
+  function buildReportText(vendorKey, singleUrl = null) {
     if (!preparedPayload || !vendorNames[vendorKey]) return "";
     const p = preparedPayload;
-    const urls = urlsFor(vendorKey);
+    const urls = singleUrl ? [singleUrl] : urlsFor(vendorKey).map(item => item.url);
     const template = vendorTemplates[vendorKey];
-    const list = urls.map((item,index) => `${index + 1}. ${item.url}`).join("\n");
-    const lines = [
-      `SOC / MDR — ${template.subject}`,
-      `Vendor: ${vendorNames[vendorKey]}`,
-      `Tipo de gestión: ${p.category}`,
-      `Marca u organización suplantada: ${p.brand || "No especificada"}`,
-      `Analista / reportante: ${p.analyst || "No especificado"}`,
-      `Referencia interna: ${p.reference || "No informada"}`,
-      "",
-      "Objetivo del reporte:", template.purpose,
-      "",
-      "URLs a revisar:", list || "Sin URLs nuevas para este vendor.",
-      "",
-      "Descripción / evidencia:", p.description || "URL sospechosa identificada durante el monitoreo SOC/MDR. Se solicita revisar y clasificar según las políticas del proveedor.",
-      "",
-      "Instrucciones para el analista:", template.guidance,
-      "",
-      "Control SOC: este texto fue preparado desde SOC Service Status Monitor. Revisa el formulario oficial y realiza manualmente el envío o solicitud. Abrir el portal o copiar este texto no confirma un reporte."
-    ];
-    return lines.join("\n");
+    if (vendorKey === "google") {
+      // Google form's Additional details field is limited to 800 characters.
+      const details = [
+        p.brand ? `Posible suplantación de: ${p.brand}.` : "",
+        p.category ? `Tipo de actividad observada: ${p.category}.` : "",
+        p.description || "Se identificó una página sospechosa durante el monitoreo SOC/MDR; se solicita revisión por posible phishing."
+      ].filter(Boolean).join(" ");
+      return details.slice(0,800);
+    }
+    return [
+      `URL(s):\n${urls.join("\n")}`,
+      p.brand ? `Marca suplantada: ${p.brand}` : "",
+      p.category ? `Tipo observado: ${p.category}` : "",
+      p.description ? `Descripción / evidencia: ${p.description}` : "",
+      p.reference ? `Referencia interna (no incluir si el portal no corresponde): ${p.reference}` : "",
+      `Objetivo: ${template.purpose}`
+    ].filter(Boolean).join("\n\n");
+  }
+  function buildVendorPortalUrl(vendorKey, selectedUrl = null) {
+    const card = cards.find(item => item.dataset.vendor === vendorKey);
+    const base = card?.querySelector(".vendor-open")?.dataset.url || vendorPortals[vendorKey];
+    if (vendorKey === "google" && selectedUrl) {
+      const target = new URL(base);
+      target.searchParams.set("hl", "es");
+      target.searchParams.set("url", selectedUrl);
+      return target.toString();
+    }
+    return base;
+  }
+  function buildRecordDetails(record) {
+    const previous = preparedPayload;
+    preparedPayload = {...record, vendorUrls:{[record.vendor]:record.urls}};
+    const selectedUrl = record.vendor === "google" ? record.urls[0]?.url : null;
+    const details = buildReportText(record.vendor, selectedUrl);
+    preparedPayload = previous;
+    return details;
   }
   async function copyText(text, successMessage) {
     try {
@@ -1773,10 +1806,10 @@ loadExecutiveDashboard();
     toast("Respaldo JSON generado.");
   }
   function exportCsv() {
-    const headers = ["id","batchId","createdAt","updatedAt","vendor","vendorName","portalUrl","workflowType","status","url","host","brand","analyst","category","reference","description","copiedAt","openedAt","confirmedAt","note"];
+    const headers = ["id","batchId","createdAt","updatedAt","vendor","vendorName","portalUrl","workflowType","status","url","host","brand","analyst","category","reference","description","copiedAt","openedAt","openedUrls","confirmedAt","note"];
     const rows = [headers.map(csvCell).join(",")];
     historyRecords.forEach(record => record.urls.forEach(item => {
-      const row = {...record,url:item.url,host:item.host};
+      const row = {...record,url:item.url,host:item.host,openedUrls:(record.openedUrls || []).join(";")};
       rows.push(headers.map(key=>csvCell(row[key])).join(","));
     }));
     downloadFile(`soc-phishing-history-${new Date().toISOString().slice(0,10)}.csv`, "\uFEFF"+rows.join("\r\n"), "text/csv;charset=utf-8");
@@ -1811,7 +1844,7 @@ loadExecutiveDashboard();
         id:key,batchId:row.batchId,createdAt:row.createdAt,updatedAt:row.updatedAt,vendor,
         portalUrl:row.portalUrl,workflowType:row.workflowType,status:row.status,urls:[],brand:row.brand,
         analyst:row.analyst,category:row.category,reference:row.reference,description:row.description,
-        copiedAt:row.copiedAt,openedAt:row.openedAt,confirmedAt:row.confirmedAt,note:row.note
+        copiedAt:row.copiedAt,openedAt:row.openedAt,openedUrls:row.openedUrls ? String(row.openedUrls).split(";") : [],confirmedAt:row.confirmedAt,note:row.note
       });
       grouped.get(key).urls.push(parsedUrl);
     });
@@ -1879,37 +1912,58 @@ loadExecutiveDashboard();
     const key = card.dataset.vendor;
     card.querySelector(".vendor-preview").addEventListener("click", () => {
       if (!preparedPayload || !urlsFor(key).length) return;
-      $p("phishingTemplateTitle").textContent = `Plantilla · ${vendorNames[key]}`;
-      $p("phishingTemplateBody").textContent = buildReportText(key);
+      $p("phishingTemplateTitle").textContent = `Datos para el formulario · ${vendorNames[key]}`;
+      const selectedUrl = key === "google" ? (card.querySelector(".vendor-url-select")?.value || urlsFor(key)[0]?.url) : null;
+      $p("phishingTemplateBody").textContent = buildReportText(key, selectedUrl);
       $p("phishingTemplateCopy").dataset.templateVendor = key;
       $p("phishingTemplateDialog").showModal();
     });
     card.querySelector(".vendor-copy").addEventListener("click", async () => {
       if (!preparedPayload || !urlsFor(key).length) return;
-      const copied = await copyText(buildReportText(key), `Plantilla preparada para ${vendorNames[key]}.`);
+      const selectedUrl = key === "google" ? (card.querySelector(".vendor-url-select")?.value || urlsFor(key)[0]?.url) : null;
+      const copied = await copyText(buildReportText(key, selectedUrl), `Datos listos para el formulario de ${vendorNames[key]}.`);
       if (copied) {
         vendorStates[key] = {...vendorStates[key],copied:true};
         const record=getHistoryRecord(key); if(record) updateRecord(record.id,{copiedAt:new Date().toISOString()});
         updateVendorCard(card);
-        addActivity(vendorNames[key], "Plantilla específica copiada", "Preparado; no enviado");
+        addActivity(vendorNames[key], "Datos del formulario copiados", "Preparado; no enviado");
       }
     });
     card.querySelector(".vendor-open").addEventListener("click", () => {
       if (!preparedPayload || !urlsFor(key).length) return;
-      const target = card.querySelector(".vendor-open").dataset.url;
+      const selectedUrl = key === "google" ? (card.querySelector(".vendor-url-select")?.value || urlsFor(key)[0].url) : null;
+      const target = buildVendorPortalUrl(key, selectedUrl);
+      // Abrir el portal o copiar este texto no confirma un reporte.
+      // Open synchronously from the click gesture so popup blockers do not interfere.
       const opened = window.open(target, "_blank");
       if (opened) opened.opener = null;
-      vendorStates[key] = {...vendorStates[key],opened:!!opened,blocked:!opened,confirmed:false};
       const record=getHistoryRecord(key);
-      if (opened && record) updateRecord(record.id,{status:"portal_opened",openedAt:new Date().toISOString()});
+      if (opened) {
+        const current = vendorStates[key] || {};
+        const openedUrls = key === "google" ? [...new Set([...(current.openedUrls || []), selectedUrl])] : (current.openedUrls || []);
+        const allGoogleUrlsOpened = key !== "google" || urlsFor(key).every(item => openedUrls.includes(item.url));
+        vendorStates[key] = {...current,opened:key === "google" ? allGoogleUrlsOpened : true,openedUrls,blocked:false,confirmed:false};
+        if (record) updateRecord(record.id,{
+          status:"portal_opened",
+          openedAt:new Date().toISOString(),
+          openedUrls:key === "google" ? openedUrls : (record.openedUrls || [])
+        });
+        if (key === "google") {
+          // The URL is added to Google's historical `url` prefill parameter. Additional details are copied for its 800-char text field.
+          copyText(buildReportText(key, selectedUrl), "URL preparada en el enlace de Google. Los detalles están copiados: pégalos en ‘Detalles adicionales’.");
+        }
+      } else {
+        vendorStates[key] = {...vendorStates[key],opened:false,blocked:true,confirmed:false};
+      }
       updateVendorCard(card); updateSummary();
-      addActivity(vendorNames[key], "Apertura de portal solicitada", opened ? "Portal abierto; envío pendiente" : "Apertura bloqueada por el navegador");
+      addActivity(vendorNames[key], key === "google" ? "Apertura de formulario con URL precargada" : "Apertura de portal solicitada", opened ? (key === "google" ? "Formulario abierto; revisar URL, pegar detalles y enviar manualmente" : "Portal abierto; envío pendiente") : "Apertura bloqueada por el navegador");
       if (!opened) toast("El navegador bloqueó la pestaña. Permite ventanas emergentes e intenta nuevamente.");
     });
     card.querySelector(".phishing-confirm").addEventListener("click", () => {
-      if (!vendorStates[key]?.opened || vendorStates[key]?.confirmed) return;
+      if ((!vendorStates[key]?.opened && key !== "google") || vendorStates[key]?.confirmed) return;
       const verb = key === "fortiguard" || key === "watchguard" ? "la gestión" : (key === "virustotal" ? "el análisis" : "el reporte");
-      if (!window.confirm(`¿Confirmas que completaste ${verb} en el portal de ${vendorNames[key]}? Esta confirmación es manual; la plataforma no puede verificar la gestión.`)) return;
+      const detail = key === "google" ? "¿Confirmas que enviaste el formulario de Google para TODAS las URLs del lote? Abrir el formulario no cuenta como envío." : `¿Confirmas que completaste ${verb} en el portal de ${vendorNames[key]}?`;
+      if (!window.confirm(`${detail} Esta confirmación es manual; la plataforma no puede verificar la gestión.`)) return;
       const time = new Date().toLocaleString("es-CL");
       vendorStates[key] = {...vendorStates[key],confirmed:true,confirmedAt:time};
       const record=getHistoryRecord(key); if(record) updateRecord(record.id,{status:"confirmed",confirmedAt:new Date().toISOString()});
@@ -1922,13 +1976,13 @@ loadExecutiveDashboard();
     const selected=selectedVendors().filter(card=>(urlsFor(card.dataset.vendor)||[]).length);
     if (!selected.length) { toast("Selecciona al menos un vendor con URLs nuevas."); return; }
     const text = ["SOC / MDR — RESUMEN DE PREPARACIÓN DE REPORTES", ...selected.map(card => `\n===== ${vendorNames[card.dataset.vendor]} =====\n${buildReportText(card.dataset.vendor)}`)].join("\n");
-    if (await copyText(text,"Resumen de plantillas copiado.")) {
+    if (await copyText(text,"Resumen de datos copiado.")) {
       selected.forEach(card=>{
         const key=card.dataset.vendor; vendorStates[key]={...vendorStates[key],copied:true};
         const record=getHistoryRecord(key); if(record) updateRecord(record.id,{copiedAt:new Date().toISOString()});
         updateVendorCard(card);
       });
-      addActivity("Varios vendors","Resumen de plantillas copiado","Preparado; no enviado");
+      addActivity("Varios vendors","Resumen de datos copiado","Preparado; no enviado");
     }
   });
   $p("phishingClearActivity").addEventListener("click", () => {activity=[];renderActivity();});
@@ -1944,14 +1998,16 @@ loadExecutiveDashboard();
     const remove=event.target.closest("[data-history-delete]");
     if(open) {
       const record=historyRecords.find(item=>item.id===open.dataset.historyOpen); if(!record)return;
-      const opened=window.open(record.portalUrl,"_blank"); if(opened)opened.opener=null;
-      if(opened) updateHistoryStatus(record.id,"portal_opened");
-      else toast("El navegador bloqueó la pestaña del portal.");
+      const target=record.vendor === "google" ? buildVendorPortalUrl("google",record.urls[0]?.url) : record.portalUrl;
+      const opened=window.open(target,"_blank"); if(opened)opened.opener=null;
+      if(opened) {
+        updateHistoryStatus(record.id,"portal_opened");
+        if(record.vendor === "google") copyText(buildRecordDetails(record),"URL del historial preparada para Google; detalles copiados para pegar.");
+      } else toast("El navegador bloqueó la pestaña del portal.");
     }
     if(copy) {
       const record=historyRecords.find(item=>item.id===copy.dataset.historyCopy); if(!record)return;
-      const p={...record,vendorUrls:{[record.vendor]:record.urls}}; const old=preparedPayload; preparedPayload=p;
-      const copied=await copyText(buildReportText(record.vendor),`Plantilla histórica de ${record.vendorName} copiada.`); preparedPayload=old;
+      const copied=await copyText(buildRecordDetails(record),`Datos del formulario de ${record.vendorName} copiados.`);
       if(copied) updateRecord(record.id,{copiedAt:new Date().toISOString()});
     }
     if(remove) {
@@ -1975,7 +2031,7 @@ loadExecutiveDashboard();
   $p("phishingTemplateCloseBottom").addEventListener("click", ()=>$p("phishingTemplateDialog").close());
   $p("phishingTemplateCopy").addEventListener("click", async () => {
     const vendor=$p("phishingTemplateCopy").dataset.templateVendor;
-    if(vendor) await copyText($p("phishingTemplateBody").textContent,`Plantilla de ${vendorNames[vendor]} copiada.`);
+    if(vendor) await copyText($p("phishingTemplateBody").textContent,`Datos para ${vendorNames[vendor]} copiados.`);
   });
   $p("phishingTemplateDialog").addEventListener("click",event=>{if(event.target===$p("phishingTemplateDialog"))$p("phishingTemplateDialog").close();});
   $p("phishingUrlCount").textContent="0 / 20";

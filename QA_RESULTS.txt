@@ -1,41 +1,23 @@
-SOC Service Status Monitor v1.9.2 — QA results
+SOC Service Status Monitor v1.9.3 — QA results
 
-Release: Phishing URL Reporter — Stage 2.
-Source: full v1.9.1 project ZIP supplied in this conversation.
+Base: full project ZIP v1.9.2 supplied by the user.
 
-Automated validation
-- `python -m pytest -q`: 85 passed.
-- `node --check app/static/app.js`: passed.
-- `python -m compileall -q app`: passed.
-- FastAPI smoke test: GET / returned HTTP 200.
-- Health endpoint: GET /api/health returned ok=true and version 1.9.2-phishing-reporter-phase2.
-- Static asset smoke test: GET /static/app.js?v=1.9.2-phishing-reporter-phase2 returned HTTP 200.
+Automated tests
+- pytest: 87 passed, 0 failed.
+- JavaScript syntax: node --check app/static/app.js passed.
 
-Chromium interaction test (isolated module DOM; browser storage/clipboard/window calls simulated)
-- All 8 vendor cards loaded.
-- Preparing a batch created persistent records per selected vendor.
-- Duplicate URL within the input batch was normalized and removed.
-- Re-preparing the same URL/vendor pair detected the existing historical record and omitted it by default.
-- Explicit duplicate override allowed a justified repeat and generated new records.
-- FortiGuard-specific template preview rendered the correct text.
-- Opening the portal updated the workflow state; manual confirmation required an explicit confirmation action.
-- Browser-local history was restored in a newly created page using the same stored data.
-- JSON and CSV export files were generated.
-- JSON and CSV backup imports restored test records and statuses.
-- No JavaScript runtime errors in the isolated interaction test.
+Chromium UI flow (isolated local page with external navigation stubbed)
+- Phishing URL Reporter navigation and batch preparation: passed.
+- Two URLs displayed in the Google one-URL-at-a-time selector: passed.
+- Generated Google link includes hl=es and the selected URL encoded in the `url` query parameter: passed.
+- Google additional-details text copied to clipboard: passed.
+- Confirmation remains disabled until every URL in the lot has been opened: passed.
 
-Scope / safety
-- No vendor APIs, backend routes, database tables, Python dependencies, extensions or separate services added.
-- History uses localStorage in each analyst's browser profile. It is not uploaded, shared, centrally backed up or synchronized between devices.
-- JSON and CSV backups are available for manual transfer between browser profiles.
-- Duplicate detection is scoped to the same vendor + normalized URL. Repeats are blocked by default and can be allowed explicitly by the analyst.
-- Statuses are prepared/pending, portal opened, confirmed by analyst, and cancelled/discarded.
-- A manual confirmation is an analyst assertion only; the app cannot verify that a vendor accepted or processed the submission.
-- Vendor templates are guidance text. The analyst must review and submit each item in the official portal, including any authentication, CAPTCHA or additional fields.
-- Imported records are sanitized; portal links are resolved from the built-in vendor allowlist, not trusted from the imported file.
-- CSV export protects cells beginning with formula-trigger characters to reduce spreadsheet formula injection risk.
+Scope and limitations
+- Google parameter `url` is based on a historical browser integration pattern; Google currently documents the base reporting URL, not this prefill parameter. The real vendor form's acceptance of the parameter was not verified from this environment and must be checked after deployment.
+- Google threat type/category selections and final Submit remain manual.
+- No access to or automation of cross-origin form internals; no CAPTCHA/authentication bypass.
+- No vendor APIs, browser extensions, new Python dependencies, backend routes, or database changes.
 
 Warnings
-- Two pre-existing FastAPI `on_event` deprecation warnings remain in the backend; this release does not alter startup lifecycle handling.
-- Browser local storage can be deleted by clearing site data and may be subject to browser quotas. Export backups regularly. Large histories may be trimmed to fit local storage.
-- Vendor forms, availability, URLs, login requirements, CAPTCHA and policies can change. This release does not test live vendor submissions.
+- Two FastAPI deprecation warnings for the project's existing startup event handler remain; unrelated to this release.
