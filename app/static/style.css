@@ -745,3 +745,46 @@ main{max-width:none;margin:0;padding:0;min-height:calc(100vh - 68px)}
 @media(max-width:1000px){.phishing-workspace{grid-template-columns:minmax(0,1fr) 230px}.phishing-vendor-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:760px){.phishing-hero{align-items:flex-start;flex-direction:column}.phishing-workspace{grid-template-columns:1fr}.phishing-summary-panel{position:static}.phishing-summary-number{margin:9px 0}.phishing-vendor-grid{grid-template-columns:1fr}.phishing-section-heading{align-items:flex-start;flex-direction:column}.phishing-vendor-card>p{min-height:0}}
 @media(max-width:480px){.phishing-form-panel,.phishing-summary-panel{padding:13px}.phishing-form-grid{grid-template-columns:1fr}.phishing-form-actions{flex-direction:column}.phishing-form-actions .phishing-btn{width:100%}.phishing-vendor-actions{flex-direction:column}.phishing-hero h1{font-size:24px}.phishing-selection-tools{gap:9px}}
+
+/* v1.9.2 — Phishing URL Reporter: local history, duplicate control and vendor templates */
+.phishing-repeat-option{display:flex;align-items:flex-start;gap:9px;margin-top:13px;padding:10px 11px;border:1px solid #594a2d;border-radius:7px;background:#241f17;color:#e7d2a3;cursor:pointer}
+.phishing-repeat-option input{width:14px;height:14px;margin:2px 0 0;accent-color:#d7a84f;flex:0 0 auto}
+.phishing-repeat-option span{display:grid;gap:3px}
+.phishing-repeat-option b{font-size:10px}
+.phishing-repeat-option small{color:#b29d71;font-size:9px;line-height:1.45}
+.phishing-vendor-actions{flex-wrap:wrap}
+.phishing-vendor-actions .phishing-btn{flex:1 1 28%;min-width:76px}
+.phishing-history-section{margin-top:26px}
+.phishing-history-tools{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.phishing-history-tools .phishing-btn{min-height:30px;padding:6px 8px;font-size:9px}
+.phishing-history-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+.phishing-history-stats>div{display:flex;align-items:baseline;gap:8px;padding:11px 13px;border:1px solid #293e57;border-radius:8px;background:#111f30}
+.phishing-history-stats b{color:#e1edf9;font-size:21px;font-variant-numeric:tabular-nums}
+.phishing-history-stats span{color:#8fa6be;font-size:9px}
+.phishing-history-filters{display:grid;grid-template-columns:minmax(180px,1.5fr) minmax(150px,.8fr) minmax(170px,.9fr);gap:8px;margin:12px 0}
+.phishing-history-filters input,.phishing-history-filters select{width:100%;min-width:0;padding:9px 10px;border:1px solid #30465f;border-radius:7px;background:#0a1421;color:#dce8f6;font:10px Inter,Segoe UI,Arial,sans-serif}
+.phishing-history-wrap{overflow:auto;border:1px solid #293e57;border-radius:10px;background:#101d2c}
+.phishing-history-table{width:100%;min-width:920px;border-collapse:collapse}
+.phishing-history-table th,.phishing-history-table td{padding:10px 11px;border-bottom:1px solid #24394f;text-align:left;vertical-align:middle;font-size:9px}
+.phishing-history-table th{color:#7891aa;font-size:8px;letter-spacing:.9px;white-space:nowrap}
+.phishing-history-table td{color:#bfcede}
+.phishing-history-table td small{display:block;margin-top:3px;color:#7188a1;font-size:8px}
+.phishing-history-table tr:last-child td{border-bottom:0}
+.phishing-history-url{max-width:190px;overflow-wrap:anywhere}
+.phishing-history-status{max-width:190px;padding:6px 7px;border:1px solid #3a526c;border-radius:6px;background:#14263a;color:#c7d9eb;font:9px Inter,Segoe UI,Arial,sans-serif}
+.phishing-history-actions{white-space:nowrap}
+.phishing-history-actions .phishing-text-btn{margin-right:8px}
+.phishing-text-btn.danger{color:#e58e98}
+.phishing-storage-status{margin-top:9px;color:#83d6b8;font-size:9px}
+.phishing-history-note{margin-top:7px;color:#758da6;font-size:9px;line-height:1.5}
+.phishing-template-dialog{width:min(820px,calc(100% - 28px));max-width:820px;max-height:min(86vh,900px);padding:0;border:1px solid #38516c;border-radius:12px;background:#0e1a29;color:#dce8f6;box-shadow:0 20px 70px #000b}
+.phishing-template-dialog::backdrop{background:#030913c9;backdrop-filter:blur(3px)}
+.phishing-template-shell{padding:18px}
+.phishing-template-header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.phishing-template-header h2{margin:5px 0;font-size:18px}
+.phishing-template-header p{margin:0;color:#8ea5bd;font-size:10px}
+.phishing-template-body{max-height:58vh;overflow:auto;margin:15px 0;padding:14px;border:1px solid #2b4058;border-radius:8px;background:#091320;color:#c8d8e9;white-space:pre-wrap;overflow-wrap:anywhere;font:10px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace}
+.phishing-template-actions{display:flex;justify-content:flex-end;gap:8px}
+@media(max-width:900px){.phishing-history-filters{grid-template-columns:1fr 1fr}.phishing-history-filters input{grid-column:1/-1}}
+@media(max-width:760px){.phishing-history-tools{justify-content:flex-start}.phishing-history-stats{gap:6px}.phishing-history-stats>div{flex-direction:column;gap:2px;padding:9px}.phishing-history-filters{grid-template-columns:1fr}.phishing-history-filters input{grid-column:auto}}
+@media(max-width:480px){.phishing-vendor-actions{flex-direction:column}.phishing-vendor-actions .phishing-btn{width:100%;flex-basis:auto}.phishing-history-tools{display:grid;grid-template-columns:1fr 1fr;width:100%}.phishing-template-shell{padding:13px}.phishing-template-actions{flex-direction:column}.phishing-template-actions .phishing-btn{width:100%}}

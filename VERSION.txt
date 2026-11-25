@@ -1,0 +1,4 @@
+SOC Service Status Monitor
+Version: 1.9.2-phishing-reporter-phase2
+Release: Phishing URL Reporter — Etapa 2
+Base: v1.9.1 confirmed by user

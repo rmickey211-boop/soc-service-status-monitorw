@@ -1,34 +1,41 @@
-SOC Service Status Monitor v1.9.1 — QA results
+SOC Service Status Monitor v1.9.2 — QA results
 
-Source package: soc-service-status-monitorw-main.zip supplied in this conversation.
-Release: Phishing URL Reporter — Stage 1.
+Release: Phishing URL Reporter — Stage 2.
+Source: full v1.9.1 project ZIP supplied in this conversation.
 
-Automated tests
-- pytest -q: 82 passed.
-- Node.js syntax validation: app/static/app.js passed.
-- Python syntax validation: app/main.py passed.
-- FastAPI smoke test: GET /, /static/app.js, /static/style.css returned HTTP 200.
-- Health endpoint returned version 1.9.1-phishing-reporter.
+Automated validation
+- `python -m pytest -q`: 85 passed.
+- `node --check app/static/app.js`: passed.
+- `python -m compileall -q app`: passed.
+- FastAPI smoke test: GET / returned HTTP 200.
+- Health endpoint: GET /api/health returned ok=true and version 1.9.2-phishing-reporter-phase2.
+- Static asset smoke test: GET /static/app.js?v=1.9.2-phishing-reporter-phase2 returned HTTP 200.
 
-Browser interaction test (Chromium, isolated DOM test for the new module)
-- 8 vendor cards rendered.
-- Vendor actions remain disabled until a valid batch is prepared.
-- Non-HTTP/HTTPS URL rejected.
-- Duplicate URLs normalized and removed.
-- Two valid URLs prepared successfully.
-- Select all / deselect all updates vendor action availability.
-- Portal-open state recorded only after browser window.open returned a window.
-- Manual confirmation required before state changes to confirmed.
-- No JavaScript runtime errors during the tested interactions.
+Chromium interaction test (isolated module DOM; browser storage/clipboard/window calls simulated)
+- All 8 vendor cards loaded.
+- Preparing a batch created persistent records per selected vendor.
+- Duplicate URL within the input batch was normalized and removed.
+- Re-preparing the same URL/vendor pair detected the existing historical record and omitted it by default.
+- Explicit duplicate override allowed a justified repeat and generated new records.
+- FortiGuard-specific template preview rendered the correct text.
+- Opening the portal updated the workflow state; manual confirmation required an explicit confirmation action.
+- Browser-local history was restored in a newly created page using the same stored data.
+- JSON and CSV export files were generated.
+- JSON and CSV backup imports restored test records and statuses.
+- No JavaScript runtime errors in the isolated interaction test.
 
 Scope / safety
-- No vendor APIs added.
-- No browser extension, automation agent, CAPTCHA bypass, or external form submission.
-- No new Python dependencies, backend endpoints, or database tables.
-- URL and analyst data remain in page memory only; refreshing the page clears the session activity.
-- Opening a portal is not treated as a successful submission. The analyst must confirm manually.
+- No vendor APIs, backend routes, database tables, Python dependencies, extensions or separate services added.
+- History uses localStorage in each analyst's browser profile. It is not uploaded, shared, centrally backed up or synchronized between devices.
+- JSON and CSV backups are available for manual transfer between browser profiles.
+- Duplicate detection is scoped to the same vendor + normalized URL. Repeats are blocked by default and can be allowed explicitly by the analyst.
+- Statuses are prepared/pending, portal opened, confirmed by analyst, and cancelled/discarded.
+- A manual confirmation is an analyst assertion only; the app cannot verify that a vendor accepted or processed the submission.
+- Vendor templates are guidance text. The analyst must review and submit each item in the official portal, including any authentication, CAPTCHA or additional fields.
+- Imported records are sanitized; portal links are resolved from the built-in vendor allowlist, not trusted from the imported file.
+- CSV export protects cells beginning with formula-trigger characters to reduce spreadsheet formula injection risk.
 
 Warnings
-- Existing FastAPI startup event uses deprecated on_event API; unchanged in this release.
-- External vendors can change their forms, login requirements, CAPTCHA, and policies. Their sites must be checked during operational use.
-- Not every vendor form accepts bulk URLs. Netcraft and WatchGuard document multi-URL workflows; other forms may require one URL per submission.
+- Two pre-existing FastAPI `on_event` deprecation warnings remain in the backend; this release does not alter startup lifecycle handling.
+- Browser local storage can be deleted by clearing site data and may be subject to browser quotas. Export backups regularly. Large histories may be trimmed to fit local storage.
+- Vendor forms, availability, URLs, login requirements, CAPTCHA and policies can change. This release does not test live vendor submissions.

@@ -1308,7 +1308,7 @@ async function loadExecutiveDashboard() {
 
 loadExecutiveDashboard();
 
-// v1.9.1 — Phishing URL Reporter (browser-only, no vendor APIs or extensions)
+// v1.9.2 — Phishing URL Reporter (local history, duplicate detection, vendor templates)
 (() => {
   const $p = id => document.getElementById(id);
   const vendorNames = {
@@ -1316,48 +1316,210 @@ loadExecutiveDashboard();
     netcraft: "Netcraft", eset: "ESET", cloudflare: "Cloudflare",
     urlabuse: "URLAbuse", watchguard: "WatchGuard"
   };
+  const vendorTemplates = {
+    virustotal: {
+      subject: "Análisis de reputación de URL — VirusTotal",
+      purpose: "Solicitar análisis de reputación y revisar las detecciones disponibles para el indicador. VirusTotal es una plataforma de análisis y agregación; esta acción no equivale a reportar el sitio directamente a cada motor.",
+      guidance: "Antes de enviar, revisa la política de compartición de VirusTotal. No remitas URLs con tokens, credenciales, identificadores personales ni parámetros sensibles."
+    },
+    fortiguard: {
+      subject: "Solicitud de revisión de categoría — FortiGuard Web Filter",
+      purpose: "Solicitar revisión de la clasificación Web Filter cuando la URL esté sin categorizar o tenga una categoría incorrecta.",
+      guidance: "Revisa la clasificación actual y utiliza la opción de revisión del portal. Selecciona una categoría relacionada con phishing o sitios maliciosos solo si la evidencia lo respalda. Generalmente se tramita una URL por solicitud."
+    },
+    google: {
+      subject: "Reporte de sitio de phishing — Google Safe Browsing",
+      purpose: "Informar una página que aparenta suplantar una organización o servicio, o que intenta obtener credenciales o información sensible mediante engaño.",
+      guidance: "Describe qué organización se suplanta, qué solicita la página y cómo se evidencia el comportamiento de phishing. Incluye únicamente URLs y evidencia necesarias."
+    },
+    netcraft: {
+      subject: "Reporte de sitio sospechoso — Netcraft",
+      purpose: "Reportar URLs asociadas a phishing, robo de credenciales, fraude o distribución de malware para que sean revisadas.",
+      guidance: "Netcraft permite reportar más de una URL desde su formulario. Aporta contexto verificable y explica la relación entre el dominio y la marca suplantada."
+    },
+    eset: {
+      subject: "Reporte de sitio fraudulento — ESET",
+      purpose: "Enviar al laboratorio de ESET una página sospechosa para revisión por posible phishing, fraude o distribución de contenido malicioso.",
+      guidance: "Completa los campos que solicite el formulario oficial. Si requiere una sola URL, envía cada dirección individualmente. Describe el comportamiento observado sin incluir secretos."
+    },
+    cloudflare: {
+      subject: "Reporte de abuso por phishing — Cloudflare",
+      purpose: "Informar contenido abusivo relacionado con servicios de Cloudflare cuando exista fundamento para asociar el sitio reportado con su infraestructura.",
+      guidance: "Selecciona la categoría de abuso apropiada y aporta evidencia específica. Cloudflare puede reenviar el reporte al operador correspondiente; no uses este canal como sustituto de reportar al proveedor de hosting o al registrador cuando no corresponda."
+    },
+    urlabuse: {
+      subject: "Reporte de URL maliciosa — URLAbuse",
+      purpose: "Reportar URLs sospechosas asociadas a phishing, fraude, malware u otra actividad maliciosa.",
+      guidance: "Completa los datos solicitados por el portal. Revisa qué información del reportante puede quedar visible públicamente antes de enviar el formulario."
+    },
+    watchguard: {
+      subject: "Solicitud de revisión de categoría — WatchGuard",
+      purpose: "Solicitar revisión de la categoría de una URL cuando esté sin clasificar o se encuentre categorizada incorrectamente.",
+      guidance: "Utiliza el portal de URL Categorization y solicita una categoría de phishing o sitios maliciosos únicamente cuando la evidencia lo justifique. El portal puede requerir autenticación o reCAPTCHA."
+    }
+  };
+  const vendorPortals = {
+    virustotal:"https://www.virustotal.com/gui/home/url",
+    fortiguard:"https://www.fortiguard.com/webfilter",
+    google:"https://safebrowsing.google.com/safebrowsing/report_phish/",
+    netcraft:"https://report.netcraft.com/report",
+    eset:"https://phishing.eset.com/es-cl/report",
+    cloudflare:"https://abuse.cloudflare.com/",
+    urlabuse:"https://urlabuse.com/report",
+    watchguard:"https://www.watchguard.com/securityportal/UrlCategorization.aspx"
+  };
+  const HISTORY_KEY = "soc_service_status_monitor_phishing_history_v1";
+  const MAX_HISTORY_RECORDS = 2000;
+  const MAX_HISTORY_CHARS = 1700000; // Keep localStorage use below typical browser quotas.
+  const statuses = {
+    prepared: "Preparado · pendiente",
+    portal_opened: "Portal abierto · pendiente de confirmación",
+    confirmed: "Confirmado por analista",
+    cancelled: "Descartado / cancelado"
+  };
   let preparedPayload = null;
   let vendorStates = {};
   let activity = [];
+  let storageStatusMessage = "Historial local de este navegador; no se sincroniza entre analistas.";
+  let historyRecords = loadHistory();
   const cards = [...document.querySelectorAll(".phishing-vendor-card")];
 
   function escapeHTML(value) {
     return String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
   }
+  function makeId() {
+    return window.crypto?.randomUUID ? window.crypto.randomUUID() : `ph-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+  }
+  function validUrl(raw) {
+    try {
+      const input = String(raw || "").trim();
+      if (!input || input.length > 2048) return null;
+      const parsed = new URL(input);
+      if (!["http:","https:"].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password) return null;
+      return {url: parsed.href, host: parsed.hostname.toLowerCase()};
+    } catch { return null; }
+  }
+  function loadHistory() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map(cleanRecord).filter(Boolean).slice(0, MAX_HISTORY_RECORDS);
+    } catch (error) {
+      console.warn("No se pudo leer el historial local de Phishing URL Reporter:", error);
+      return [];
+    }
+  }
+  function cleanRecord(record) {
+    if (!record || typeof record !== "object" || !vendorNames[record.vendor]) return null;
+    const urlSeen = new Set();
+    const urls = (Array.isArray(record.urls) ? record.urls : []).slice(0,20).map(item => validUrl(typeof item === "string" ? item : item?.url)).filter(item => {
+      if (!item || urlSeen.has(item.url)) return false;
+      urlSeen.add(item.url); return true;
+    });
+    if (!urls.length) return null;
+    const allowed = Object.keys(statuses);
+    return {
+      id: String(record.id || makeId()).slice(0,100),
+      batchId: String(record.batchId || "").slice(0,100),
+      createdAt: Number.isFinite(Date.parse(record.createdAt)) ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: Number.isFinite(Date.parse(record.updatedAt)) ? new Date(record.updatedAt).toISOString() : new Date().toISOString(),
+      vendor: record.vendor,
+      vendorName: vendorNames[record.vendor],
+      portalUrl: vendorPortals[record.vendor],
+      workflowType: String(record.workflowType || "report").slice(0,40),
+      status: allowed.includes(record.status) ? record.status : "prepared",
+      urls,
+      brand: String(record.brand || "").slice(0,120),
+      analyst: String(record.analyst || "").slice(0,80),
+      category: String(record.category || "").slice(0,80),
+      reference: String(record.reference || "").slice(0,100),
+      description: String(record.description || "").slice(0,1200),
+      copiedAt: record.copiedAt || null,
+      openedAt: record.openedAt || null,
+      confirmedAt: record.confirmedAt || null,
+      note: String(record.note || "").slice(0,500)
+    };
+  }
+  function saveHistory() {
+    historyRecords = historyRecords.slice().sort((a,b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)).slice(0, MAX_HISTORY_RECORDS);
+    try {
+      let serialized = JSON.stringify(historyRecords);
+      let trimmed = 0;
+      while (serialized.length > MAX_HISTORY_CHARS && historyRecords.length > 1) {
+        historyRecords.pop(); trimmed += 1; serialized = JSON.stringify(historyRecords);
+      }
+      localStorage.setItem(HISTORY_KEY, serialized);
+      storageStatusMessage = `Historial guardado en este navegador · ${historyRecords.length} registros${trimmed ? ` · ${trimmed} registros antiguos retirados por límite de espacio` : ""}`;
+      if ($p("phishingStorageStatus")) $p("phishingStorageStatus").textContent = storageStatusMessage;
+      return true;
+    } catch (error) {
+      console.error("No se pudo guardar el historial local:", error);
+      storageStatusMessage = "No se pudo guardar el historial: revisa el almacenamiento disponible del navegador y exporta un respaldo.";
+      if ($p("phishingStorageStatus")) $p("phishingStorageStatus").textContent = storageStatusMessage;
+      toast("No se pudo guardar el historial local. Exporta un respaldo y revisa el espacio del navegador.");
+      return false;
+    }
+  }
+  function formatDate(value) {
+    if (!value) return "—";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("es-CL", {hour12:false});
+  }
   function selectedVendors() {
     return cards.filter(card => card.querySelector('input[type="checkbox"]').checked);
+  }
+  function getHistoryRecord(vendor) {
+    const id = vendorStates[vendor]?.historyId;
+    return id ? historyRecords.find(record => record.id === id) : null;
   }
   function updateSummary() {
     $p("phishingSummaryUrls").textContent = preparedPayload ? preparedPayload.urls.length : 0;
     $p("phishingSummaryOpened").textContent = Object.values(vendorStates).filter(state => state.opened).length;
     $p("phishingSummarySent").textContent = Object.values(vendorStates).filter(state => state.confirmed).length;
-    $p("phishingCopyAll").disabled = !preparedPayload || selectedVendors().length === 0;
+    $p("phishingCopyAll").disabled = !preparedPayload || selectedVendors().every(card => !(preparedPayload.vendorUrls[card.dataset.vendor] || []).length);
+    renderHistoryStats();
   }
   function addActivity(vendor, action, status) {
     activity.unshift({time:new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit",second:"2-digit"}),vendor,action,status});
+    activity = activity.slice(0,100);
     renderActivity();
   }
   function renderActivity() {
     const body = $p("phishingActivityRows");
     if (!activity.length) {
-      body.innerHTML = '<tr><td colspan="4">Todavía no hay actividad.</td></tr>';
+      body.innerHTML = '<tr><td colspan="4">Todavía no hay actividad en esta sesión.</td></tr>';
       return;
     }
     body.innerHTML = activity.map(item => `<tr><td>${escapeHTML(item.time)}</td><td>${escapeHTML(item.vendor)}</td><td>${escapeHTML(item.action)}</td><td>${escapeHTML(item.status)}</td></tr>`).join("");
   }
+  function urlsFor(vendor) { return preparedPayload?.vendorUrls?.[vendor] || []; }
+  function actionLabel(vendor) {
+    if (vendor === "fortiguard" || vendor === "watchguard") return "Confirmar gestión realizada";
+    if (vendor === "virustotal") return "Confirmar análisis realizado";
+    return "Confirmar reporte realizado";
+  }
   function updateVendorCard(card) {
     const key = card.dataset.vendor;
     const state = vendorStates[key] || {};
+    const urls = urlsFor(key);
     const status = card.querySelector(".phishing-vendor-status");
     const confirm = card.querySelector(".phishing-confirm");
-    status.textContent = state.confirmed ? "Confirmado por analista · " + state.confirmedAt : state.opened ? "Portal abierto · envío pendiente de confirmación" : state.blocked ? "El navegador bloqueó la pestaña · intenta nuevamente" : state.copied ? "Datos copiados · sin enviar" : "Preparado · sin iniciar";
+    const duplicateCount = Number(state.duplicateCount || 0);
+    if (state.confirmed) status.textContent = `Confirmado por analista · ${state.confirmedAt || ""}`;
+    else if (state.opened) status.textContent = "Portal abierto · pendiente de confirmación manual";
+    else if (state.blocked) status.textContent = "El navegador bloqueó la pestaña · intenta nuevamente";
+    else if (!urls.length && duplicateCount) status.textContent = `Sin URLs nuevas · ${duplicateCount} repetida(s) omitida(s)`;
+    else if (state.copied) status.textContent = `Datos copiados · sin enviar${duplicateCount ? ` · ${duplicateCount} repetida(s) omitida(s)` : ""}`;
+    else if (urls.length) status.textContent = `Preparado · ${urls.length} URL(s)${duplicateCount ? ` nueva(s), ${duplicateCount} repetida(s) omitida(s)` : ""}`;
+    else status.textContent = "Prepara un lote para comenzar";
     status.classList.toggle("is-confirmed", !!state.confirmed);
     status.classList.toggle("is-opened", !!state.opened && !state.confirmed);
     confirm.disabled = !state.opened || !!state.confirmed;
-    confirm.textContent = state.confirmed ? "Gestión confirmada" : (key === "fortiguard" || key === "watchguard" ? "Confirmar gestión realizada" : "Confirmar reporte realizado");
+    confirm.textContent = state.confirmed ? "Gestión confirmada" : actionLabel(key);
     const isSelected = card.querySelector('input[type="checkbox"]').checked;
-    card.querySelector(".vendor-copy").disabled = !preparedPayload || !isSelected;
-    card.querySelector(".vendor-open").disabled = !preparedPayload || !isSelected;
+    card.querySelector(".vendor-copy").disabled = !preparedPayload || !isSelected || !urls.length;
+    card.querySelector(".vendor-open").disabled = !preparedPayload || !isSelected || !urls.length;
+    card.querySelector(".vendor-preview").disabled = !preparedPayload || !isSelected || !urls.length;
   }
   function resetVendorStates(message) {
     vendorStates = {};
@@ -1368,28 +1530,60 @@ loadExecutiveDashboard();
       const isSelected = card.querySelector('input[type="checkbox"]').checked;
       card.querySelector(".vendor-copy").disabled = !preparedPayload || !isSelected;
       card.querySelector(".vendor-open").disabled = !preparedPayload || !isSelected;
+      card.querySelector(".vendor-preview").disabled = !preparedPayload || !isSelected;
       card.querySelector(".phishing-confirm").disabled = true;
-      card.querySelector(".phishing-confirm").textContent = card.dataset.vendor === "fortiguard" || card.dataset.vendor === "watchguard" ? "Confirmar gestión realizada" : "Confirmar reporte realizado";
+      card.querySelector(".phishing-confirm").textContent = actionLabel(card.dataset.vendor);
     });
     updateSummary();
   }
+  function updateRecord(id, patch) {
+    const record = historyRecords.find(item => item.id === id);
+    if (!record) return null;
+    Object.assign(record, patch, {updatedAt:new Date().toISOString()});
+    saveHistory(); renderHistory();
+    return record;
+  }
+  function invalidateCurrentBatch(reason) {
+    if (!preparedPayload) return;
+    for (const state of Object.values(vendorStates)) {
+      const record = state.historyId ? historyRecords.find(item => item.id === state.historyId) : null;
+      if (record && record.status === "prepared" && !record.copiedAt && !record.openedAt) {
+        record.status = "cancelled"; record.note = reason; record.updatedAt = new Date().toISOString();
+      }
+    }
+    saveHistory(); renderHistory();
+    preparedPayload = null;
+    resetVendorStates("Datos modificados · vuelve a preparar el lote");
+  }
+  function workflowType(vendor) {
+    if (vendor === "virustotal") return "analysis";
+    if (vendor === "fortiguard" || vendor === "watchguard") return "category-review";
+    if (vendor === "cloudflare") return "abuse-report";
+    return "phishing-report";
+  }
   function buildReportText(vendorKey) {
-    if (!preparedPayload) return "";
+    if (!preparedPayload || !vendorNames[vendorKey]) return "";
     const p = preparedPayload;
+    const urls = urlsFor(vendorKey);
+    const template = vendorTemplates[vendorKey];
+    const list = urls.map((item,index) => `${index + 1}. ${item.url}`).join("\n");
     const lines = [
-      `SOC / MDR — ${vendorNames[vendorKey]} submission preparation`,
-      `Report type: ${p.category}`,
-      `Targeted brand: ${p.brand || "Not specified"}`,
-      `Analyst / reporter: ${p.analyst || "Not specified"}`,
-      `Internal reference: ${p.reference || "Not specified"}`,
+      `SOC / MDR — ${template.subject}`,
+      `Vendor: ${vendorNames[vendorKey]}`,
+      `Tipo de gestión: ${p.category}`,
+      `Marca u organización suplantada: ${p.brand || "No especificada"}`,
+      `Analista / reportante: ${p.analyst || "No especificado"}`,
+      `Referencia interna: ${p.reference || "No informada"}`,
       "",
-      "URLs to review:",
-      ...p.urls.map((item, index) => `${index + 1}. ${item.url}`),
+      "Objetivo del reporte:", template.purpose,
       "",
-      "Description / evidence:",
-      p.description || "Suspected malicious URL identified during SOC/MDR monitoring. Please review and classify according to your abuse / phishing policies.",
+      "URLs a revisar:", list || "Sin URLs nuevas para este vendor.",
       "",
-      "This text was prepared in SOC Service Status Monitor. The analyst must review the vendor form and submit it manually."
+      "Descripción / evidencia:", p.description || "URL sospechosa identificada durante el monitoreo SOC/MDR. Se solicita revisar y clasificar según las políticas del proveedor.",
+      "",
+      "Instrucciones para el analista:", template.guidance,
+      "",
+      "Control SOC: este texto fue preparado desde SOC Service Status Monitor. Revisa el formulario oficial y realiza manualmente el envío o solicitud. Abrir el portal o copiar este texto no confirma un reporte."
     ];
     return lines.join("\n");
   }
@@ -1410,6 +1604,9 @@ loadExecutiveDashboard();
       return false;
     }
   }
+  function findPrevious(vendor, url) {
+    return historyRecords.find(record => record.vendor === vendor && record.status !== "cancelled" && record.urls.some(item => item.url === url));
+  }
   function validateAndPrepare() {
     const rawLines = $p("phishingUrls").value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     const feedback = $p("phishingUrlFeedback");
@@ -1417,17 +1614,19 @@ loadExecutiveDashboard();
       feedback.textContent = "Ingresa al menos una URL."; feedback.className = "phishing-feedback error";
       return;
     }
+    const selected = selectedVendors();
+    if (!selected.length) {
+      feedback.textContent = "Selecciona al menos un vendor antes de preparar el lote."; feedback.className = "phishing-feedback error";
+      return;
+    }
     const valid = [], invalid = [], seen = new Set();
     rawLines.forEach(raw => {
-      try {
-        const parsed = new URL(raw);
-        if (!["http:","https:"].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password) throw new Error("URL no admitida");
-        const normalized = parsed.href;
-        if (!seen.has(normalized)) { seen.add(normalized); valid.push({url:normalized,host:parsed.hostname}); }
-      } catch { invalid.push(raw); }
+      const parsed = validUrl(raw);
+      if (!parsed) invalid.push(raw);
+      else if (!seen.has(parsed.url)) { seen.add(parsed.url); valid.push(parsed); }
     });
     if (invalid.length) {
-      feedback.textContent = `${invalid.length} línea(s) no válida(s). Usa URLs completas con http:// o https://. No se preparó el lote.`;
+      feedback.textContent = `${invalid.length} línea(s) no válida(s). Usa URLs completas con http:// o https:// y sin credenciales embebidas. No se preparó el lote.`;
       feedback.className = "phishing-feedback error";
       $p("phishingUrlCount").textContent = `${valid.length} / 20 válidas`;
       return;
@@ -1438,22 +1637,207 @@ loadExecutiveDashboard();
       $p("phishingUrlCount").textContent = `${valid.length} / 20`;
       return;
     }
+    const allowDuplicates = $p("phishingAllowDuplicates").checked;
+    const vendorUrls = {}, duplicateCounts = {}, duplicatesFound = [];
+    selected.forEach(card => {
+      const vendor = card.dataset.vendor;
+      const newUrls = [];
+      let count = 0;
+      valid.forEach(item => {
+        const previous = findPrevious(vendor, item.url);
+        if (previous) {
+          count += 1;
+          duplicatesFound.push({vendor:vendorNames[vendor],url:item.url,previousStatus:statuses[previous.status]});
+          if (!allowDuplicates) return;
+        }
+        newUrls.push(item);
+      });
+      vendorUrls[vendor] = newUrls;
+      duplicateCounts[vendor] = count;
+    });
+    const batchId = makeId();
     preparedPayload = {
-      urls: valid,
-      brand: $p("phishingBrand").value.trim(),
-      analyst: $p("phishingAnalyst").value.trim(),
-      category: $p("phishingCategory").value,
-      reference: $p("phishingReference").value.trim(),
-      description: $p("phishingDescription").value.trim(),
-      preparedAt: new Date().toISOString()
+      batchId, urls:valid, vendorUrls, duplicateCounts, duplicatesFound, allowDuplicates,
+      brand:$p("phishingBrand").value.trim(), analyst:$p("phishingAnalyst").value.trim(),
+      category:$p("phishingCategory").value, reference:$p("phishingReference").value.trim(),
+      description:$p("phishingDescription").value.trim(), preparedAt:new Date().toISOString()
     };
-    resetVendorStates("Preparado · sin iniciar");
-    feedback.textContent = `${valid.length} URL(s) válidas y listas. ${rawLines.length - valid.length} duplicado(s) eliminado(s). Revisa los vendors seleccionados.`;
-    feedback.className = "phishing-feedback success";
+    vendorStates = {};
+    selected.forEach(card => {
+      const vendor = card.dataset.vendor, vendorList = vendorUrls[vendor] || [];
+      const state = {duplicateCount:duplicateCounts[vendor] || 0, skipped:vendorList.length === 0};
+      if (vendorList.length) {
+        const record = cleanRecord({
+          id:makeId(), batchId, createdAt:preparedPayload.preparedAt, updatedAt:preparedPayload.preparedAt,
+          vendor, portalUrl:card.querySelector(".vendor-open").dataset.url, workflowType:workflowType(vendor),
+          status:"prepared", urls:vendorList, brand:preparedPayload.brand, analyst:preparedPayload.analyst,
+          category:preparedPayload.category, reference:preparedPayload.reference, description:preparedPayload.description
+        });
+        if (record) { historyRecords.unshift(record); state.historyId = record.id; }
+      }
+      vendorStates[vendor] = state;
+    });
+    saveHistory();
+    const dupTotal = duplicatesFound.length;
+    if (dupTotal && !allowDuplicates) {
+      feedback.textContent = `${valid.length} URL(s) válidas. Se detectaron ${dupTotal} coincidencia(s) URL/vendor en el historial; se omitieron para evitar reportes duplicados. Revisa cada vendor. Activa “Permitir repetir” para una nueva gestión justificada.`;
+      feedback.className = "phishing-feedback warning";
+    } else {
+      feedback.textContent = `${valid.length} URL(s) válidas y listas. ${rawLines.length - valid.length} duplicado(s) idéntico(s) eliminado(s) del lote.${dupTotal ? ` Se incluyeron ${dupTotal} repetición(es) históricas por autorización del analista.` : ""}`;
+      feedback.className = "phishing-feedback success";
+    }
     $p("phishingUrlCount").textContent = `${valid.length} / 20`;
     cards.forEach(updateVendorCard);
-    updateSummary();
-    toast("Lote validado y preparado.");
+    updateSummary(); renderHistory();
+    toast("Lote validado y guardado en el historial local.");
+  }
+  function statusOptions(current) {
+    return Object.entries(statuses).map(([key,label]) => `<option value="${key}" ${key === current ? "selected" : ""}>${escapeHTML(label)}</option>`).join("");
+  }
+  function renderHistoryStats() {
+    const total = historyRecords.length;
+    const confirmed = historyRecords.filter(item => item.status === "confirmed").length;
+    const pending = historyRecords.filter(item => item.status === "prepared" || item.status === "portal_opened").length;
+    if ($p("phishingHistoryTotal")) $p("phishingHistoryTotal").textContent = total;
+    if ($p("phishingHistoryPending")) $p("phishingHistoryPending").textContent = pending;
+    if ($p("phishingHistoryConfirmed")) $p("phishingHistoryConfirmed").textContent = confirmed;
+  }
+  function renderHistory() {
+    const body = $p("phishingHistoryRows");
+    if (!body) return;
+    const term = $p("phishingHistorySearch").value.trim().toLowerCase();
+    const vendorFilter = $p("phishingHistoryVendor").value;
+    const statusFilter = $p("phishingHistoryStatus").value;
+    const rows = historyRecords.filter(record => {
+      const haystack = [record.vendorName,record.analyst,record.brand,record.reference,record.description,...record.urls.map(item=>item.url)].join(" ").toLowerCase();
+      return (!term || haystack.includes(term)) && (!vendorFilter || record.vendor === vendorFilter) && (!statusFilter || record.status === statusFilter);
+    }).slice(0,300);
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="6">No hay registros que coincidan con los filtros.</td></tr>';
+    } else {
+      body.innerHTML = rows.map(record => {
+        const urlPreview = record.urls.slice(0,2).map(item=>item.host).join(", ") + (record.urls.length > 2 ? ` +${record.urls.length-2}` : "");
+        const full = record.urls.map(item=>item.url).join("\n");
+        return `<tr>
+          <td>${escapeHTML(formatDate(record.createdAt))}</td>
+          <td class="phishing-history-url" title="${escapeHTML(full)}"><b>${escapeHTML(urlPreview)}</b><small>${record.urls.length} URL(s)</small></td>
+          <td>${escapeHTML(record.vendorName)}<small>${escapeHTML(record.analyst || "Analista no indicado")}</small></td>
+          <td>${escapeHTML(record.brand || "—")}<small>${escapeHTML(record.reference || "Sin referencia")}</small></td>
+          <td><select class="phishing-history-status" data-history-status="${escapeHTML(record.id)}" aria-label="Estado de ${escapeHTML(record.vendorName)}">${statusOptions(record.status)}</select></td>
+          <td class="phishing-history-actions"><button type="button" class="phishing-text-btn" data-history-copy="${escapeHTML(record.id)}">Copiar</button><button type="button" class="phishing-text-btn" data-history-open="${escapeHTML(record.id)}">Portal ↗</button><button type="button" class="phishing-text-btn danger" data-history-delete="${escapeHTML(record.id)}">Eliminar</button></td>
+        </tr>`;
+      }).join("");
+    }
+    renderHistoryStats();
+    if ($p("phishingStorageStatus")) $p("phishingStorageStatus").textContent = storageStatusMessage || `Historial local de este navegador · ${historyRecords.length} registros · no se sincroniza entre analistas`;
+  }
+  function updateHistoryStatus(id, newStatus) {
+    const record = historyRecords.find(item=>item.id===id);
+    if (!record || !Object.prototype.hasOwnProperty.call(statuses,newStatus)) return;
+    if (newStatus === "confirmed" && record.status !== "confirmed") {
+      if (!window.confirm("¿Confirmas que completaste el reporte, análisis o solicitud en el portal del proveedor? Esta confirmación queda registrada como declaración manual del analista; la plataforma no verifica el envío.")) { renderHistory(); return; }
+    }
+    const now = new Date().toISOString();
+    record.status = newStatus;
+    record.updatedAt = now;
+    if (newStatus === "portal_opened") record.openedAt = record.openedAt || now;
+    if (newStatus === "confirmed") record.confirmedAt = now;
+    if (newStatus !== "confirmed") record.confirmedAt = null;
+    if (newStatus === "cancelled") record.note = "Estado actualizado manualmente desde el historial.";
+    const activeState = vendorStates[record.vendor];
+    if (activeState?.historyId === id) {
+      activeState.opened = newStatus === "portal_opened" || newStatus === "confirmed";
+      activeState.confirmed = newStatus === "confirmed";
+      activeState.confirmedAt = newStatus === "confirmed" ? formatDate(now) : null;
+      const card = cards.find(item => item.dataset.vendor === record.vendor);
+      if (card) updateVendorCard(card);
+    }
+    saveHistory(); renderHistory(); updateSummary();
+    toast("Estado del registro actualizado.");
+  }
+  function csvCell(value) {
+    let text = String(value ?? "");
+    if (/^[\s]*[=+@-]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g,'""')}"`;
+  }
+  function downloadFile(name, content, mime) {
+    const blob = new Blob([content], {type:mime});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a"); link.href = url; link.download = name;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function exportJson() {
+    const payload = {format:"soc-phishing-reporter-history",schemaVersion:1,exportedAt:new Date().toISOString(),records:historyRecords};
+    downloadFile(`soc-phishing-history-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(payload,null,2), "application/json;charset=utf-8");
+    toast("Respaldo JSON generado.");
+  }
+  function exportCsv() {
+    const headers = ["id","batchId","createdAt","updatedAt","vendor","vendorName","portalUrl","workflowType","status","url","host","brand","analyst","category","reference","description","copiedAt","openedAt","confirmedAt","note"];
+    const rows = [headers.map(csvCell).join(",")];
+    historyRecords.forEach(record => record.urls.forEach(item => {
+      const row = {...record,url:item.url,host:item.host};
+      rows.push(headers.map(key=>csvCell(row[key])).join(","));
+    }));
+    downloadFile(`soc-phishing-history-${new Date().toISOString().slice(0,10)}.csv`, "\uFEFF"+rows.join("\r\n"), "text/csv;charset=utf-8");
+    toast("Historial CSV generado.");
+  }
+  function parseCsv(text) {
+    const rows=[]; let row=[], cell="", quoted=false;
+    for (let i=0;i<text.length;i++) {
+      const char=text[i], next=text[i+1];
+      if (quoted) {
+        if (char === '"' && next === '"') { cell+='"'; i++; }
+        else if (char === '"') quoted=false;
+        else cell+=char;
+      } else if (char === '"') quoted=true;
+      else if (char === ",") { row.push(cell); cell=""; }
+      else if (char === "\n") { row.push(cell.replace(/\r$/,"")); rows.push(row); row=[]; cell=""; }
+      else cell+=char;
+    }
+    if (cell.length || row.length) { row.push(cell.replace(/\r$/,"")); rows.push(row); }
+    if (!rows.length) return [];
+    const headers=rows.shift().map(value=>value.replace(/^\uFEFF/,"").trim());
+    return rows.filter(cells=>cells.some(value=>value.trim())).map(cells=>Object.fromEntries(headers.map((header,index)=>[header,cells[index] ?? ""])));
+  }
+  function importCsvRows(rows) {
+    const grouped = new Map();
+    rows.forEach(row => {
+      const vendor = String(row.vendor || "");
+      const parsedUrl = validUrl(row.url);
+      if (!vendorNames[vendor] || !parsedUrl) return;
+      const key = row.id || makeId();
+      if (!grouped.has(key)) grouped.set(key, {
+        id:key,batchId:row.batchId,createdAt:row.createdAt,updatedAt:row.updatedAt,vendor,
+        portalUrl:row.portalUrl,workflowType:row.workflowType,status:row.status,urls:[],brand:row.brand,
+        analyst:row.analyst,category:row.category,reference:row.reference,description:row.description,
+        copiedAt:row.copiedAt,openedAt:row.openedAt,confirmedAt:row.confirmedAt,note:row.note
+      });
+      grouped.get(key).urls.push(parsedUrl);
+    });
+    return [...grouped.values()].map(cleanRecord).filter(Boolean);
+  }
+  async function importHistory(file) {
+    if (!file) return;
+    try {
+      const content = await file.text();
+      let imported=[];
+      if (file.name.toLowerCase().endsWith(".csv") || file.type.includes("csv")) imported = importCsvRows(parseCsv(content));
+      else {
+        const parsed=JSON.parse(content);
+        const records=Array.isArray(parsed)?parsed:(parsed.records || parsed.history || []);
+        if (!Array.isArray(records)) throw new Error("El JSON no contiene una lista de registros.");
+        imported=records.map(cleanRecord).filter(Boolean);
+      }
+      const ids = new Set(historyRecords.map(item=>item.id));
+      const fresh = imported.filter(item=>!ids.has(item.id));
+      if (!fresh.length) { toast("No se encontraron registros nuevos válidos para importar."); return; }
+      historyRecords = [...fresh,...historyRecords].slice(0,MAX_HISTORY_RECORDS);
+      saveHistory(); renderHistory();
+      toast(`Importación completada: ${fresh.length} registro(s) añadido(s).`);
+    } catch (error) {
+      console.error(error); toast(`No se pudo importar el respaldo: ${error.message}`);
+    } finally { $p("phishingImportFile").value=""; }
   }
 
   $p("phishingPrepare").addEventListener("click", validateAndPrepare);
@@ -1461,71 +1845,140 @@ loadExecutiveDashboard();
     const count = $p("phishingUrls").value.split(/\r?\n/).filter(line => line.trim()).length;
     $p("phishingUrlCount").textContent = `${count} / 20`;
   });
-  ["phishingUrls","phishingBrand","phishingAnalyst","phishingCategory","phishingReference","phishingDescription"].forEach(id => {
-    $p(id).addEventListener("input", () => {
+  ["phishingUrls","phishingBrand","phishingAnalyst","phishingCategory","phishingReference","phishingDescription","phishingAllowDuplicates"].forEach(id => {
+    const node=$p(id); const eventName=node.type === "checkbox" || node.tagName === "SELECT" ? "change" : "input";
+    node.addEventListener(eventName, () => {
       if (!preparedPayload) return;
-      preparedPayload = null;
-      resetVendorStates("Datos modificados · vuelve a preparar el lote");
-      $p("phishingUrlFeedback").textContent = "Los datos cambiaron. Valida y prepara nuevamente antes de abrir un portal.";
-      $p("phishingUrlFeedback").className = "phishing-feedback warning";
-    });
-    $p(id).addEventListener("change", () => {
-      if (!preparedPayload) return;
-      preparedPayload = null;
-      resetVendorStates("Datos modificados · vuelve a preparar el lote");
+      invalidateCurrentBatch("Datos o configuración modificados antes de iniciar; preparar nuevamente");
       $p("phishingUrlFeedback").textContent = "Los datos cambiaron. Valida y prepara nuevamente antes de abrir un portal.";
       $p("phishingUrlFeedback").className = "phishing-feedback warning";
     });
   });
   $p("phishingClear").addEventListener("click", () => {
+    invalidateCurrentBatch("Lote limpiado por el analista");
     ["phishingUrls","phishingBrand","phishingAnalyst","phishingReference","phishingDescription"].forEach(id => $p(id).value = "");
-    $p("phishingCategory").value = "Phishing";
+    $p("phishingCategory").value = "Phishing"; $p("phishingAllowDuplicates").checked=false;
     $p("phishingUrlCount").textContent = "0 / 20";
     $p("phishingUrlFeedback").textContent = "Ingresa una o más URLs para comenzar.";
     $p("phishingUrlFeedback").className = "phishing-feedback";
     preparedPayload = null; activity = []; renderActivity(); resetVendorStates("Sin iniciar");
   });
-  $p("phishingSelectAll").addEventListener("click", () => { cards.forEach(card => { card.querySelector('input[type="checkbox"]').checked = true; updateVendorCard(card); }); updateSummary(); });
-  $p("phishingSelectNone").addEventListener("click", () => { cards.forEach(card => { card.querySelector('input[type="checkbox"]').checked = false; updateVendorCard(card); }); updateSummary(); });
-  cards.forEach(card => card.querySelector('input[type="checkbox"]').addEventListener("change", () => { updateVendorCard(card); updateSummary(); }));
+  $p("phishingSelectAll").addEventListener("click", () => {
+    if (preparedPayload) invalidateCurrentBatch("Selección de vendors modificada; preparar nuevamente");
+    cards.forEach(card => { card.querySelector('input[type="checkbox"]').checked = true; updateVendorCard(card); }); updateSummary();
+  });
+  $p("phishingSelectNone").addEventListener("click", () => {
+    if (preparedPayload) invalidateCurrentBatch("Selección de vendors modificada; preparar nuevamente");
+    cards.forEach(card => { card.querySelector('input[type="checkbox"]').checked = false; updateVendorCard(card); }); updateSummary();
+  });
+  cards.forEach(card => card.querySelector('input[type="checkbox"]').addEventListener("change", () => {
+    if (preparedPayload) invalidateCurrentBatch("Selección de vendors modificada; preparar nuevamente");
+    updateVendorCard(card); updateSummary();
+  }));
   cards.forEach(card => {
     const key = card.dataset.vendor;
+    card.querySelector(".vendor-preview").addEventListener("click", () => {
+      if (!preparedPayload || !urlsFor(key).length) return;
+      $p("phishingTemplateTitle").textContent = `Plantilla · ${vendorNames[key]}`;
+      $p("phishingTemplateBody").textContent = buildReportText(key);
+      $p("phishingTemplateCopy").dataset.templateVendor = key;
+      $p("phishingTemplateDialog").showModal();
+    });
     card.querySelector(".vendor-copy").addEventListener("click", async () => {
-      if (!preparedPayload) return;
-      const copied = await copyText(buildReportText(key), `Datos preparados para ${vendorNames[key]}.`);
+      if (!preparedPayload || !urlsFor(key).length) return;
+      const copied = await copyText(buildReportText(key), `Plantilla preparada para ${vendorNames[key]}.`);
       if (copied) {
         vendorStates[key] = {...vendorStates[key],copied:true};
-        if (!vendorStates[key]?.opened) card.querySelector(".phishing-vendor-status").textContent = "Datos copiados · sin enviar";
-        addActivity(vendorNames[key], "Datos del reporte copiados", "Preparado; no enviado");
+        const record=getHistoryRecord(key); if(record) updateRecord(record.id,{copiedAt:new Date().toISOString()});
+        updateVendorCard(card);
+        addActivity(vendorNames[key], "Plantilla específica copiada", "Preparado; no enviado");
       }
     });
     card.querySelector(".vendor-open").addEventListener("click", () => {
-      if (!preparedPayload) return;
+      if (!preparedPayload || !urlsFor(key).length) return;
       const target = card.querySelector(".vendor-open").dataset.url;
       const opened = window.open(target, "_blank");
       if (opened) opened.opener = null;
       vendorStates[key] = {...vendorStates[key],opened:!!opened,blocked:!opened,confirmed:false};
+      const record=getHistoryRecord(key);
+      if (opened && record) updateRecord(record.id,{status:"portal_opened",openedAt:new Date().toISOString()});
       updateVendorCard(card); updateSummary();
       addActivity(vendorNames[key], "Apertura de portal solicitada", opened ? "Portal abierto; envío pendiente" : "Apertura bloqueada por el navegador");
       if (!opened) toast("El navegador bloqueó la pestaña. Permite ventanas emergentes e intenta nuevamente.");
     });
     card.querySelector(".phishing-confirm").addEventListener("click", () => {
       if (!vendorStates[key]?.opened || vendorStates[key]?.confirmed) return;
-      const verb = key === "fortiguard" || key === "watchguard" ? "la gestión" : "el reporte";
-      if (!window.confirm(`¿Confirmas que completaste y enviaste ${verb} en el portal de ${vendorNames[key]}? Esta confirmación es manual; la plataforma no puede verificar el envío.`)) return;
+      const verb = key === "fortiguard" || key === "watchguard" ? "la gestión" : (key === "virustotal" ? "el análisis" : "el reporte");
+      if (!window.confirm(`¿Confirmas que completaste ${verb} en el portal de ${vendorNames[key]}? Esta confirmación es manual; la plataforma no puede verificar la gestión.`)) return;
       const time = new Date().toLocaleString("es-CL");
       vendorStates[key] = {...vendorStates[key],confirmed:true,confirmedAt:time};
+      const record=getHistoryRecord(key); if(record) updateRecord(record.id,{status:"confirmed",confirmedAt:new Date().toISOString()});
       updateVendorCard(card); updateSummary();
       addActivity(vendorNames[key], "Confirmación manual del analista", "Confirmado por analista");
     });
   });
-  $p("phishingCopyAll").addEventListener("click", () => {
+  $p("phishingCopyAll").addEventListener("click", async () => {
     if (!preparedPayload) return;
-    if (!selectedVendors().length) { toast("Selecciona al menos un vendor."); return; }
-    const text = ["SOC / MDR — PHISHING URL REPORT", ...selectedVendors().map(card => `\n===== ${vendorNames[card.dataset.vendor]} =====\n${buildReportText(card.dataset.vendor)}`)].join("\n");
-    copyText(text,"Resumen del lote copiado.");
+    const selected=selectedVendors().filter(card=>(urlsFor(card.dataset.vendor)||[]).length);
+    if (!selected.length) { toast("Selecciona al menos un vendor con URLs nuevas."); return; }
+    const text = ["SOC / MDR — RESUMEN DE PREPARACIÓN DE REPORTES", ...selected.map(card => `\n===== ${vendorNames[card.dataset.vendor]} =====\n${buildReportText(card.dataset.vendor)}`)].join("\n");
+    if (await copyText(text,"Resumen de plantillas copiado.")) {
+      selected.forEach(card=>{
+        const key=card.dataset.vendor; vendorStates[key]={...vendorStates[key],copied:true};
+        const record=getHistoryRecord(key); if(record) updateRecord(record.id,{copiedAt:new Date().toISOString()});
+        updateVendorCard(card);
+      });
+      addActivity("Varios vendors","Resumen de plantillas copiado","Preparado; no enviado");
+    }
   });
   $p("phishingClearActivity").addEventListener("click", () => {activity=[];renderActivity();});
-  updateSummary();
+  $p("phishingHistorySearch").addEventListener("input", renderHistory);
+  $p("phishingHistoryVendor").addEventListener("change", renderHistory);
+  $p("phishingHistoryStatus").addEventListener("change", renderHistory);
+  $p("phishingHistoryRows").addEventListener("change", event => {
+    const select=event.target.closest("[data-history-status]"); if(select) updateHistoryStatus(select.dataset.historyStatus,select.value);
+  });
+  $p("phishingHistoryRows").addEventListener("click", async event => {
+    const copy=event.target.closest("[data-history-copy]");
+    const open=event.target.closest("[data-history-open]");
+    const remove=event.target.closest("[data-history-delete]");
+    if(open) {
+      const record=historyRecords.find(item=>item.id===open.dataset.historyOpen); if(!record)return;
+      const opened=window.open(record.portalUrl,"_blank"); if(opened)opened.opener=null;
+      if(opened) updateHistoryStatus(record.id,"portal_opened");
+      else toast("El navegador bloqueó la pestaña del portal.");
+    }
+    if(copy) {
+      const record=historyRecords.find(item=>item.id===copy.dataset.historyCopy); if(!record)return;
+      const p={...record,vendorUrls:{[record.vendor]:record.urls}}; const old=preparedPayload; preparedPayload=p;
+      const copied=await copyText(buildReportText(record.vendor),`Plantilla histórica de ${record.vendorName} copiada.`); preparedPayload=old;
+      if(copied) updateRecord(record.id,{copiedAt:new Date().toISOString()});
+    }
+    if(remove) {
+      if(!window.confirm("¿Eliminar este registro del historial local? Esta acción no se puede deshacer."))return;
+      historyRecords=historyRecords.filter(item=>item.id!==remove.dataset.historyDelete);
+      Object.keys(vendorStates).forEach(vendor=>{if(vendorStates[vendor].historyId===remove.dataset.historyDelete)vendorStates[vendor]={};});
+      saveHistory(); renderHistory(); cards.forEach(updateVendorCard); updateSummary();
+    }
+  });
+  $p("phishingExportJson").addEventListener("click", exportJson);
+  $p("phishingExportCsv").addEventListener("click", exportCsv);
+  $p("phishingImportButton").addEventListener("click", ()=>$p("phishingImportFile").click());
+  $p("phishingImportFile").addEventListener("change", event => importHistory(event.target.files?.[0]));
+  $p("phishingClearHistory").addEventListener("click", () => {
+    if(!historyRecords.length)return;
+    if(!window.confirm("¿Borrar todo el historial guardado en este navegador? Exporta un respaldo antes si necesitas conservarlo."))return;
+    historyRecords=[]; preparedPayload=null; vendorStates={};
+    saveHistory(); renderHistory(); cards.forEach(updateVendorCard); updateSummary(); toast("Historial local eliminado.");
+  });
+  $p("phishingTemplateClose").addEventListener("click", ()=>$p("phishingTemplateDialog").close());
+  $p("phishingTemplateCloseBottom").addEventListener("click", ()=>$p("phishingTemplateDialog").close());
+  $p("phishingTemplateCopy").addEventListener("click", async () => {
+    const vendor=$p("phishingTemplateCopy").dataset.templateVendor;
+    if(vendor) await copyText($p("phishingTemplateBody").textContent,`Plantilla de ${vendorNames[vendor]} copiada.`);
+  });
+  $p("phishingTemplateDialog").addEventListener("click",event=>{if(event.target===$p("phishingTemplateDialog"))$p("phishingTemplateDialog").close();});
+  $p("phishingUrlCount").textContent="0 / 20";
+  saveHistory(); renderActivity(); renderHistory();
+  updateSummary(); cards.forEach(updateVendorCard);
 })();
-

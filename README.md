@@ -1,4 +1,4 @@
-# SOC Service Status Monitor — v1.9.1 (Phishing URL Reporter · Etapa 1)
+# SOC Service Status Monitor — v1.9.2 (Phishing URL Reporter · Etapa 2)
 
 Panel web de consulta del estado de plataformas y de inteligencia pública de ciberamenazas. Esta entrega corrige la navegación de la interfaz modular.
 
@@ -32,15 +32,24 @@ La aplicación desplegada utiliza `app/main.py` y los recursos `app/static/index
 Para actualizar: reemplazar el contenido del repositorio GitHub existente con el contenido de esta carpeta, conservar `.git` si se utiliza GitHub Desktop, realizar commit/push y ejecutar **Manual Deploy → Deploy latest commit** en el servicio Render actual. No crear un servicio nuevo.
 
 
-## v1.9.1 — Phishing URL Reporter · Etapa 1
+## v1.9.2 — Phishing URL Reporter · Etapa 2
 
+- Historial persistente en `localStorage` del navegador de cada analista. Los datos no se envían al backend ni se sincronizan entre equipos o perfiles de navegador.
+- Registro por vendor y lote con fecha, URL(s), analista, marca suplantada, categoría, referencia, descripción y estado de gestión.
+- Detección histórica de duplicados por combinación vendor + URL. Las coincidencias se omiten por defecto; el analista puede permitir explícitamente repetirlas cuando exista nueva evidencia o una justificación.
+- Estados de seguimiento: preparado/pendiente, portal abierto, confirmado por analista y descartado/cancelado. La confirmación continúa siendo manual y no demuestra que el vendor haya aceptado el reporte.
+- Exportación completa del historial a JSON o CSV e importación de respaldos en ambos formatos. La importación evita agregar registros que ya tengan el mismo identificador.
+- Filtros de historial por texto, vendor y estado; acciones para copiar nuevamente la plantilla, abrir el portal o eliminar un registro.
+- Plantillas de texto diferenciadas para VirusTotal, FortiGuard, Google Safe Browsing, Netcraft, ESET, Cloudflare, URLAbuse y WatchGuard. Se distingue análisis, reporte de abuso y solicitud de recategorización.
+- No se agregan APIs de vendors, extensiones, dependencias Python, endpoints, tablas SQLite ni envío automatizado. No se automatiza autenticación, CAPTCHA ni el envío externo.
+- El almacenamiento local no es un repositorio central: cada navegador y perfil conserva su propio historial. Se recomienda exportar respaldos periódicos y evitar URLs con tokens, credenciales, datos personales o secretos. El sistema limita el tamaño del historial local para respetar las cuotas habituales del navegador.
+
+### Alcance heredado de v1.9.1 — Etapa 1
 - Nuevo módulo web integrado en la navegación lateral, sin modificar los cuatro módulos SOC existentes.
-- Preparación de lotes de hasta 20 URLs, una por línea, con validación HTTP/HTTPS, rechazo de credenciales embebidas y eliminación de duplicados normalizados.
+- Preparación de lotes de hasta 20 URLs, una por línea, con validación HTTP/HTTPS, rechazo de credenciales embebidas y eliminación de duplicados normalizados dentro del lote.
 - Campos para marca suplantada, analista, categoría, referencia interna y descripción/evidencia.
 - Ocho portales oficiales con instrucciones que distinguen análisis de reputación, reportes de phishing y solicitudes de recategorización.
 - Copia de los datos preparados por vendor o del resumen del lote; apertura individual de cada portal.
-- Estado de actividad únicamente en memoria durante la sesión del navegador. La confirmación de envío requiere acción expresa del analista; abrir un portal no se registra como reporte enviado.
-- No incorpora APIs de vendors, extensiones, dependencias nuevas, endpoints de backend ni almacenamiento de URLs en el servidor. No automatiza el envío ni supera CAPTCHA, autenticación o controles de los proveedores.
 - VirusTotal se presenta como análisis de URL, no como reporte directo a todos sus motores. FortiGuard y WatchGuard se identifican como consulta/revisión de categoría.
 
 ### Portales oficiales incluidos
@@ -52,9 +61,6 @@ Para actualizar: reemplazar el contenido del repositorio GitHub existente con el
 - Cloudflare Abuse: https://abuse.cloudflare.com/
 - URLAbuse: https://urlabuse.com/report
 - WatchGuard URL Categorization: https://www.watchguard.com/securityportal/UrlCategorization.aspx
-
-### Siguiente etapa
-La Etapa 2 queda pendiente de validación operativa: historial persistente y exportable, detección de duplicados históricos, plantillas afinadas por vendor y mejoras de seguimiento. Se mantendrá el alcance sin APIs ni extensiones.
 
 ## Rutas principales
 
@@ -68,7 +74,7 @@ La Etapa 2 queda pendiente de validación operativa: historial persistente y exp
 ## Seguridad y limitaciones operativas
 
 - La aplicación no tiene autenticación. Cualquier persona con acceso a la URL puede consultar el panel y enviar entradas al checklist. No introducir datos de clientes, tickets, IOC internos, credenciales ni información confidencial.
-- Render Free puede suspender el servicio por inactividad. El almacenamiento local SQLite no es persistente garantizado y puede perderse en reinicios o redeploys. No usar el checklist piloto como evidencia formal de auditoría.
+- Render Free puede suspender el servicio por inactividad. El almacenamiento SQLite local del backend no es persistente garantizado y puede perderse en reinicios o redeploys. El historial de Phishing URL Reporter es independiente: reside en el almacenamiento local del navegador del analista y tampoco sustituye un repositorio central o una evidencia formal de auditoría.
 - El mapa utiliza Leaflet y cartografía de OpenStreetMap; requiere conexión a Internet.
 - Las pruebas automatizadas validan lógica y respuestas simuladas; no garantizan disponibilidad en vivo de servicios externos.
 
