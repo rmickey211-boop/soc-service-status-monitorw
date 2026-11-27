@@ -1,4 +1,5 @@
 SOC Service Status Monitor
-Version: 1.9.5-phishing-fortiguard-fix
-Release: Corrección del flujo FortiGuard Web Filter Lookup; URL copiada, no parámetro q no documentado
-Base: v1.9.4 revisada en auditoría local; sitio Render remoto no accesible desde el entorno de verificación
+Version: 1.9.6-phishing-browser-assistant
+Release: Integración opcional con extensión Chrome/Edge para preparación asistida de formularios de phishing
+Base: v1.9.5
+Nota: la extensión realiza relleno heurístico; no envía reportes ni garantiza compatibilidad con cambios de formularios externos.

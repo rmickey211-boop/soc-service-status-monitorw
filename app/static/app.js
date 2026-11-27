@@ -2016,6 +2016,16 @@ loadExecutiveDashboard();
       if (!preparedPayload || !urlsFor(key).length) return;
       const selectedUrl = selectedUrlForCard(card);
       const target = buildVendorPortalUrl(key, selectedUrl);
+      // La extensión opcional recibe únicamente los datos necesarios para preparar el formulario.
+      // Si no está instalada, el flujo web existente sigue funcionando sin cambios.
+      try {
+        window.dispatchEvent(new CustomEvent("soc-phishing-extension-dispatch", {detail:{
+          vendor:key,
+          payload:{brand:preparedPayload.brand, analyst:preparedPayload.analyst, category:preparedPayload.category,
+            reference:preparedPayload.reference, description:preparedPayload.description,
+            urls:payloadUrls(key, preparedPayload, selectedUrl)}
+        }}));
+      } catch (error) { console.warn("No se pudo notificar a la extensión SOC:", error); }
       // Abrir el portal o copiar este texto no confirma un reporte.
       // Open the external site synchronously from the click gesture; cross-origin form fields stay outside our control.
       const opened = window.open(target, "_blank");
