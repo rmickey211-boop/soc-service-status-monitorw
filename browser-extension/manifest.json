@@ -1,9 +1,11 @@
 {
   "manifest_version": 3,
   "name": "SOC Phishing Reporter Assistant",
-  "version": "1.0.0",
-  "description": "Prepara formularios de reporte de phishing desde SOC Service Status Monitor.",
-  "permissions": ["storage"],
+  "version": "1.0.1",
+  "description": "Prepara reportes de phishing y completa campos compatibles de Google Safe Browsing.",
+  "permissions": [
+    "storage"
+  ],
   "host_permissions": [
     "https://soc-service-status-monitor.onrender.com/*",
     "https://www.virustotal.com/*",
@@ -17,8 +19,34 @@
     "https://www.watchguard.com/*"
   ],
   "content_scripts": [
-    {"matches": ["https://soc-service-status-monitor.onrender.com/*"], "js": ["bridge.js"], "run_at": "document_idle"},
-    {"matches": ["https://www.virustotal.com/*", "https://www.fortiguard.com/*", "https://safebrowsing.google.com/*", "https://www.google.com/safebrowsing/*", "https://report.netcraft.com/*", "https://phishing.eset.com/*", "https://abuse.cloudflare.com/*", "https://urlabuse.com/*", "https://www.watchguard.com/securityportal/*"], "js": ["autofill.js"], "run_at": "document_idle"}
+    {
+      "matches": [
+        "https://soc-service-status-monitor.onrender.com/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.virustotal.com/*",
+        "https://www.fortiguard.com/*",
+        "https://safebrowsing.google.com/*",
+        "https://www.google.com/safebrowsing/*",
+        "https://report.netcraft.com/*",
+        "https://phishing.eset.com/*",
+        "https://abuse.cloudflare.com/*",
+        "https://urlabuse.com/*",
+        "https://www.watchguard.com/securityportal/*"
+      ],
+      "js": [
+        "autofill.js"
+      ],
+      "run_at": "document_idle"
+    }
   ],
-  "action": {"default_title": "SOC Phishing Reporter"}
+  "action": {
+    "default_title": "SOC Phishing Reporter"
+  }
 }

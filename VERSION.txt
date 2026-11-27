@@ -1,5 +1,1 @@
-SOC Service Status Monitor
-Version: 1.9.6-phishing-browser-assistant
-Release: Integración opcional con extensión Chrome/Edge para preparación asistida de formularios de phishing
-Base: v1.9.5
-Nota: la extensión realiza relleno heurístico; no envía reportes ni garantiza compatibilidad con cambios de formularios externos.
+1.9.7

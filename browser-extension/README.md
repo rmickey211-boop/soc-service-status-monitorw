@@ -1,23 +1,19 @@
 # SOC Phishing Reporter Assistant — Chrome / Edge
 
-Extensión Manifest V3 para complementar el módulo Phishing URL Reporter del SOC Service Status Monitor. No usa APIs de proveedores ni transmite datos a un backend propio. Los datos se guardan temporalmente en el almacenamiento local de la extensión.
+## Actualización 1.0.1
+Para Google Safe Browsing, la extensión ahora intenta:
+1. Elegir «Esta página no es segura» en Tipo de informe.
+2. Elegir «Ingeniería social» en Tipo de amenaza.
+3. Elegir «Phishing bancario o financiero» en Categoría de amenaza, si Google la ofrece para esa selección.
+4. Pegar la descripción del reporte SOC en «Información adicional».
+5. Completar la URL denunciada.
 
-## Instalación de prueba
-1. Extrae el ZIP en una carpeta local.
-2. Abre `chrome://extensions` en Chrome o `edge://extensions` en Edge.
-3. Activa **Modo desarrollador**.
-4. Selecciona **Cargar descomprimida** y elige esta carpeta `browser-extension`.
-5. Abre o recarga `https://soc-service-status-monitor.onrender.com/`.
-6. Prepara un reporte y pulsa el botón para abrir el portal.
+La selección de categoría depende de que Google habilite y muestre esa opción después de elegir el tipo de amenaza. Si el formulario cambia, el analista deberá completar manualmente el campo pendiente.
 
-## Alcance y seguridad
-- Intenta rellenar campos visibles y reconocibles en VirusTotal, FortiGuard, Google Safe Browsing, Netcraft, ESET, Cloudflare, URLAbuse y WatchGuard.
-- La detección de campos es heurística; depende del HTML, idioma, sesión y cambios del portal. Un proveedor puede cambiar su formulario sin aviso.
-- **Nunca pulsa botones de enviar**, no resuelve CAPTCHA, no inicia sesión, no evita controles anti-bot y no confirma reportes.
-- Categorías sensibles, identidad pública del reportante y opciones ambiguas quedan para selección manual.
-- VirusTotal es análisis de reputación, no reporte directo a todos sus motores. FortiGuard y WatchGuard pueden ser flujos de revisión de categoría.
-- Los portales pueden compartir la información recibida conforme a sus propias políticas. Evita incluir tokens, credenciales o datos personales.
-- La extensión solicita acceso a los dominios indicados en `manifest.json` y al dominio de Render para recibir el paquete de reporte.
+## Instalación / actualización
+1. Descomprime el ZIP.
+2. Abre `chrome://extensions` (Chrome) o `edge://extensions` (Edge).
+3. En la extensión existente, pulsa Recargar; si no actualiza los archivos locales, elimina la versión anterior y vuelve a cargar la carpeta descomprimida.
+4. Recarga la pestaña de Google Safe Browsing.
 
-## Limitaciones conocidas
-Esta primera versión es una automatización asistida de mejor esfuerzo. No se ha validado contra cada formulario autenticado ni con todas las variantes regionales. El analista debe comprobar que cada campo quedó correcto antes de continuar.
+La extensión no pulsa Enviar, no resuelve CAPTCHA y no evita controles del proveedor. Revisa todos los campos antes de enviar.

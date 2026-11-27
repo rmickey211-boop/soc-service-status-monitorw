@@ -22,3 +22,6 @@ Known vendor limitations
 - Cross-domain forms cannot be filled directly by this website without an API or extension. The module prepares/copies fields where supported; the analyst completes CAPTCHA, authentication, fields and final submission at the vendor.
 - URLAbuse and Cloudflare have public/dynamic forms; actual field display can change with vendor site updates.
 - VirusTotal opens URL analysis and is not a universal direct abuse submission.
+
+
+Version 1.9.7: actualización de extensión Google Safe Browsing (autoselección de tipo de informe, tipo/categoría de amenaza y descripción). Prueba de sintaxis JS pendiente de validación en el portal real.
