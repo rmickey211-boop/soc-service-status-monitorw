@@ -1,4 +1,4 @@
-# SOC Service Status Monitor — v1.9.4 (Phishing URL Reporter · asistente por vendor)
+# SOC Service Status Monitor — v1.9.5 (Phishing URL Reporter · corrección FortiGuard)
 
 Panel web de consulta del estado de plataformas y de inteligencia pública de ciberamenazas. Esta entrega corrige la navegación de la interfaz modular.
 
@@ -55,6 +55,7 @@ Para actualizar: reemplazar el contenido del repositorio GitHub existente con el
 ### Portales oficiales incluidos
 - VirusTotal: https://www.virustotal.com/gui/home/url
 - FortiGuard Web Filter: https://www.fortiguard.com/webfilter
+- FortiGuard Web Filter Classification Rating Request: https://www.fortiguard.com/faq/wfratingsubmit
 - Google Safe Browsing — phishing report: https://safebrowsing.google.com/safebrowsing/report_phish/
 - Netcraft: https://report.netcraft.com/report
 - ESET (español): https://phishing.eset.com/es-cl/report
@@ -298,11 +299,11 @@ Las fuentes actuales entregan ventanas activas (24 horas/7 días en noticias y r
 - Sin APIs de vendors, extensiones ni nuevas dependencias. El navegador no permite que la página SOC manipule directamente los campos internos de otro dominio ni pulse el botón de envío externo.
 
 
-## v1.9.4 — Asistente de campos por vendor
+## v1.9.4 — Asistente de campos por vendor (base anterior)
 
 - Se generaliza la selección de URL individual para VirusTotal, FortiGuard, Google Safe Browsing, ESET, Cloudflare y URLAbuse; Netcraft y WatchGuard admiten preparación de lotes.
 - VirusTotal abre su formulario de análisis y copia la URL para pegarla. Es una consulta de reputación, no un reporte directo a cada motor; las URLs enviadas pueden compartirse con partners, por lo que se advierte no enviar tokens ni datos sensibles.
-- FortiGuard abre la consulta con `q=<URL>` y prepara una sugerencia de categoría `Security Risk → Phishing`; la solicitud de revisión se inicia desde el resultado mediante `Request a Review`.
+- FortiGuard en la versión 1.9.4 intentaba abrir la consulta con `q=<URL>`; la v1.9.5 retiró ese parámetro porque no está documentado. Ahora abre Web Filter Lookup, copia la URL para pegarla en el campo de búsqueda y enlaza el formulario oficial de revisión de categoría.
 - Google mantiene la precarga de URL mediante `url=<URL>`; tipo de amenaza (`Ingeniería social`) y categoría (`Phishing bancario o financiero`) deben seleccionarse manualmente. La información adicional se copia por separado.
 - Netcraft prepara el lote en líneas separadas para su opción `Report in bulk`; los detalles adicionales se copian en otro campo. El correo de contacto es opcional y lo completa el analista.
 - ESET presenta campos separados para URL, organización suplantada y comentarios, según su formulario de reporte de phishing.
@@ -311,3 +312,13 @@ Las fuentes actuales entregan ventanas activas (24 horas/7 días en noticias y r
 - WatchGuard prepara las URLs en líneas separadas con la categoría sugerida `Phishing and Other Frauds`; el portal puede requerir inicio de sesión y reCAPTCHA.
 - Al abrir un portal, la página muestra un asistente con botón de copia por campo y copia automáticamente el primer campo útil. Los campos externos que no admiten una precarga pública se completan mediante pegado manual.
 - Se mantiene el envío manual; no se utilizan APIs, extensiones, automatización entre dominios ni mecanismos para eludir CAPTCHA o autenticación.
+
+
+## v1.9.5 — Corrección del flujo FortiGuard
+- Se elimina el parámetro `q` del enlace FortiGuard: no se encontró documentado en el flujo oficial y no debe presentarse como precarga funcional.
+- El botón abre el portal Web Filter Lookup y copia la URL seleccionada para pegarla en el campo de búsqueda.
+- El asistente prioriza copiar la URL, no la categoría sugerida.
+- Se añade un acceso directo al formulario oficial de solicitud de revisión de categoría de FortiGuard.
+- Se actualizan los textos para diferenciar consulta de rating y solicitud de recategorización.
+- Google conserva el deep-link `url` que el usuario verificó en el formulario real.
+- El resto de los vendors conserva los flujos específicos anteriores.

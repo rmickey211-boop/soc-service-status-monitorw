@@ -796,7 +796,7 @@ main{max-width:none;margin:0;padding:0;min-height:calc(100vh - 68px)}
 .phishing-vendor-note code{padding:1px 4px;border-radius:4px;background:#17283b;color:#bfe6ff;font-size:9px}
 
 
-/* v1.9.4 — vendor form assistant */
+/* v1.9.5 — FortiGuard lookup workflow correction */
 .phishing-template-guidance{margin:12px 0;padding:10px 12px;border:1px solid #3a526d;border-radius:8px;background:#102238;color:#bcd0e4;font-size:11px;line-height:1.55}
 .phishing-template-fields{display:grid;gap:10px;max-height:55vh;overflow:auto;padding-right:3px}
 .phishing-template-field{padding:11px;border:1px solid #2a4058;border-radius:8px;background:#0a1523}

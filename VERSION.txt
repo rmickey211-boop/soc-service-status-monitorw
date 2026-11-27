@@ -1,4 +1,4 @@
 SOC Service Status Monitor
-Version: 1.9.4-phishing-vendor-assistant
-Release: Phishing URL Reporter — asistente de campos por vendor, precargas verificadas y seguimiento individual
-Base: v1.9.3 validada por el usuario
+Version: 1.9.5-phishing-fortiguard-fix
+Release: Corrección del flujo FortiGuard Web Filter Lookup; URL copiada, no parámetro q no documentado
+Base: v1.9.4 revisada en auditoría local; sitio Render remoto no accesible desde el entorno de verificación

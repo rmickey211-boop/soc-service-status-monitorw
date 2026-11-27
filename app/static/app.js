@@ -1308,7 +1308,7 @@ async function loadExecutiveDashboard() {
 
 loadExecutiveDashboard();
 
-// v1.9.4 — Phishing URL Reporter (asistente de campos y deep-links verificados)
+// v1.9.5 — Corrección FortiGuard: URL al portapapeles, sin parámetro q no documentado
 (() => {
   const $p = id => document.getElementById(id);
   const vendorNames = {
@@ -1602,8 +1602,8 @@ loadExecutiveDashboard();
       add("URL para analizar", urlText, {autoCopy:true, hint:"Pega la URL en VirusTotal para iniciar el análisis. Esto consulta reputación; no es un reporte directo a cada motor."})
     ];
     if (vendorKey === "fortiguard") return [
-      add("URL consultada", urlText, {hint:"Se incluye en el enlace de búsqueda q=; verifica que el resultado corresponda a esta URL."}),
-      add("Categoría sugerida", "Security Risk → Phishing", {autoCopy:true, hint:"FortiGuard clasifica Phishing dentro de Security Risk. En Request a Review, elige la categoría disponible que corresponda."}),
+      add("URL para consultar", urlText, {autoCopy:true, hint:"FortiGuard no documenta un parámetro público de precarga para este formulario. La URL se copia automáticamente; pégala en el campo de Web Filter Lookup."}),
+      add("Categoría sugerida", "Security Risk → Phishing", {hint:"FortiGuard clasifica Phishing dentro de Security Risk. En Request a Review, elige la categoría disponible que corresponda."}),
       add("Justificación de revisión", context, {hint:"Pega este texto en el campo de explicación si aparece en el formulario de revisión."})
     ];
     if (vendorKey === "google") {
@@ -1650,11 +1650,12 @@ loadExecutiveDashboard();
   function buildVendorPortalUrl(vendorKey, selectedUrl = null) {
     const card = cards.find(item => item.dataset.vendor === vendorKey);
     const base = card?.querySelector(".vendor-open")?.dataset.url || vendorPortals[vendorKey];
-    if (selectedUrl && (vendorKey === "google" || vendorKey === "fortiguard")) {
+    // Google has a tested `url` deep-link. FortiGuard's official workflow asks
+    // analysts to paste the URL in Web Filter Lookup; do not invent a `q` query.
+    if (selectedUrl && vendorKey === "google") {
       const target = new URL(base);
-      if (vendorKey === "google") target.searchParams.set("hl", "es");
-      if (vendorKey === "fortiguard") target.searchParams.set("q", selectedUrl);
-      else target.searchParams.set("url", selectedUrl);
+      target.searchParams.set("hl", "es");
+      target.searchParams.set("url", selectedUrl);
       return target.toString();
     }
     return base;
@@ -1671,7 +1672,7 @@ loadExecutiveDashboard();
     $p("phishingTemplateTitle").textContent = `Campos para completar · ${vendorNames[vendorKey]}`;
     const guidance = vendorTemplates[vendorKey]?.guidance || "Copia cada dato y pégalo en el campo equivalente del portal externo.";
     let extra = "El portal se abrió en otra pestaña. Copia cada campo por separado y pégalo en su campo equivalente; el envío siempre se realiza y confirma en el sitio del proveedor.";
-    if (vendorKey === "fortiguard") extra += " La URL va precargada en la búsqueda; después de revisar el rating, utiliza Request a Review si corresponde.";
+    if (vendorKey === "fortiguard") extra += " La URL se copia al portapapeles; pégala en el campo de Web Filter Lookup. Si la clasificación es incorrecta o no está asignada, utiliza Request a Review o el formulario oficial de revisión.";
     if (vendorKey === "google") extra += " La URL va en el enlace; debes seleccionar manualmente Ingeniería social y Phishing bancario o financiero.";
     if (vendorKey === "cloudflare") extra += " Cloudflare solicita dominio y enlace específico; informa solo sitios que resuelvan hacia IPs o servicios de Cloudflare.";
     if (vendorKey === "urlabuse") extra += " El nombre del reportante puede quedar visible públicamente.";
@@ -2040,7 +2041,7 @@ loadExecutiveDashboard();
         vendorStates[key] = {...vendorStates[key],opened:false,blocked:true,confirmed:false};
       }
       updateVendorCard(card); updateSummary();
-      const action = (key === "google" || key === "fortiguard") ? "Apertura de enlace con URL precargada" : "Apertura de portal + preparación de campo";
+      const action = key === "google" ? "Apertura de enlace con URL precargada" : (key === "fortiguard" ? "Apertura de Web Filter y copia de URL" : "Apertura de portal + preparación de campo");
       addActivity(vendorNames[key], action, opened ? "Portal abierto; campos listos para pegar; envío pendiente" : "Apertura bloqueada por el navegador");
       if (!opened) toast("El navegador bloqueó la pestaña. Permite ventanas emergentes e intenta nuevamente.");
     });

@@ -1,36 +1,24 @@
-SOC Service Status Monitor v1.9.4 — QA results
+SOC Service Status Monitor v1.9.5 — QA results
 
-Base: full project ZIP v1.9.3 validated by the user (including the live Google URL prefill check).
+Audited source: full v1.9.4 project archive supplied in this conversation.
 
-Automated tests
-- pytest: 93 passed, 0 failed.
-- JavaScript syntax: node --check app/static/app.js passed.
-- Version health endpoint test: reports 1.9.4-phishing-vendor-assistant.
+Checks completed locally
+- pytest: 94 passed, 0 failed (2 existing FastAPI deprecation warnings).
+- JavaScript syntax: node --check app/static/app.js.
+- FastAPI TestClient: GET /, /static/index.html, /static/app.js, /static/style.css and /api/health return HTTP 200; /api/health reports 1.9.5-phishing-fortiguard-fix.
+- Browser logic smoke test: Chromium (Playwright) loaded the HTML and application JS with a localStorage/clipboard/window.open test shim. The Phishing URL Reporter rendered all eight vendor cards and preview fields; URL validation, batch preparation, per-URL selection, portal URL generation, copy-field selection, history records, and manual confirmation gating were exercised without JS page errors. The FortiGuard button opened the base Web Filter lookup URL, copied the selected URL, and did not add an unverified `q` parameter. Google retained its URL deep-link. Netcraft/WatchGuard batch copy was verified.
 
-Vendor-specific workflows
-- VirusTotal: opens the official URL-analysis page and copies the selected URL. Correctly described as reputation analysis, not a direct submission to every engine; UI warns about potential sharing with partners.
-- FortiGuard: opens Web Filter with the selected URL in the q query parameter; prepares Security Risk → Phishing guidance and asks the analyst to use Request a Review where appropriate.
-- Google Safe Browsing: retains the URL prefill pattern verified by the user's live screenshot; threat type and category remain manual selections; additional details are copied separately.
-- Netcraft: prepares URLs one per line for Report in bulk and supplies additional details separately.
-- ESET: separates URL, impersonated organization and comments for the official phishing form.
-- Cloudflare: separates the abuse category Phishing & Malware, domain in question, specific phishing link, affected brand and explanation; warns to report only where Cloudflare service/IP involvement is established.
-- URLAbuse: separates malicious URL, target/brand, abuse type and reporter name; warns that reporter name/nickname may be publicly displayed and must be completed with an approved alias.
-- WatchGuard: prepares the URL list with the suggested WebBlocker category Phishing and Other Frauds per line; warns that portal login/CAPTCHA may be required.
+FortiGuard correction
+- Removed the unverified `q` query parameter. Fortinet's published instructions say to enter the URL into Web Filter Lookup, then use the category review workflow as appropriate.
+- The FortiGuard button now opens Web Filter Lookup and copies the selected URL as the primary field.
+- Added a direct link to Fortinet's Web Filter Classification Rating Request.
+- The FortiGuard helper now offers Security Risk → Phishing as a suggested category but does not copy it in place of the URL.
 
-Workflow safeguards
-- Single-URL vendors (VirusTotal, FortiGuard, Google, ESET, Cloudflare and URLAbuse) expose a per-URL selector for multi-URL batches.
-- Netcraft and WatchGuard retain batch workflows.
-- Manual confirmation is blocked until all individual URL portals have been opened, or the batch portal has been opened for batch vendors.
-- Opening a portal or copying fields never marks a report as submitted; status remains pending until the analyst confirms manually.
-- No vendor API calls, browser extensions, third-party automation, new Python dependencies, backend routes or database migrations were added.
-- External form fields remain under the vendor site’s control; the SOC page cannot set cross-origin fields or press external Submit buttons. Where an official prefill parameter is not verified, the assistant copies fields individually instead of inventing a URL parameter.
+Live deployment limitation
+- The public Render URL could not be fetched from this execution environment (web access returned DisabledError and container DNS could not resolve the host). Therefore the live Render deployment, its current commit, and real navigation from the published page could not be independently verified.
+- Chromium navigation to the local HTTP server and file:// origin is blocked by the execution policy. The browser smoke test used set_content with test shims; it is not a full end-to-end external-vendor navigation test.
 
-Scope and limitations
-- Browser-only assistant; the per-analyst history continues to use local browser storage from v1.9.2.
-- Google selectors remain manual. FortiGuard preloads its search URL; category review must be requested on the result page. Other fields must be pasted into the corresponding external form fields.
-- Authentication, CAPTCHA and final submission remain manual.
-- Vendor site layouts can change; verify each form in the live portal after deployment.
-
-Warnings
-- Existing FastAPI startup-event deprecation warnings remain unrelated to this release.
-- Chromium end-to-end navigation to the local Uvicorn host was blocked by the execution environment's browser policy; no claim of full live-browser E2E verification is made in this package.
+Known vendor limitations
+- Cross-domain forms cannot be filled directly by this website without an API or extension. The module prepares/copies fields where supported; the analyst completes CAPTCHA, authentication, fields and final submission at the vendor.
+- URLAbuse and Cloudflare have public/dynamic forms; actual field display can change with vendor site updates.
+- VirusTotal opens URL analysis and is not a universal direct abuse submission.

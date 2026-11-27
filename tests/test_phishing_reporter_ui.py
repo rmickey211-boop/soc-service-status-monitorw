@@ -19,7 +19,7 @@ def test_reporter_is_browser_only_and_does_not_add_backend_routes_or_dependencie
     base, _, js = _sources()
     main = (base / "app/main.py").read_text(encoding="utf-8")
     requirements = (base / "requirements.txt").read_text(encoding="utf-8")
-    marker = "// v1.9.4 — Phishing URL Reporter"
+    marker = "// v1.9.5 — Corrección FortiGuard"
     assert marker in js
     assert "localStorage" in js[js.index(marker):]
     assert "fetch(" not in js[js.index(marker):]
@@ -96,10 +96,13 @@ def test_vendor_assistant_copies_fields_separately_and_opens_single_url_vendors_
     assert 'Portal preparado para ${openedUrls.length}/${urls.length} URL(s)' in js
 
 
-def test_fortiguard_and_watchguard_have_vendor_supported_prefill_workflows():
+def test_fortiguard_and_watchguard_use_documented_manual_and_batch_workflows():
     _, html, js = _sources()
-    assert 'target.searchParams.set("q", selectedUrl)' in js
+    assert 'add("URL para consultar", urlText, {autoCopy:true' in js
+    assert 'target.searchParams.set("q", selectedUrl)' not in js
     assert 'Security Risk → Phishing' in js
+    assert 'https://www.fortiguard.com/faq/wfratingsubmit' in html
+    assert 'Abrir Web Filter + copiar URL' in html
     assert 'Phishing and Other Frauds' in js
     assert 'class="phishing-vendor-url-picker"' in html
 
@@ -114,23 +117,34 @@ def test_cloudflare_eset_netcraft_and_urlabuse_fields_follow_their_official_form
     assert 'se muestra públicamente' in js
 
 
-def test_v194_fortiguard_link_is_prefilled_and_google_choices_remain_explicitly_manual():
+def test_v195_fortiguard_does_not_fake_url_prefill_and_google_choices_remain_manual():
     _, _, js = _sources()
-    assert 'target.searchParams.set("q", selectedUrl)' in js
+    assert 'target.searchParams.set("q", selectedUrl)' not in js
     assert 'target.searchParams.set("url", selectedUrl)' in js
+    assert 'La URL se copia al portapapeles' in js
     assert 'Ingeniería social' in js
     assert 'Phishing bancario o financiero' in js
     assert 'Seleccionar manualmente en el formulario de Google' in js
 
 
-def test_v194_confirmation_requires_the_vendor_portal_to_have_been_opened():
+def test_v195_confirmation_requires_the_vendor_portal_to_have_been_opened():
     _, _, js = _sources()
     assert 'if (!vendorStates[key]?.opened || vendorStates[key]?.confirmed) return;' in js
     assert 'confirm.disabled = needsOneByOne ? (!allSelectedUrlsOpened || !!state.confirmed)' in js
 
 
-def test_v194_watchguard_batch_and_cloudflare_domain_specific_link_are_both_prepared():
+def test_v195_watchguard_batch_and_cloudflare_domain_specific_link_are_both_prepared():
     _, _, js = _sources()
     assert 'urls.map(url => `${url}, Phishing and Other Frauds`).join("\\n")' in js
     assert 'new URL(urls[0]).hostname' in js
     assert 'Specific phishing link' in js
+
+
+def test_fortiguard_primary_copy_is_url_and_portal_does_not_claim_prefill():
+    _, html, js = _sources()
+    forti = html[html.index('data-vendor="fortiguard"'):html.index('data-vendor="google"')]
+    assert 'Abrir Web Filter + copiar URL' in forti
+    assert 'FortiGuard no documenta una precarga' in forti
+    assert 'add("URL para consultar", urlText, {autoCopy:true' in js
+    assert 'add("Categoría sugerida", "Security Risk → Phishing", {hint:' in js
+    assert 'target.searchParams.set("q", selectedUrl)' not in js
