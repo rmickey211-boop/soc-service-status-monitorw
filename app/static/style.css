@@ -790,7 +790,22 @@ main{max-width:none;margin:0;padding:0;min-height:calc(100vh - 68px)}
 @media(max-width:480px){.phishing-vendor-actions{flex-direction:column}.phishing-vendor-actions .phishing-btn{width:100%;flex-basis:auto}.phishing-history-tools{display:grid;grid-template-columns:1fr 1fr;width:100%}.phishing-template-shell{padding:13px}.phishing-template-actions{flex-direction:column}.phishing-template-actions .phishing-btn{width:100%}}
 
 /* v1.9.3 — vendor-specific form preparation */
-.phishing-google-url-picker{display:grid;gap:5px;margin:8px 0 10px;color:#aec3d9;font-size:9px;font-weight:700}
-.phishing-google-url-picker[hidden]{display:none}
-.phishing-google-url-picker select{width:100%;min-width:0;padding:8px 9px;border:1px solid #30465f;border-radius:6px;background:#0a1421;color:#dce8f6;font:10px Inter,Segoe UI,Arial,sans-serif}
+.phishing-vendor-url-picker{display:grid;gap:5px;margin:8px 0 10px;color:#aec3d9;font-size:9px;font-weight:700}
+.phishing-vendor-url-picker[hidden]{display:none}
+.phishing-vendor-url-picker select{width:100%;min-width:0;padding:8px 9px;border:1px solid #30465f;border-radius:6px;background:#0a1421;color:#dce8f6;font:10px Inter,Segoe UI,Arial,sans-serif}
 .phishing-vendor-note code{padding:1px 4px;border-radius:4px;background:#17283b;color:#bfe6ff;font-size:9px}
+
+
+/* v1.9.4 — vendor form assistant */
+.phishing-template-guidance{margin:12px 0;padding:10px 12px;border:1px solid #3a526d;border-radius:8px;background:#102238;color:#bcd0e4;font-size:11px;line-height:1.55}
+.phishing-template-fields{display:grid;gap:10px;max-height:55vh;overflow:auto;padding-right:3px}
+.phishing-template-field{padding:11px;border:1px solid #2a4058;border-radius:8px;background:#0a1523}
+.phishing-template-field-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:7px}
+.phishing-template-field-head strong{font-size:11px;color:#dbe9f8}
+.phishing-template-field pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:#b9cadc;font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
+.phishing-template-field small{display:block;margin-top:6px;color:#8da6bf;font-size:9px;line-height:1.45}
+.phishing-template-field .phishing-btn{padding:5px 10px;font-size:9px;min-width:75px}
+.phishing-template-field.manual{border-color:#695531;background:#211b10}
+.phishing-template-field.manual .phishing-template-field-head strong{color:#f1d29a}
+.phishing-template-field .manual-tag{font-size:8px;color:#e8c17e;text-transform:uppercase;letter-spacing:.06em}
+.phishing-template-actions{flex-wrap:wrap}

@@ -25,4 +25,4 @@ def test_news_ui_has_source_filter_and_new_vulnerability_category():
     assert 'id="intelSourceFilter"' in html
     assert 'data-intel-category="vulnerabilities"' in html
     assert 'vulnerabilities: "Vulnerabilidades"' in js
-    assert "1.9.3-phishing-reporter-prefill" in html
+    assert "1.9.4-phishing-vendor-assistant" in html

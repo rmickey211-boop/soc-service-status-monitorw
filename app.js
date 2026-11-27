@@ -1,12 +1,13 @@
 const labels={operational:"OPERATIVO",info:"AVISO",degraded:"DEGRADADO",outage:"INDISPONIBILIDAD",maintenance:"MANTENIMIENTO",manual:"CONSULTA MANUAL",unknown:"SIN INFORMACIÓN"};
-const $=id=>document.getElementById(id);let cache=[],catalog=[];
+const $=id=>document.getElementById(id);let cache=[],catalog=[],eventCache=[],platformEventDateFilter="";
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function date(s){if(!s)return "Aún no consultado";try{return new Date(s).toLocaleString("es-CL",{hour12:false})}catch{return s}}
 function ageInfo(s){if(!s.checked_at)return {text:s.status==="manual"?"Revisión manual requerida":"Nunca consultado",kind:"never",mins:null};let mins=Math.max(0,Math.floor((Date.now()-new Date(s.checked_at).getTime())/60000));if(!Number.isFinite(mins))return {text:"Antigüedad desconocida",kind:"never",mins:null};if(mins>=60)return {text:`Desactualizado · ${mins} min`,kind:"stale",mins};return {text:mins<1?"Hace menos de 1 min":`Actualizado hace ${mins} min`,kind:"fresh",mins}}
 function render(){const term=$("search").value.trim().toLowerCase(),cat=$("category").value,state=$("state").value,fresh=$("freshFilter").value;
  const rows=cache.filter(s=>{const a=ageInfo(s);return (!term||s.name.toLowerCase().includes(term)||s.category.toLowerCase().includes(term))&&(!cat||s.category===cat)&&(!state||s.status===state)&&(!fresh||a.kind===fresh)});
- $("services").innerHTML=rows.map(s=>{const a=ageInfo(s);return `<article class="service service-clickable" data-service-id="${esc(s.id)}" tabindex="0" role="button" aria-label="Ver detalle de ${esc(s.name)}"><div class="service-top"><div><span class="service-name">${esc(s.name)}</span><div class="category">${esc(s.category||"General")}</div></div><span class="pill ${esc(s.status)}">${labels[s.status]||"SIN INFORMACIÓN"}</span></div><div class="service-desc">${esc(s.description||s.error||"Pendiente de consulta")}</div><div class="service-foot"><span class="age ${a.kind}">${esc(a.text)}</span><span class="portal-area"><a class="portal-btn" href="${esc(s.source_url||"#")}" target="_blank" rel="noopener noreferrer" data-no-detail>${esc(s.portal_label||"Abrir portal oficial")} ↗</a></span></div><div class="detail-hint">Seleccionar para ver desglose e imagen del portal ↗</div>${s.error?`<div class="error-line">No se pudo consultar automáticamente: ${esc(s.error)}</div>`:""}</article>`}).join("")||'<div class="loading">No hay plataformas que coincidan con los filtros.</div>';
+ $("services").innerHTML=rows.map(s=>{const a=ageInfo(s);return `<article class="service service-clickable" data-service-id="${esc(s.id)}" tabindex="0" role="button" aria-label="Ver detalle de ${esc(s.name)}"><div class="service-top"><div><span class="service-name">${esc(s.name)}</span><div class="category">${esc(s.category||"General")}</div></div><span class="pill ${esc(s.status)}">${labels[s.status]||"SIN INFORMACIÓN"}</span></div><div class="service-desc">${esc(s.description||s.error||"Pendiente de consulta")}</div><div class="service-foot"><span class="age ${a.kind}">${esc(a.text)}</span><span class="portal-area"><a class="portal-btn" href="${esc(s.source_url||"#")}" target="_blank" rel="noopener noreferrer" data-no-detail>${esc(s.portal_label||"Abrir portal oficial")} ↗</a></span></div><div class="detail-hint">Seleccionar para ver el detalle y el enlace oficial ↗</div>${s.error?`<div class="error-line">No se pudo consultar automáticamente: ${esc(s.error)}</div>`:""}</article>`}).join("")||'<div class="loading">No hay plataformas que coincidan con los filtros.</div>';
  updateMetricSelection();
+ renderPlatformDrillFilter();
 }
 function updateMetricSelection(){
  const selectedState=$("state").value;
@@ -18,7 +19,6 @@ function updateMetricSelection(){
    card.setAttribute("aria-pressed",active?"true":"false");
  });
 }
-function renderChecklistOptions(){const groups={};for(const s of catalog){const c=s.category||"General";(groups[c]??=[]).push(s)}$("checklistServices").innerHTML=Object.entries(groups).map(([cat,items])=>`<div class="check-group"><b>${esc(cat)}</b><div class="check-items">${items.map(s=>`<label class="check-item"><input type="checkbox" class="service-check" value="${esc(s.id)}"><span>${esc(s.name)}</span><small>${s.type==="manual"?"Manual":"Fuente pública"}</small></label>`).join("")}</div></div>`).join("");}
 
 const detailDialog=$("detailDialog");
 function prettyStatus(value){
@@ -30,10 +30,9 @@ function renderDetail(payload){
  const s=payload.service, latest=payload.latest, live=payload.live||{};
  $("detailTitle").textContent=s.name;
  $("detailSubtitle").textContent=`${s.category} · ${s.type==="manual"?"Revisión manual":"Fuente automática"} · Consultado ${detailDate(payload.retrieved_at)}`;
- const comps=(live.components||[]).map(c=>`<div class="detail-row"><div><b>${esc(c.name)}</b>${c.description?`<small>${esc(c.description)}</small>`:""}</div><span class="pill ${esc(c.status)}">${esc(prettyStatus(c.status))}</span></div>`).join("");
- const incidents=(live.incidents||[]).map(i=>`<article class="detail-incident"><div class="detail-row"><b>${esc(i.name||"Incidente")}</b><span class="pill ${esc(i.impact||i.status||"unknown")}">${esc(prettyStatus(i.impact||i.status||"unknown"))}</span></div><small>Inicio: ${esc(detailDate(i.created_at))} · Actualización: ${esc(detailDate(i.updated_at))}</small>${i.locations?`<p><b>Ubicaciones:</b> ${esc(i.locations)}</p>`:""}${i.body?`<p>${esc(i.body)}</p>`:""}${(i.updates||[]).map(u=>`<div class="detail-update"><b>${esc(u.status||"Actualización")}</b> · ${esc(detailDate(u.created_at||u.display_at))}<p>${esc(u.body||"")}</p></div>`).join("")}</article>`).join("");
- const maint=(live.maintenances||[]).map(m=>`<article class="detail-incident"><b>${esc(m.name)}</b><small>${esc(m.status)} · ${esc(detailDate(m.scheduled_for))} – ${esc(detailDate(m.scheduled_until))}</small>${(m.updates||[]).map(u=>`<p>${esc(u.body)}</p>`).join("")}</article>`).join("");
- const screenshotUrl="https://s.wordpress.com/mshots/v1/"+encodeURIComponent(s.base_url)+"?w=1400&v="+Date.now();
+ const comps=(live.components||[]).slice(0,6).map(c=>`<div class="detail-row"><div><b>${esc(c.name)}</b>${c.description?`<small>${esc(c.description)}</small>`:""}</div><span class="pill ${esc(c.status)}">${esc(prettyStatus(c.status))}</span></div>`).join("");
+ const incidents=(live.incidents||[]).slice(0,3).map(i=>`<article class="detail-incident"><div class="detail-row"><b>${esc(i.name||"Incidente")}</b><span class="pill ${esc(i.impact||i.status||"unknown")}">${esc(prettyStatus(i.impact||i.status||"unknown"))}</span></div><small>Inicio: ${esc(detailDate(i.created_at))} · Actualización: ${esc(detailDate(i.updated_at))}</small>${i.locations?`<p><b>Ubicaciones:</b> ${esc(i.locations)}</p>`:""}${i.body?`<p>${esc((i.body||"").slice(0,420))}</p>`:""}${(i.updates||[]).map(u=>`<div class="detail-update"><b>${esc(u.status||"Actualización")}</b> · ${esc(detailDate(u.created_at||u.display_at))}<p>${esc((u.body||"").slice(0,240))}</p></div>`).join("")}</article>`).join("");
+ const maint=(live.maintenances||[]).slice(0,3).map(m=>`<article class="detail-incident"><b>${esc(m.name)}</b><small>${esc(m.status)} · ${esc(detailDate(m.scheduled_for))} – ${esc(detailDate(m.scheduled_until))}</small>${(m.updates||[]).map(u=>`<p>${esc(u.body)}</p>`).join("")}</article>`).join("");
  $("detailBody").innerHTML=`
   <div class="detail-summary">
    <div><span class="eyebrow">ESTADO PUBLICADO AHORA</span><h3><span class="pill ${esc(live.status||"unknown")}">${esc(prettyStatus(live.status||"unknown"))}</span></h3><p>${esc(live.source_status||"Sin resumen del proveedor")}</p><small>Consulta en vivo: ${esc(detailDate(payload.retrieved_at))}</small></div>
@@ -44,13 +43,7 @@ function renderDetail(payload){
   <section class="detail-section"><h3>Componentes y servicios</h3>${comps||'<p class="muted">La fuente no publica un desglose de componentes para esta integración.</p>'}</section>
   <section class="detail-section"><h3>Incidentes y actualizaciones</h3>${incidents||'<p class="muted">No hay incidentes activos publicados en esta respuesta.</p>'}</section>
   <section class="detail-section"><h3>Mantenimientos</h3>${maint||'<p class="muted">No se informan mantenimientos en esta respuesta.</p>'}</section>
-  <section class="detail-section screenshot-section"><div class="screenshot-heading"><div><h3>Imagen actual del portal oficial</h3><p>Captura generada bajo demanda mediante un servicio externo. Puede tardar unos segundos o no estar disponible si el portal bloquea capturas.</p></div><a class="portal-btn" href="${esc(s.base_url)}" target="_blank" rel="noopener noreferrer">Abrir portal ↗</a></div>
-   <div class="screenshot-frame"><div class="screenshot-loading" id="screenshotLoading">Generando captura del portal…</div><img id="portalScreenshot" src="${esc(screenshotUrl)}" alt="Captura reciente del portal ${esc(s.name)}" loading="lazy" referrerpolicy="no-referrer"><div id="screenshotError" class="screenshot-error" hidden>No fue posible generar la imagen del portal. Utiliza el botón «Abrir portal» para consultar la fuente original.</div></div>
-  </section>
   <div class="detail-footer"><span>Los estados corresponden a fuentes públicas y no necesariamente reflejan el tenant o instancia particular de tu organización.</span><a class="portal-btn" href="${esc(s.base_url)}" target="_blank" rel="noopener noreferrer">${esc(s.portal_label||"Abrir portal oficial")} ↗</a></div>`;
- const img=$("portalScreenshot"), loading=$("screenshotLoading"), err=$("screenshotError");
- img.addEventListener("load",()=>{loading.hidden=true;img.classList.add("loaded")},{once:true});
- img.addEventListener("error",()=>{loading.hidden=true;err.hidden=false;img.hidden=true},{once:true});
 }
 async function openServiceDetail(id){
  detailDialog.showModal();
@@ -77,16 +70,167 @@ $("services").addEventListener("keydown",e=>{
  if((e.key==="Enter"||e.key===" ")&&e.target.matches("[data-service-id]")){e.preventDefault();openServiceDetail(e.target.dataset.serviceId);}
 });
 
-async function load(){try{const [sr,er,cr,kr]=await Promise.all([fetch("/api/status"),fetch("/api/events?limit=100"),fetch("/api/config"),fetch("/api/checklist?limit=50")]);if(!sr.ok||!er.ok||!cr.ok||!kr.ok)throw new Error("API no disponible");const data=await sr.json(),events=await er.json(),config=await cr.json(),runs=await kr.json();cache=data.services;catalog=config.services;
+// ---------------------------------------------------------------------------
+// Fase 2 — Visualizaciones del módulo Estado de plataformas
+// ---------------------------------------------------------------------------
+
+function localDateKey(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function buildDailyTimeline(items, dateKey, days=7) {
+  const today=new Date(); today.setHours(0,0,0,0);
+  const buckets=[];
+  for(let offset=days-1;offset>=0;offset--){
+    const day=new Date(today); day.setDate(today.getDate()-offset);
+    buckets.push({key:localDateKey(day),label:day.toLocaleDateString("es-CL",{day:"2-digit",month:"short"}),count:0});
+  }
+  const lookup=new Map(buckets.map((item,index)=>[item.key,index]));
+  (items||[]).forEach(item=>{
+    const stamp=item[dateKey]; if(!stamp)return;
+    const key=localDateKey(stamp); const index=lookup.get(key);
+    if(index!==undefined)buckets[index].count+=1;
+  });
+  return buckets;
+}
+function buildFourHourTimeline(items,dateKey) {
+  const now=new Date(), width=4*60*60*1000, current=Math.floor(now.getTime()/width)*width;
+  const buckets=[];
+  for(let offset=5;offset>=0;offset--){
+    const start=new Date(current-offset*width), end=new Date(start.getTime()+width);
+    buckets.push({start:start.getTime(),end:end.getTime(),key:start.toISOString(),label:start.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}),count:0});
+  }
+  (items||[]).forEach(item=>{
+    const stamp=new Date(item[dateKey]||"").getTime(); if(!Number.isFinite(stamp))return;
+    const bucket=buckets.find(x=>stamp>=x.start&&stamp<x.end);
+    if(bucket)bucket.count+=1;
+  });
+  return buckets;
+}
+function renderTimelineChart(targetId,buckets,options={}) {
+  const node=$(targetId); if(!node)return;
+  const max=Math.max(1,...(buckets||[]).map(x=>Number(x.count||x.total||0)));
+  if(!(buckets||[]).some(x=>Number(x.count||x.total||0)>0)){
+    node.innerHTML=`<span class="module-chart-empty">${esc(options.empty||"Sin registros para graficar.")}</span>`;
+    return;
+  }
+  node.innerHTML=`<div class="module-timeline-columns">${buckets.map(item=>{
+    const value=Number(item.count||item.total||0), height=value?Math.max(4,value/max*100):0;
+    const title=`${item.label}: ${value} registros`;
+    let segments="";
+    if(options.stacked){
+      const a=Number(item.RansomLook||0), b=Number(item["Ransomware.live"]||0), sum=a+b||1;
+      segments=`<i class="timeline-segment rlook" style="height:${(a/sum*height).toFixed(2)}%"></i><i class="timeline-segment rlive" style="height:${(b/sum*height).toFixed(2)}%"></i>`;
+    } else {
+      segments=`<i style="height:${height.toFixed(2)}%;background:${options.color||"#5daaf5"}"></i>`;
+    }
+    const drill = options.filterType
+      ? `type="button" class="module-timeline-column module-chart-drilldown${options.isActive?.(item) ? " is-active" : ""}" data-chart-filter="${esc(options.filterType)}" data-chart-value="${esc(item.key||"")}" data-chart-start="${Number(item.start||0)}" data-chart-end="${Number(item.end||0)}" aria-label="Filtrar por ${esc(item.label)}: ${value} registros"`
+      : `class="module-timeline-column"`;
+    const tag = options.filterType ? "button" : "div";
+    return `<${tag} ${drill} title="${esc(title)}"><b>${value||""}</b><div class="module-timeline-track">${segments}</div><small>${esc(item.label)}</small></${tag}>`;
+  }).join("")}</div>${options.stacked?'<div class="module-chart-legend-inline"><span><i class="rlook"></i>RansomLook</span><span><i class="rlive"></i>Ransomware.live</span></div>':""}`;
+}
+function renderHorizontalChart(targetId,items,options={}) {
+  const node=$(targetId); if(!node)return;
+  const rows=(items||[]).filter(item=>Number(item.value||0)>0).sort((a,b)=>b.value-a.value).slice(0,options.limit||8);
+  if(!rows.length){node.innerHTML=`<span class="module-chart-empty">${esc(options.empty||"Sin registros para graficar.")}</span>`;return;}
+  const max=Math.max(1,...rows.map(x=>Number(x.value||0)));
+  node.innerHTML=rows.map(item=>{
+    const width=Math.max(2,Number(item.value||0)/max*100);
+    const drill=options.filterType?`type="button" class="module-horizontal-row module-chart-drilldown${options.isActive?.(item) ? " is-active" : ""}" data-chart-filter="${esc(options.filterType)}" data-chart-value="${esc(item.filterValue??item.label)}" aria-label="Filtrar ${esc(item.label)}: ${Number(item.value).toLocaleString("es-CL")} registros"`:`class="module-horizontal-row"`;
+    const tag=options.filterType?"button":"div";
+    return `<${tag} ${drill}><div class="module-horizontal-label"><span>${esc(item.label)}</span><b>${Number(item.value).toLocaleString("es-CL")}</b></div><div class="module-horizontal-track"><i style="width:${width.toFixed(1)}%;background:${item.color||options.color||"#5daaf5"}"></i></div></${tag}>`;
+  }).join("");
+}
+
+const platformChartStates = [
+  {key:"operational",label:"Operativas",color:"#35c99a"},
+  {key:"info",label:"Avisos",color:"#5daaf5"},
+  {key:"degraded",label:"Degradadas",color:"#efbd5d"},
+  {key:"outage",label:"Indisponibles",color:"#ef777d"},
+  {key:"maintenance",label:"Mantenimiento",color:"#9b8be9"},
+  {key:"manual",label:"Consulta manual",color:"#8796aa"},
+  {key:"unknown",label:"Sin información",color:"#56677b"}
+];
+
+function renderPlatformAnalytics(services, events) {
+  const counts = Object.fromEntries(platformChartStates.map(x=>[x.key,0]));
+  (services||[]).forEach(service=>{
+    const state = counts[service.status] === undefined ? "unknown" : service.status;
+    counts[state] += 1;
+  });
+  const total = (services||[]).length;
+  $("platformStateTotal").textContent = total.toLocaleString("es-CL");
+  let cursor=0;
+  const segments=[];
+  platformChartStates.forEach(item=>{
+    const value=counts[item.key]||0;
+    if(!value)return;
+    const start=cursor; cursor += value/Math.max(1,total)*100;
+    segments.push(`${item.color} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`);
+  });
+  $("platformStateDonut").style.background = total
+    ? `conic-gradient(${segments.join(",")})`
+    : "conic-gradient(#27384c 0 100%)";
+  $("platformStateLegend").innerHTML = platformChartStates.filter(x=>counts[x.key]>0).map(item=>{
+    const value=counts[item.key], pct=total?(value/total*100).toFixed(0):0;
+    return `<button type="button" class="module-chart-legend-row module-chart-drilldown${$("state").value===item.key?" is-active":""}" data-chart-filter="platform-status" data-chart-value="${item.key}" aria-label="Filtrar plataformas: ${item.label}, ${value}"><i style="background:${item.color}"></i><span>${item.label}</span><b>${value}</b><small>${pct}%</small></button>`;
+  }).join("") || '<span class="module-chart-empty">Aún no hay estados registrados.</span>';
+
+  const byCategory=new Map();
+  (services||[]).forEach(service=>{
+    const category=service.category||"General";
+    if(!byCategory.has(category))byCategory.set(category,Object.fromEntries(platformChartStates.map(x=>[x.key,0])));
+    const state=counts[service.status]===undefined?"unknown":service.status;
+    byCategory.get(category)[state]+=1;
+  });
+  const categories=[...byCategory.entries()].map(([name,values])=>({name,values,total:Object.values(values).reduce((a,b)=>a+b,0)}))
+    .sort((a,b)=>b.total-a.total).slice(0,8);
+  const maxCategory=Math.max(1,...categories.map(x=>x.total));
+  $("platformCategoryBars").innerHTML=categories.length?categories.map(item=>{
+    const parts=platformChartStates.filter(state=>item.values[state.key]>0).map(state=>{
+      const width=item.values[state.key]/maxCategory*100;
+      return `<i class="stack-segment" title="${esc(state.label)}: ${item.values[state.key]}" style="width:${width.toFixed(2)}%;background:${state.color}"></i>`;
+    }).join("");
+    return `<button type="button" class="module-stack-row module-chart-drilldown${$("category").value===item.name?" is-active":""}" data-chart-filter="platform-category" data-chart-value="${esc(item.name)}" aria-label="Filtrar categoría ${esc(item.name)}: ${item.total} plataformas"><div class="module-stack-label"><span>${esc(item.name)}</span><b>${item.total}</b></div><div class="module-stack-track">${parts}</div></button>`;
+  }).join(""):'<span class="module-chart-empty">No hay categorías de plataformas.</span>';
+
+  const timeline=buildDailyTimeline(events||[],"occurred_at",7).map(x=>({...x,count:x.count}));
+  renderTimelineChart("platformEventTrend",timeline,{color:"#5daaf5",filterType:"platform-event-date",isActive:item=>platformEventDateFilter===item.key,empty:"Sin cambios de estado registrados en este período."});
+  renderPlatformDrillFilter();
+  const totalEvents=timeline.reduce((sum,item)=>sum+item.count,0);
+  $("platformEventNote").textContent=`${totalEvents} transiciones en los últimos 7 días, calculadas sobre los 100 cambios más recientes disponibles. Solo se cuentan cambios detectados; no son mediciones continuas de disponibilidad.`;
+}
+
+function renderPlatformEvents(){
+ const rows=platformEventDateFilter?eventCache.filter(item=>localDateKey(item.occurred_at)===platformEventDateFilter):eventCache;
+ $("events").innerHTML=rows.length?rows.map(e=>`<tr><td>${date(e.occurred_at)}</td><td><b>${esc(e.service_name)}</b></td><td class="change">${labels[e.old_status]||e.old_status} → ${labels[e.new_status]||e.new_status}</td><td>${esc(e.description)}</td></tr>`).join(""):'<tr><td colspan="4">Sin cambios de estado para el filtro seleccionado.</td></tr>';
+ renderPlatformDrillFilter();
+}
+function renderPlatformDrillFilter(){
+ const parts=[];
+ if($("state").value)parts.push(`Estado: ${prettyStatus($("state").value)}`);
+ if($("category").value)parts.push(`Categoría: ${$("category").value}`);
+ renderDrillFilter("platformDrillFilter",[...parts,...(platformEventDateFilter?[`Historial: ${platformEventDateFilter}`]:[])].join(" · "),()=>{
+  $("state").value="";$("category").value="";$("freshFilter").value="";platformEventDateFilter="";render();renderPlatformEvents();renderPlatformAnalytics(cache,eventCache);
+ });
+}
+function renderDrillFilter(targetId,label,onClear){
+ const node=$(targetId);if(!node)return;
+ node.innerHTML=label?`<span class="drill-filter-label"><b>Filtro activo</b> ${esc(label)}</span><button type="button" class="drill-filter-clear" data-clear-drill="${esc(targetId)}">Quitar filtro ×</button>`:"";
+ if(label&&onClear)node._clearDrill=onClear;else node._clearDrill=null;
+}
+async function load(){try{const [sr,er,cr]=await Promise.all([fetch("/api/status"),fetch("/api/events?limit=100"),fetch("/api/config")]);if(!sr.ok||!er.ok||!cr.ok)throw new Error("API no disponible");const data=await sr.json(),events=await er.json(),config=await cr.json();cache=data.services;catalog=config.services;
  for(const k of ["operational","info","degraded","outage","maintenance","manual","unknown"])$(k).textContent=data.counts[k]??0;
  const automatic=cache.filter(s=>s.status!=="manual"&&s.checked_at);const stale=automatic.filter(s=>ageInfo(s).kind==="stale").length;$("stale").textContent=stale;
  const checks=automatic.map(s=>s.checked_at).filter(Boolean).sort();$("updated").textContent=checks.length?date(checks[checks.length-1]):"Aún no consultado";
  $("freshSummary").textContent=`${automatic.length} fuentes con consulta registrada · ${stale} con datos de 60 min o más · ${cache.filter(s=>s.status==="manual").length} requieren revisión manual`;
- const cats=[...new Set(config.services.map(s=>s.category||"General"))].sort(),old=$("category").value;$("category").innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");$("category").value=cats.includes(old)?old:"";render();renderChecklistOptions();
- $("events").innerHTML=events.length?events.map(e=>`<tr><td>${date(e.occurred_at)}</td><td><b>${esc(e.service_name)}</b></td><td class="change">${labels[e.old_status]||e.old_status} → ${labels[e.new_status]||e.new_status}</td><td>${esc(e.description)}</td></tr>`).join(""):'<tr><td colspan="4">Sin cambios de estado registrados.</td></tr>';
- $("checkHistory").innerHTML=runs.length?runs.map(r=>{let ids=[];try{ids=JSON.parse(r.checked_services)}catch{};const names=ids.map(id=>catalog.find(s=>s.id===id)?.name||id);const cp={inicio:"Inicio",intermedio:"Intermedio",termino:"Término"}[r.checkpoint]||r.checkpoint;return `<tr><td>${date(r.created_at)}</td><td>${esc(r.analyst)}</td><td>${esc(r.shift_name)}</td><td>${esc(cp)}</td><td>${esc(names.slice(0,6).join(", ")+(names.length>6?` y ${names.length-6} más`:"")||"—")}</td><td>${esc(r.notes||"—")}</td></tr>`}).join(""):'<tr><td colspan="6">Sin revisiones registradas.</td></tr>';
+ const cats=[...new Set(config.services.map(s=>s.category||"General"))].sort(),old=$("category").value;$("category").innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");$("category").value=cats.includes(old)?old:"";render();
+ eventCache=events||[];renderPlatformEvents();renderPlatformAnalytics(cache,eventCache);
  }catch(e){$("services").innerHTML='<div class="loading">No se pudo conectar con el backend. Intenta nuevamente.</div>';$("freshSummary").textContent="No fue posible cargar los datos."}}
-$("refresh").addEventListener("click",async()=>{$("refresh").disabled=true;$("refresh").textContent="Consultando fuentes…";try{const r=await fetch("/api/poll",{method:"POST"});const result=await r.json();if(!r.ok)throw new Error(result.detail||"Error");await load();toast(`Consulta finalizada: ${result.success} fuentes con respuesta, ${result.errors} sin información y ${result.manual} para revisar manualmente.`)}catch(e){toast("No se pudo completar la consulta: "+e.message)}finally{$("refresh").disabled=false;$("refresh").textContent="↻ Actualizar ahora"}});
+$("refresh").addEventListener("click",async()=>{$("refresh").disabled=true;$("refresh").textContent="Consultando fuentes…";try{const r=await fetch("/api/poll",{method:"POST"});const result=await r.json();if(!r.ok)throw new Error(result.detail||"Error");await load();await loadExecutiveDashboard();toast(`Consulta finalizada: ${result.success} fuentes con respuesta, ${result.errors} sin información y ${result.manual} para revisar manualmente.`)}catch(e){toast("No se pudo completar la consulta: "+e.message)}finally{$("refresh").disabled=false;$("refresh").textContent="↻ Actualizar ahora"}});
 document.querySelectorAll(".metric-filter").forEach(card=>card.addEventListener("click",()=>{
  const key=card.dataset.filter;
  $("search").value="";
@@ -96,8 +240,6 @@ document.querySelectorAll(".metric-filter").forEach(card=>card.addEventListener(
  document.querySelector("#services").scrollIntoView({behavior:"smooth",block:"start"});
 }));
 $("search").addEventListener("input",render);$("category").addEventListener("change",render);$("state").addEventListener("change",render);$("freshFilter").addEventListener("change",render);
-$("selectAll").addEventListener("click",()=>document.querySelectorAll(".service-check").forEach(x=>x.checked=true));$("clearAll").addEventListener("click",()=>document.querySelectorAll(".service-check").forEach(x=>x.checked=false));
-$("saveChecklist").addEventListener("click",async()=>{const analyst=$("analyst").value.trim(),shift_name=$("shift").value,checkpoint=$("checkpoint").value,checked_services=[...document.querySelectorAll(".service-check:checked")].map(x=>x.value),notes=$("checkNotes").value.trim();$("saveChecklist").disabled=true;$("saveChecklist").textContent="Guardando…";try{const r=await fetch("/api/checklist",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({analyst,shift_name,checkpoint,checked_services,notes})});const data=await r.json();if(!r.ok)throw new Error(data.detail||"No se pudo guardar");$("checkMsg").textContent=`Revisión registrada: ${data.total_services} plataformas · ${date(data.created_at)}`;$("checkMsg").className="check-msg ok";document.querySelectorAll(".service-check").forEach(x=>x.checked=false);$("checkNotes").value="";await load()}catch(e){$("checkMsg").textContent=e.message;$("checkMsg").className="check-msg error"}finally{$("saveChecklist").disabled=false;$("saveChecklist").textContent="Registrar revisión"}});
 function toast(t){$("toast").textContent=t;$("toast").classList.add("show");setTimeout(()=>$("toast").classList.remove("show"),4500)}
 function tick(){$("clock").textContent=new Date().toLocaleTimeString("es-CL",{hour12:false})}tick();setInterval(tick,1000);load();
 
@@ -106,21 +248,88 @@ function tick(){$("clock").textContent=new Date().toLocaleTimeString("es-CL",{ho
 // ---------------------------------------------------------------------------
 let intelPeriod = "7d";
 let intelCategory = "all";
+let intelSource = "all";
+let intelDateFilter = null;
 let intelItems = [];
+let intelSourceResults = [];
 const intelCategoryNames = {
   global: "Noticias mundiales",
   ransomware: "Ransomware",
   espionage: "Espionaje",
   leaks: "Filtraciones",
   ddos: "DDoS",
-  malware: "Malware"
+  malware: "Malware",
+  vulnerabilities: "Vulnerabilidades"
 };
 
+function renderIntelSourceFilter() {
+  const select = $("intelSourceFilter");
+  if (!select) return;
+  const counts = new Map();
+  intelItems.forEach(item => {
+    const source = (item.source || "Fuente desconocida").trim();
+    counts.set(source, (counts.get(source) || 0) + 1);
+  });
+  const names = new Set([
+    ...intelSourceResults.map(item => item.source).filter(Boolean),
+    ...counts.keys(),
+    ...(intelSource !== "all" ? [intelSource] : [])
+  ]);
+  const sources = [...names].sort((a,b) => a.localeCompare(b, "es"));
+  select.innerHTML = '<option value="all">Todas las fuentes</option>' + sources.map(name => {
+    const count = counts.get(name) || 0;
+    const state = intelSourceResults.find(item => item.source === name);
+    const suffix = state && state.ok === false ? " · sin respuesta" : ` · ${count} noticias`;
+    return `<option value="${esc(name)}">${esc(name)}${esc(suffix)}</option>`;
+  }).join("");
+  select.value = intelSource;
+}
+
+function renderNewsAnalytics(items) {
+  $("intelChartWindow").textContent = intelPeriod === "24h" ? "ÚLTIMAS 24 HORAS" : "ÚLTIMOS 7 DÍAS";
+  const timeline = intelPeriod === "24h"
+    ? buildFourHourTimeline(items,"published_at")
+    : buildDailyTimeline(items,"published_at",7);
+  renderTimelineChart("intelTrendChart",timeline,{color:"#5daaf5",filterType:"intel-date",isActive:item=>intelDateFilter&&(intelDateFilter.start===Number(item.start||0)&&intelDateFilter.end===Number(item.end||0)||intelDateFilter.key===item.key),empty:"Sin publicaciones en el período seleccionado."});
+
+  const categoryCounts={};
+  const categoryLabels={ransomware:"Ransomware",espionage:"Espionaje",leaks:"Filtraciones",ddos:"DDoS",malware:"Malware",vulnerabilities:"Vulnerabilidades"};
+  (items||[]).forEach(item=>{
+    [...new Set(item.categories||[])].filter(key=>key!=="global").forEach(key=>{
+      categoryCounts[key]=(categoryCounts[key]||0)+1;
+    });
+  });
+  const categoryRows=Object.entries(categoryCounts).map(([key,value])=>({
+    label:categoryLabels[key]||key,filterValue:key,value,color:{
+      ransomware:"#e58a78",espionage:"#a98ae8",leaks:"#e7b45e",
+      ddos:"#5ea8e9",malware:"#64c49c",vulnerabilities:"#c5a4ef"
+    }[key]||"#5daaf5"
+  }));
+  renderHorizontalChart("intelCategoryChart",categoryRows,{filterType:"intel-category",isActive:item=>intelCategory===item.filterValue,empty:"No hay etiquetas temáticas en el filtro seleccionado."});
+
+  const sourceCounts={};
+  (items||[]).forEach(item=>{
+    const name=item.source||"Fuente desconocida";
+    sourceCounts[name]=(sourceCounts[name]||0)+1;
+  });
+  renderHorizontalChart("intelSourceChart",Object.entries(sourceCounts).map(([label,value])=>({label,value})),{
+    color:"#39c99a",limit:9,filterType:"intel-source",isActive:item=>intelSource===item.label,empty:"No hay publicaciones para las fuentes seleccionadas."
+  });
+}
+
 function renderIntelNews() {
-  const visible = intelItems.filter(item =>
-    intelCategory === "all" || (item.categories || []).includes(intelCategory)
+  renderIntelSourceFilter();
+  const chartItems = intelItems.filter(item =>
+    (intelCategory === "all" || (item.categories || []).includes(intelCategory)) &&
+    (intelSource === "all" || item.source === intelSource)
   );
+  const visible = chartItems.filter(item => !intelDateFilter || (intelDateFilter.start && intelDateFilter.end
+    ? new Date(item.published_at||0).getTime()>=intelDateFilter.start && new Date(item.published_at||0).getTime()<intelDateFilter.end
+    : localDateKey(item.published_at)===intelDateFilter.key));
   $("intelCount").textContent = `${visible.length} publicaciones`;
+  renderNewsAnalytics(chartItems);
+  const dateLabel=intelDateFilter?(intelDateFilter.key||new Date(intelDateFilter.start).toLocaleString("es-CL")):"";
+  renderDrillFilter("intelDrillFilter",[intelCategory!=="all"?`Tema: ${intelCategoryNames[intelCategory]||intelCategory}`:"",intelSource!=="all"?`Fuente: ${intelSource}`:"",dateLabel?`Fecha: ${dateLabel}`:""].filter(Boolean).join(" · "),()=>{intelCategory="all";intelSource="all";intelDateFilter=null;$("intelSourceFilter").value="all";renderIntelNews();});
   $("intelNewsList").innerHTML = visible.length ? visible.map(item => {
     const tags = (item.categories || []).map(key =>
       `<span class="intel-tag tag-${esc(key)}">${esc(intelCategoryNames[key] || key)}</span>`
@@ -167,10 +376,11 @@ async function loadIntelNews() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || "No se pudo leer la caché");
     intelItems = data.items || [];
+    intelSourceResults = data.sources || [];
     $("intelLastRefresh").textContent = data.last_refresh
       ? `Última consulta: ${date(data.last_refresh)}`
       : "Sin actualización registrada";
-    const totalSources = (data.sources || []).length || 5;
+    const totalSources = (data.sources || []).length || 9;
     $("intelSourceSummary").textContent = `${data.sources?.filter(x => x.ok).length || 0} de ${totalSources} fuentes respondieron en la última consulta`;
     renderIntelSources(data.sources || []);
     renderIntelNews();
@@ -186,7 +396,7 @@ $("refreshIntel").addEventListener("click", async () => {
   const button = $("refreshIntel");
   button.disabled = true;
   button.textContent = "Consultando fuentes…";
-  $("intelSourceSummary").textContent = "Consultando cinco fuentes públicas en paralelo. Puede tardar varios segundos…";
+  $("intelSourceSummary").textContent = "Consultando nueve fuentes públicas en paralelo. Puede tardar varios segundos…";
   $("intelNewsList").innerHTML = '<div class="intel-empty"><b>Consultando fuentes públicas…</b><span>Se está actualizando la caché. No cierres esta pestaña durante la consulta.</span></div>';
   try {
     const response = await fetch("/api/threat-intel/news/refresh", {
@@ -202,11 +412,14 @@ $("refreshIntel").addEventListener("click", async () => {
     }
     if (!response.ok) throw new Error(result.detail || `El servidor respondió HTTP ${response.status}.`);
     const loaded = await loadIntelNews();
+    await loadExecutiveDashboard();
     if (!loaded) throw new Error("La consulta terminó, pero no fue posible recuperar las publicaciones guardadas.");
-    const totalSources = (result.sources || []).length || 5;
+    const totalSources = (result.sources || []).length || 9;
     const successful = Number(result.successful_sources || 0);
-    $("intelSourceSummary").textContent = `Consulta completada: ${successful} de ${totalSources} fuentes disponibles · ${result.fetched || 0} registros procesados.`;
-    toast(`Inteligencia actualizada: ${result.fetched || 0} publicaciones procesadas · ${successful}/${totalSources} fuentes disponibles.`);
+    const failed = Number(result.failed_sources || 0);
+    $("intelSourceSummary").textContent = `${result.ok === false ? "Consulta sin fuentes disponibles" : result.partial ? "Consulta parcial" : "Consulta completada"}: ${successful}/${totalSources} fuentes disponibles · ${failed} fallidas · ${result.fetched || 0} registros procesados.`;
+    if (result.ok === false) toast("No respondió ninguna fuente RSS. Se conserva la última caché exitosa.");
+    else toast(`Inteligencia actualizada: ${result.fetched || 0} publicaciones · ${successful}/${totalSources} fuentes disponibles.`);
   } catch (error) {
     $("intelSourceSummary").textContent = `No se pudo actualizar: ${error.message}`;
     $("intelNewsList").innerHTML = `<div class="intel-empty"><b>No se pudo actualizar la inteligencia</b><span>${esc(error.message)}. Verifica que Render haya terminado de iniciar y vuelve a intentarlo.</span></div>`;
@@ -219,7 +432,7 @@ $("refreshIntel").addEventListener("click", async () => {
 
 document.querySelectorAll(".intel-period-btn").forEach(button => {
   button.addEventListener("click", () => {
-    intelPeriod = button.dataset.period;
+    intelPeriod = button.dataset.period;intelDateFilter=null;
     loadIntelNews();
   });
 });
@@ -229,6 +442,10 @@ document.querySelectorAll(".intel-category").forEach(button => {
     renderIntelNews();
   });
 });
+$("intelSourceFilter").addEventListener("change", event => {
+  intelSource = event.target.value || "all";
+  renderIntelNews();
+});
 
 loadIntelNews();
 
@@ -236,6 +453,7 @@ loadIntelNews();
 // SOC Global Threat Intelligence — Part 2: ransomware claims and country map
 // ---------------------------------------------------------------------------
 let rwPeriod = "7d";
+let rwDateFilter = null;
 let rwItems = [];
 let rwMapInstance = null;
 let rwMapMarkers = null;
@@ -247,18 +465,44 @@ function rwUtcDate(value) {
   return parsed.toISOString().replace("T", " ").slice(0, 19) + " UTC";
 }
 
-function renderRansomwareSources(sources) {
-  if (!sources || !sources.length) {
-    $("rwSources").innerHTML = '<span class="muted">Todavía no se ha ejecutado una actualización.</span>';
+function renderRansomwareSources(stats) {
+  const sourceInfo = (stats || []);
+  if (!sourceInfo.length) {
+    $("rwSources").innerHTML = `
+      <div class="rw-source-card"><b>RansomLook</b><span class="rw-source-pending">Pendiente de consulta</span></div>
+      <div class="rw-source-card"><b>Ransomware.live</b><span class="rw-source-pending">Pendiente de consulta</span></div>`;
+    $("rwSourceQueryTime").textContent = "Sin consulta registrada";
     return;
   }
-  $("rwSources").innerHTML = sources.map(source => `
-    <div class="intel-source-row">
-      <b>${esc(source.source || "Fuente externa")}</b>
-      ${source.ok
-        ? `<span class="intel-source-ok">${source.cached ? "Caché reutilizada" : "Consultada"} · ${Number(source.items || 0)} registros</span>`
-        : `<span class="intel-source-fail">Sin respuesta · ${esc(source.error || "Error de consulta")}</span>`}
-    </div>`).join("");
+  const definitions = [
+    {name:"RansomLook", url:"https://www.ransomlook.io/recent", description:"Publicaciones individuales"},
+    {name:"Ransomware.live", url:"https://www.ransomware.live/", description:"Indicadores agregados; sin filas individuales"}
+  ];
+  $("rwSources").innerHTML = definitions.map(def => {
+    const item = sourceInfo.find(x => x.source === def.name) || {};
+    const status = item.ok === true
+      ? '<span class="rw-source-status ok">● Conectada</span>'
+      : item.ok === false
+        ? '<span class="rw-source-status fail">● Error de consulta</span>'
+        : '<span class="rw-source-status pending">● Sin estado reciente</span>';
+    const processed = Number(item.processed || 0);
+    const rows = Number(item.rows_visible || 0);
+    const groups = Number(item.groups_count || 0);
+    const countries = Number(item.countries_count || 0);
+    const detail = item.error ? `<p class="rw-source-error">${esc(item.error)}</p>` : "";
+    return `<article class="rw-source-card">
+      <div class="rw-source-card-head"><b><a href="${def.url}" target="_blank" rel="noopener noreferrer">${def.name} ↗</a></b>${status}</div>
+      <p class="rw-source-purpose">${def.description}</p>
+      <div class="rw-source-metrics">
+        <div><small>Procesadas</small><strong>${processed.toLocaleString("es-CL")}</strong></div>
+        <div><small>Filas visibles</small><strong>${rows.toLocaleString("es-CL")}</strong></div>
+        <div><small>Grupos</small><strong>${groups.toLocaleString("es-CL")}</strong></div>
+        <div><small>Países</small><strong>${countries.toLocaleString("es-CL")}</strong></div>
+      </div>${detail}
+    </article>`;
+  }).join("");
+  const stamp = sourceInfo.find(x => x.last_refresh)?.last_refresh;
+  $("rwSourceQueryTime").textContent = stamp ? `Última actualización: ${date(stamp)}` : "Sin consulta registrada";
 }
 
 function renderRansomwareMap(countries) {
@@ -281,11 +525,16 @@ function renderRansomwareMap(countries) {
   valid.forEach(country => {
     const count = Number(country.count || 0);
     const radius = Math.min(18, 6 + Math.sqrt(count) * 2.2);
+    const sourceCounts = country.source_counts || {};
+    const rlook = Number(sourceCounts.RansomLook || 0);
+    const rlive = Number(sourceCounts["Ransomware.live"] || 0);
+    const mixed = rlook > 0 && rlive > 0;
+    const fill = mixed ? "#a78bfa" : (rlive > 0 ? "#39c6a0" : "#c94765");
     const marker = L.circleMarker([Number(country.lat), Number(country.lon)], {
-      radius, color: "#ff9eae", weight: 1.5, opacity: .95,
-      fillColor: "#c94765", fillOpacity: .72
+      radius, color: fill, weight: 1.5, opacity: .95,
+      fillColor: fill, fillOpacity: .76
     });
-    marker.bindPopup(`<b>${esc(country.name)}</b><br>${count} publicación(es) asociada(s)`);
+    marker.bindPopup(`<b>${esc(country.name)}</b><br>Total: ${count} observación(es)<br>RansomLook: ${rlook}<br>Ransomware.live: ${rlive}`);
     marker.addTo(rwMapMarkers);
   });
   if (valid.length > 1) {
@@ -297,17 +546,34 @@ function renderRansomwareMap(countries) {
     rwMapInstance.setView([20, 0], 2);
   }
   status.textContent = valid.length ? `${valid.length} países representados` : "Sin países identificados";
-  setTimeout(() => rwMapInstance && rwMapInstance.invalidateSize(), 80);
+  const mapNode = $("rwMap");
+  if (!valid.length) {
+    mapNode.classList.add("map-no-data");
+    if (!mapNode.querySelector(".rw-map-empty")) {
+      const note=document.createElement("div");
+      note.className="rw-map-empty";
+      note.textContent="No hay publicaciones con país identificable en el período seleccionado. El mapa se mostrará cuando existan ubicaciones respaldadas por la fuente.";
+      mapNode.appendChild(note);
+    }
+  } else {
+    mapNode.classList.remove("map-no-data");
+    mapNode.querySelector(".rw-map-empty")?.remove();
+  }
+  setTimeout(() => rwMapInstance && rwMapInstance.invalidateSize(), 180);
 }
 
 function renderRansomwareRankedLists(data) {
   const countries = data.countries || [];
-  $("rwCountryList").innerHTML = countries.length ? countries.slice(0, 8).map(country => `
-    <div class="rw-rank-item"><span>${esc(country.name)}</span><b>${Number(country.count || 0)}</b></div>`).join("")
+  $("rwCountryList").innerHTML = countries.length ? countries.slice(0, 8).map(country => {
+    const sc=country.source_counts||{};
+    return `<div class="rw-rank-item rw-rank-item-sources"><span>${esc(country.name)}<small>RansomLook ${Number(sc.RansomLook||0)} · Ransomware.live ${Number(sc["Ransomware.live"]||0)}</small></span><b>${Number(country.count || 0)}</b></div>`;
+  }).join("")
     : '<span class="muted">No hay países asociados con confianza suficiente.</span>';
   const groups = data.top_groups || [];
-  $("rwGroupList").innerHTML = groups.length ? groups.map(group => `
-    <div class="rw-rank-item"><span>${esc(group.name)}</span><b>${Number(group.count || 0)}</b></div>`).join("")
+  $("rwGroupList").innerHTML = groups.length ? groups.map(group => {
+    const sc=group.source_counts||{};
+    return `<div class="rw-rank-item rw-rank-item-sources"><span>${esc(group.name)}<small>RansomLook ${Number(sc.RansomLook||0)} · Ransomware.live ${Number(sc["Ransomware.live"]||0)}</small></span><b>${Number(group.count || 0)}</b></div>`;
+  }).join("")
     : '<span class="muted">No hay grupos publicados en este período.</span>';
 }
 
@@ -316,9 +582,11 @@ function renderRansomwareRows() {
   const group = $("rwGroupFilter").value;
   const visible = rwItems.filter(item => {
     const haystack = `${item.victim || ""} ${item.group_name || ""} ${item.country_name || ""}`.toLowerCase();
-    return (!term || haystack.includes(term)) && (!group || item.group_name === group);
+    const stamp=new Date(item.discovered_at||"").getTime();
+    const dateMatch=!rwDateFilter||(Number.isFinite(stamp)&&stamp>=rwDateFilter.start&&stamp<rwDateFilter.end);
+    return (!term || haystack.includes(term)) && (!group || item.group_name === group) && dateMatch;
   });
-  $("rwVisibleCount").textContent = `${visible.length} de ${rwItems.length} registros`;
+  $("rwVisibleCount").textContent = `${visible.length} de ${Number(rwItems.length).toLocaleString("es-CL")} filas individuales`;
   $("rwItems").innerHTML = visible.length ? visible.map(item => {
     const country = item.country_name
       ? `<span class="rw-country">${esc(item.country_name)}</span>`
@@ -334,7 +602,31 @@ function renderRansomwareRows() {
       <td>${context}</td>
       <td><a href="${esc(item.source_link || "https://www.ransomlook.io/recent")}" target="_blank" rel="noopener noreferrer">RansomLook ↗</a></td>
     </tr>`;
-  }).join("") : '<tr><td colspan="6" class="rw-empty-cell">No hay publicaciones que coincidan con los filtros.</td></tr>';
+  }).join("") : '<tr><td colspan="6" class="rw-empty-cell">No hay publicaciones que coincidan con los filtros. Recuerda que Ransomware.live aporta conteos agregados y sus publicaciones individuales no se muestran aquí.</td></tr>';
+  const filterLabel=[$("rwGroupFilter").value?`Grupo: ${$("rwGroupFilter").value}`:"",rwDateFilter?`Fecha: ${new Date(rwDateFilter.start).toLocaleString("es-CL")}`:""].filter(Boolean).join(" · ");
+  renderDrillFilter("rwDrillFilter",filterLabel,()=>{$("rwGroupFilter").value="";rwDateFilter=null;renderRansomwareRows();});
+}
+
+function renderRansomwareAnalytics(data) {
+  $("rwChartWindow").textContent = rwPeriod === "24h" ? "ÚLTIMAS 24 HORAS" : "ÚLTIMOS 7 DÍAS";
+  renderTimelineChart("rwTimelineChart",data.timeline||[],{
+    stacked:true,filterType:"rw-date",isActive:item=>rwDateFilter&&rwDateFilter.start===Number(item.start||0),empty:"No hay observaciones temporales en el período seleccionado."
+  });
+  const groups=(data.top_groups||[]).slice(0,8);
+  const max=Math.max(1,...groups.map(x=>Number(x.count||0)));
+  $("rwGroupChart").innerHTML=groups.length?groups.map(group=>{
+    const total=Number(group.count||0), sc=group.source_counts||{};
+    const look=Number(sc.RansomLook||0), live=Number(sc["Ransomware.live"]||0);
+    const lookWidth=look/max*100, liveWidth=live/max*100;
+    return `<button type="button" class="module-horizontal-row module-chart-drilldown${$("rwGroupFilter").value===group.name?" is-active":""}" data-chart-filter="rw-group" data-chart-value="${esc(group.name)}" aria-label="Filtrar publicaciones por grupo ${esc(group.name)}: ${total} observaciones">
+      <div class="module-horizontal-label"><span>${esc(group.name)}</span><b>${total.toLocaleString("es-CL")}</b></div>
+      <div class="module-horizontal-track module-stacked-track">
+       <i class="rlook" title="RansomLook: ${look}" style="width:${lookWidth.toFixed(2)}%"></i>
+       <i class="rlive" title="Ransomware.live: ${live}" style="width:${liveWidth.toFixed(2)}%"></i>
+      </div>
+      <small class="module-row-subtext">RansomLook ${look} · Ransomware.live ${live}</small>
+    </button>`;
+  }).join(""):'<span class="module-chart-empty">No hay grupos identificados en el período.</span>';
 }
 
 function renderRansomware(data) {
@@ -354,9 +646,10 @@ function renderRansomware(data) {
     button.setAttribute("aria-pressed", active ? "true" : "false");
   });
   renderRansomwareRankedLists(data);
+  renderRansomwareAnalytics(data);
   renderRansomwareMap(data.countries || []);
   renderRansomwareRows();
-  renderRansomwareSources(data.sources || []);
+  renderRansomwareSources(data.source_stats || []);
 }
 
 async function loadRansomware() {
@@ -379,8 +672,8 @@ async function loadRansomware() {
 $("refreshRansomware").addEventListener("click", async () => {
   const button = $("refreshRansomware");
   button.disabled = true;
-  button.textContent = "Consultando RansomLook…";
-  $("rwMapStatus").textContent = "Actualizando publicaciones…";
+  button.textContent = "Consultando ambas fuentes…";
+  $("rwMapStatus").textContent = "Actualizando indicadores de ambas fuentes…";
   $("rwItems").innerHTML = '<tr><td colspan="6" class="rw-empty-cell">Consultando la fuente pública. Puede tardar unos segundos…</td></tr>';
   try {
     const response = await fetch("/api/threat-intel/ransomware/refresh", {
@@ -389,15 +682,17 @@ $("refreshRansomware").addEventListener("click", async () => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
     const loaded = await loadRansomware();
+    await loadExecutiveDashboard();
     if (!loaded) throw new Error("La fuente respondió, pero no se pudo recuperar la caché local.");
     if (result.skipped) {
       toast(result.message || "Se reutilizó la caché reciente.");
     } else if (result.ok) {
-      toast(`Ransomware actualizado: ${Number(result.fetched || 0)} publicaciones procesadas.`);
+      const sourceCounts = (result.sources || []).map(x => `${x.source}: ${Number(x.items || 0)} procesadas${x.ok ? "" : " (error)"}`).join(" · ");
+      toast(`Actualización terminada. ${sourceCounts || "Revisa el estado de las fuentes."}`);
     } else {
       const reason = result.sources?.find(x => !x.ok)?.error || "La fuente no respondió correctamente.";
       $("rwMapStatus").textContent = "Última consulta con error; caché conservada";
-      toast("No se pudo actualizar RansomLook: " + reason);
+      toast("No se pudo actualizar una o más fuentes: " + reason);
     }
   } catch (error) {
     $("rwMapStatus").textContent = "No se pudo completar la consulta";
@@ -411,10 +706,1435 @@ $("refreshRansomware").addEventListener("click", async () => {
 
 document.querySelectorAll(".rw-period-btn").forEach(button => {
   button.addEventListener("click", () => {
-    rwPeriod = button.dataset.rwPeriod;
+    rwPeriod = button.dataset.rwPeriod;rwDateFilter=null;
     loadRansomware();
   });
 });
 $("rwSearch").addEventListener("input", renderRansomwareRows);
 $("rwGroupFilter").addEventListener("change", renderRansomwareRows);
 loadRansomware();
+
+
+// ---------------------------------------------------------------------------
+// Fase 3 — interacción y navegación desde gráficos a registros
+// ---------------------------------------------------------------------------
+document.addEventListener("click",event=>{
+ const clear=event.target.closest("[data-clear-drill]");
+ if(clear){const node=$(clear.dataset.clearDrill);node?._clearDrill?.();return;}
+ const control=event.target.closest("[data-chart-filter]");
+ if(!control)return;
+ const type=control.dataset.chartFilter,value=control.dataset.chartValue||"";
+ if(type==="platform-status"){$("state").value=$("state").value===value?"":value;$("freshFilter").value="";render();renderPlatformAnalytics(cache,eventCache);document.querySelector("#services")?.scrollIntoView({behavior:"smooth",block:"start"});}
+ else if(type==="platform-category"){$("category").value=$("category").value===value?"":value;render();renderPlatformAnalytics(cache,eventCache);document.querySelector("#services")?.scrollIntoView({behavior:"smooth",block:"start"});}
+ else if(type==="platform-event-date"){platformEventDateFilter=platformEventDateFilter===value?"":value;renderPlatformEvents();document.querySelector("#events")?.closest(".table-wrap")?.scrollIntoView({behavior:"smooth",block:"start"});}
+ else if(type==="intel-category"){intelCategory=intelCategory===value?"all":value;renderIntelNews();$("intelNewsList")?.scrollIntoView({behavior:"smooth",block:"start"});}
+ else if(type==="intel-source"){intelSource=intelSource===value?"all":value;$("intelSourceFilter").value=intelSource;renderIntelNews();$("intelNewsList")?.scrollIntoView({behavior:"smooth",block:"start"});}
+ else if(type==="intel-date"){
+  const start=Number(control.dataset.chartStart||0),end=Number(control.dataset.chartEnd||0);
+  const next=start&&end?{start,end}:{key:value};
+  intelDateFilter=intelDateFilter&&((next.key&&intelDateFilter.key===next.key)||(next.start&&intelDateFilter.start===next.start))?null:next;
+  renderIntelNews();$("intelNewsList")?.scrollIntoView({behavior:"smooth",block:"start"});
+ }
+ else if(type==="rw-group"){
+  if(!rwItems.some(item=>item.group_name===value)){toast(`El grupo ${value} aparece en el agregado de fuentes, pero no tiene publicaciones individuales visibles en la tabla RansomLook.`);return;}
+  $("rwGroupFilter").value=$("rwGroupFilter").value===value?"":value;renderRansomwareRows();$("rwItems")?.closest(".rw-table-wrap")?.scrollIntoView({behavior:"smooth",block:"start"});
+ }
+ else if(type==="rw-date"){
+  const key=value;const providedStart=Number(control.dataset.chartStart||0),providedEnd=Number(control.dataset.chartEnd||0);const start=providedStart||Date.parse(key);
+  if(Number.isFinite(start)&&start>0){const width=providedEnd>start?providedEnd-start:(rwPeriod==="24h"?4*60*60*1000:24*60*60*1000);rwDateFilter=rwDateFilter?.start===start?null:{start,end:start+width};renderRansomwareRows();$("rwItems")?.closest(".rw-table-wrap")?.scrollIntoView({behavior:"smooth",block:"start"});}
+ }
+ else if(type==="vuln-severity"||type==="vuln-epss"||type==="vuln-kev"){
+  const filterType=type==="vuln-severity"?"severity":type==="vuln-epss"?"epss":"kev";
+  vulnDrillFilter=vulnDrillFilter?.type===filterType&&vulnDrillFilter.value===value?null:{type:filterType,value};
+  renderVulnerabilityTable();renderVulnerabilityAnalytics(vulnRowsCache);$("vulnRows")?.closest(".vuln-table-wrap")?.scrollIntoView({behavior:"smooth",block:"start"});
+ }
+});
+
+// Vulnerability intelligence: CISA KEV, NVD and FIRST EPSS
+let vulnRowsCache = [];
+let vulnDrillFilter = null;
+function renderVulnerabilityAnalytics(items) {
+  const period=$("vulnPeriod").value||"30d";
+  $("vulnChartWindow").textContent=period==="all"?"TODOS LOS ALMACENADOS":period==="7d"?"ÚLTIMOS 7 DÍAS + KEV":"30 DÍAS + KEV";
+  const severityOrder=[
+    {key:"CRITICAL",label:"Crítica",color:"#ef777d"},
+    {key:"HIGH",label:"Alta",color:"#efaa67"},
+    {key:"MEDIUM",label:"Media",color:"#e7c75d"},
+    {key:"LOW",label:"Baja",color:"#55b9a0"},
+    {key:"NONE",label:"Sin clasificación",color:"#7d91a8"}
+  ];
+  const severityCounts=Object.fromEntries(severityOrder.map(x=>[x.key,0]));
+  const epss={low:0,medium:0,high:0,unknown:0};
+  let kev=0;
+  (items||[]).forEach(item=>{
+    const key=String(item.severity||"NONE").toUpperCase();
+    severityCounts[severityCounts[key]===undefined?"NONE":key]+=1;
+    if(Number(item.kev))kev+=1;
+    if(item.epss===null||item.epss===undefined||item.epss==="")epss.unknown+=1;
+    else if(Number(item.epss)<0.1)epss.low+=1;
+    else if(Number(item.epss)<0.5)epss.medium+=1;
+    else epss.high+=1;
+  });
+  renderHorizontalChart("vulnSeverityChart",severityOrder.map(x=>({
+    label:x.label,filterValue:x.key,value:severityCounts[x.key],color:x.color
+  })),{filterType:"vuln-severity",isActive:item=>vulnDrillFilter?.type==="severity"&&vulnDrillFilter.value===item.filterValue,empty:"No hay CVE visibles para clasificar."});
+  renderHorizontalChart("vulnEpssChart",[
+    {label:"Alta · ≥ 50%",filterValue:"high",value:epss.high,color:"#ed8b82"},
+    {label:"Media · 10–49,99%",filterValue:"medium",value:epss.medium,color:"#e9bb63"},
+    {label:"Baja · < 10%",filterValue:"low",value:epss.low,color:"#55b9a0"},
+    {label:"Sin puntaje EPSS",filterValue:"unknown",value:epss.unknown,color:"#7d91a8"}
+  ],{filterType:"vuln-epss",isActive:item=>vulnDrillFilter?.type==="epss"&&vulnDrillFilter.value===item.filterValue,empty:"No hay puntajes EPSS en los registros visibles."});
+  const known=(items||[]).length-kev;
+  const ratio=(items||[]).length?kev/items.length*100:0;
+  $("vulnKevChart").innerHTML=(items||[]).length?`
+    <div class="kev-split-summary">
+     <button type="button" class="kev-drill-card module-chart-drilldown${vulnDrillFilter?.type==="kev"&&vulnDrillFilter.value==="yes"?" is-active":""}" data-chart-filter="vuln-kev" data-chart-value="yes" aria-label="Filtrar CVE incluidas en CISA KEV"><strong>${kev.toLocaleString("es-CL")}</strong><span>Incluidas en CISA KEV · ${(ratio).toFixed(1)}%</span></button>
+     <button type="button" class="kev-drill-card module-chart-drilldown${vulnDrillFilter?.type==="kev"&&vulnDrillFilter.value==="no"?" is-active":""}" data-chart-filter="vuln-kev" data-chart-value="no" aria-label="Filtrar CVE no incluidas en CISA KEV"><strong>${known.toLocaleString("es-CL")}</strong><span>No incluidas en KEV · ${(100-ratio).toFixed(1)}%</span></button>
+    </div>
+    <div class="kev-split-track"><i style="width:${ratio.toFixed(2)}%"></i></div>`
+    :'<span class="module-chart-empty">No hay registros para comparar.</span>';
+  $("vulnChartNote").textContent=`Distribución calculada sobre ${Number((items||[]).length).toLocaleString("es-CL")} registros visibles con el filtro actual. KEV significa que CISA incluyó la CVE en su catálogo de explotación conocida; no estar en KEV no prueba ausencia de explotación.`;
+}
+
+function getFilteredVulnerabilities(){
+ if(!vulnDrillFilter)return vulnRowsCache;
+ return vulnRowsCache.filter(item=>{
+  if(vulnDrillFilter.type==="severity")return String(item.severity||"NONE").toUpperCase()===vulnDrillFilter.value;
+  if(vulnDrillFilter.type==="kev")return Boolean(Number(item.kev))===(vulnDrillFilter.value==="yes");
+  if(vulnDrillFilter.type==="epss"){
+   if(item.epss===null||item.epss===undefined||item.epss==="")return vulnDrillFilter.value==="unknown";
+   const value=Number(item.epss);
+   return vulnDrillFilter.value==="low"?value<0.1:vulnDrillFilter.value==="medium"?value>=0.1&&value<0.5:value>=0.5;
+  }
+  return true;
+ });
+}
+function renderVulnerabilityTable(){
+ const visible=getFilteredVulnerabilities();
+ const rows=visible.map(v=>{
+  const cvss=v.cvss==null?"—":`${Number(v.cvss).toFixed(1)} · ${esc(v.severity||"")}`;
+  const epss=v.epss==null?"—":`${(Number(v.epss)*100).toFixed(2)}%`;
+  const kev=Number(v.kev)?`<span class="vuln-kev">Sí · ${esc(v.ransomware_use||"Unknown")}</span>`:"No";
+  const publishedDate=v.published?new Date(v.published).toLocaleDateString("es-CL"):"—";
+  const modifiedDate=v.modified?new Date(v.modified).toLocaleString("es-CL"):"No informada";
+  const kevDate=v.kev_date?new Date(v.kev_date).toLocaleDateString("es-CL"):"—";
+  return `<tr class="vuln-click-row" data-cve="${esc(v.cve)}" tabindex="0" role="button" aria-label="Abrir detalle de ${esc(v.cve)}"><td><button type="button" class="vuln-open" data-cve="${esc(v.cve)}">${esc(v.cve)}</button></td><td><b>${esc(v.title||v.cve)}</b><small>${esc([v.vendor,v.product].filter(Boolean).join(" · "))}</small><p>${esc(v.description||"")}</p><span class="vuln-row-hint">Ver ficha técnica y mitigaciones ↗</span></td><td>${cvss}</td><td>${epss}</td><td>${kev}</td><td>${esc(publishedDate)}</td><td><time datetime="${esc(v.modified||"")}">${esc(modifiedDate)}</time></td><td>${esc(kevDate)}</td><td><a href="${esc(v.source_url)}" target="_blank" rel="noopener" data-no-vuln-detail>NVD ↗</a></td></tr>`;
+ }).join("");
+ $("vulnRows").innerHTML=rows||'<tr><td colspan="9">No hay CVE que coincidan con el filtro del gráfico.</td></tr>';
+ $("vulnCount").textContent=`${visible.length} / ${vulnRowsCache.length}`;
+ const filterLabels={severity:`Severidad: ${vulnDrillFilter?.value||""}`,epss:`EPSS: ${vulnDrillFilter?.value||""}`,kev:`CISA KEV: ${vulnDrillFilter?.value==="yes"?"Sí":"No"}`};
+ renderDrillFilter("vulnDrillFilter",vulnDrillFilter?filterLabels[vulnDrillFilter.type]:"",()=>{vulnDrillFilter=null;renderVulnerabilityTable();renderVulnerabilityAnalytics(vulnRowsCache);});
+}
+
+function renderVulnerabilities(data) {
+  vulnRowsCache = data.items || [];
+  renderVulnerabilityAnalytics(vulnRowsCache);
+  $("vulnKevCount").textContent = data.kev_count || "—";
+  $("vulnNvdCount").textContent = data.nvd_count || "—";
+  $("vulnLastRefresh").textContent = data.last_refresh ? new Date(data.last_refresh).toLocaleString("es-CL") : "Pendiente";
+  renderVulnerabilityTable();
+}
+
+function detailCell(value) {
+  if (value === null || value === undefined || value === "") return "No informado";
+  return esc(String(value).replaceAll("_", " "));
+}
+function renderVulnerabilityDetail(payload) {
+  const v=payload.item||{}, d=payload.details||{}, nvd=d.nvd||{}, cisa=d.cisa||{}, cvss=nvd.cvss||{};
+  const pct=x=>x==null?"No disponible":`${(Number(x)*100).toFixed(2)}%`;
+  const kv=(label,value)=>`<tr><th>${esc(label)}</th><td>${detailCell(value)}</td></tr>`;
+  const affected=(nvd.affected_products||[]).map(x=>{
+    const limits=[
+      x.version_start_including&&`desde ${x.version_start_including} (incl.)`,
+      x.version_start_excluding&&`desde ${x.version_start_excluding} (excl.)`,
+      x.version_end_including&&`hasta ${x.version_end_including} (incl.)`,
+      x.version_end_excluding&&`hasta ${x.version_end_excluding} (excl.)`
+    ].filter(Boolean).join(" · ");
+    return `<tr><td><code>${esc(x.criteria||"Producto no identificado")}</code></td><td>${esc(limits||"Rango según CPE")}</td><td>${x.vulnerable?"Afectado":"Contexto"}</td></tr>`;
+  }).join("");
+  const weaknesses=(nvd.weaknesses||[]).concat(Array.isArray(cisa.cwes)?cisa.cwes:(cisa.cwes?[cisa.cwes]:[])).filter((x,i,a)=>a.indexOf(x)===i);
+  const references=(nvd.references||[]).map(r=>`<li><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.source||r.url)}</a>${r.tags?.length?`<small>${esc(r.tags.join(" · "))}</small>`:""}</li>`).join("");
+  const guidance=(d.workaround_guidance||[]).map(g=>{
+    const extra=g.steps?.length?`<ol>${g.steps.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>`:"";
+    const links=g.references?.length?`<ul>${g.references.map(r=>`<li><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.source||r.url)}</a></li>`).join("")}</ul>`:"";
+    return `<article class="vuln-guidance ${esc(g.kind)}"><h4>${esc(g.title)}</h4><p>${esc(g.text||"")}</p>${extra}${links}${g.source?`<small>Fuente: ${esc(g.source)}</small>`:""}</article>`;
+  }).join("");
+  $("vulnDetailTitle").textContent=`${v.cve||"Detalle de vulnerabilidad"} · ${v.title||""}`;
+  $("vulnDetailSubtitle").textContent=[v.vendor,v.product].filter(Boolean).join(" · ")||"Ficha técnica de fuentes públicas";
+  const kevBadge=Number(v.kev)?'<span class="vuln-tag danger">Incluida en CISA KEV</span>':'<span class="vuln-tag neutral">No figura en CISA KEV</span>';
+  $("vulnDetailBody").innerHTML=`
+    <div class="vuln-detail-top"><div><div class="vuln-tags"><span class="vuln-tag severity">${esc(v.severity||"Severidad no informada")}${v.cvss!=null?` · CVSS ${Number(v.cvss).toFixed(1)}`:""}</span>${kevBadge}</div><p>${esc(v.description||cisa.short_description||"La fuente no publicó una descripción.")}</p><div class="vuln-detail-date">Publicación: ${esc(v.published?new Date(v.published).toLocaleString("es-CL"):"No informada")} · Modificación: ${esc(v.modified?new Date(v.modified).toLocaleString("es-CL"):"No informada")}</div></div><a class="portal-btn" href="${esc(v.source_url||`https://nvd.nist.gov/vuln/detail/${encodeURIComponent(v.cve||"")}`)}" target="_blank" rel="noopener noreferrer">Abrir ficha NVD ↗</a></div>
+    <div class="vuln-detail-kpis">
+      <div><small>CVSS · Severidad técnica</small><b>${v.cvss==null?"—":Number(v.cvss).toFixed(1)}</b><span>${esc(v.severity||"Sin puntuación")}</span></div>
+      <div><small>EPSS · Probabilidad 30 días</small><b>${pct(v.epss)}</b><span>Percentil ${pct(v.epss_percentile)}</span></div>
+      <div><small>Explotación conocida</small><b>${Number(v.kev)?"Sí · KEV":"No registrada"}</b><span>Ransomware: ${esc(v.ransomware_use||"No informado")}</span></div>
+    </div>
+    ${d.lookup_note?`<div class="vuln-detail-lookup-note">${esc(d.lookup_note)}</div>`:""}
+    <section class="vuln-detail-section"><h3>Indicadores técnicos</h3><div class="vuln-detail-table-wrap"><table class="vuln-detail-table"><tbody>
+      ${kv("Versión CVSS",cvss.version)}${kv("Vector CVSS",cvss.vector)}${kv("Vector de ataque",cvss.attack_vector)}${kv("Complejidad",cvss.attack_complexity)}${kv("Privilegios requeridos",cvss.privileges_required)}${kv("Interacción del usuario",cvss.user_interaction)}${kv("Alcance",cvss.scope)}${kv("Impacto confidencialidad",cvss.confidentiality_impact)}${kv("Impacto integridad",cvss.integrity_impact)}${kv("Impacto disponibilidad",cvss.availability_impact)}${kv("Debilidades CWE",weaknesses.join(", "))}${kv("Estado NVD",nvd.cve_status)}${kv("Fecha alta KEV",cisa.date_added||v.kev_date)}${kv("Fecha límite CISA",cisa.due_date)}${kv("Uso en campañas ransomware",cisa.known_ransomware_campaign_use||v.ransomware_use)}
+    </tbody></table></div></section>
+    <section class="vuln-detail-section"><h3>Productos y versiones afectadas</h3>${affected?`<div class="vuln-detail-table-wrap"><table class="vuln-detail-table"><thead><tr><th>CPE / Producto</th><th>Rango de versión</th><th>Tipo</th></tr></thead><tbody>${affected}</tbody></table></div>`:'<p class="muted">NVD no entregó configuraciones CPE para esta CVE. Revisa el aviso del fabricante para confirmar las versiones afectadas.</p>'}</section>
+    ${cisa.required_action||cisa.notes?`<section class="vuln-detail-section"><h3>Información CISA KEV</h3>${cisa.required_action?`<div class="vuln-official-action"><b>Acción requerida</b><p>${esc(cisa.required_action)}</p></div>`:""}${cisa.notes?`<p>${esc(cisa.notes)}</p>`:""}</section>`:""}
+    <section class="vuln-detail-section"><h3>Mitigación y posibles workaround</h3>${guidance||'<p class="muted">No hay recomendaciones disponibles en caché. Actualiza las fuentes y revisa las referencias oficiales.</p>'}</section>
+    <section class="vuln-detail-section"><h3>Referencias y advisories</h3><ul class="vuln-reference-list">${references||"<li>No hay referencias adicionales publicadas por NVD.</li>"}</ul></section>
+    <div class="vuln-detail-disclaimer">La ficha resume información pública de NVD, CISA KEV y FIRST EPSS. EPSS estima probabilidad, no confirma explotación. Las medidas orientativas no sustituyen las instrucciones del fabricante ni una validación del entorno.</div>`;
+}
+async function openVulnerabilityDetail(cve){
+  $("vulnDetailDialog").showModal();
+  $("vulnDetailTitle").textContent="Consultando ficha técnica…";
+  $("vulnDetailSubtitle").textContent=cve;
+  $("vulnDetailBody").innerHTML='<div class="loading">Recuperando indicadores NVD, CISA KEV y EPSS…</div>';
+  try{
+    const response=await fetch(`/api/threat-intel/vulnerabilities/${encodeURIComponent(cve)}`,{cache:"no-store"});
+    const payload=await response.json();
+    if(!response.ok)throw new Error(payload.detail||`HTTP ${response.status}`);
+    renderVulnerabilityDetail(payload);
+  }catch(e){$("vulnDetailBody").innerHTML=`<div class="vuln-detail-error">No se pudo recuperar la ficha: ${esc(e.message)}. Actualiza las fuentes públicas e inténtalo otra vez.</div>`;}
+}
+$("closeVulnDetail").addEventListener("click",()=>$("vulnDetailDialog").close());
+$("vulnDetailDialog").addEventListener("click",event=>{if(event.target===$("vulnDetailDialog"))$("vulnDetailDialog").close();});
+async function loadVulnerabilities() {
+  const period = $("vulnPeriod").value;
+  const search = $("vulnSearch").value.trim();
+  const sort = $("vulnSort").value || "modified_desc";
+  try {
+    const response = await fetch(`/api/threat-intel/vulnerabilities?period=${encodeURIComponent(period)}&search=${encodeURIComponent(search)}&sort=${encodeURIComponent(sort)}`, {cache:"no-store"});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    renderVulnerabilities(data);
+    $("vulnMessage").textContent = data.last_refresh ? "Caché local · Fuentes: CISA KEV, NVD y enriquecimiento EPSS cuando está disponible." : "Pendiente de primera actualización.";
+  } catch (e) {
+    $("vulnMessage").textContent = "No se pudo cargar la caché: " + e.message;
+  }
+}
+$("refreshVulns").addEventListener("click", async () => {
+  const button = $("refreshVulns");
+  button.disabled = true; button.textContent = "Consultando CISA, NVD y EPSS…";
+  $("vulnMessage").textContent = "Actualizando fuentes públicas. Puede tardar unos segundos…";
+  try {
+    const response = await fetch("/api/threat-intel/vulnerabilities/refresh", {method:"POST",cache:"no-store",headers:{"Accept":"application/json"}});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || `HTTP ${response.status}`);
+    await loadVulnerabilities();
+    await loadExecutiveDashboard();
+    const partialNote = result.partial ? " · Resultado parcial: revisa el diagnóstico de fuentes." : "";
+    $("vulnMessage").textContent = `${result.partial ? "Actualización parcial" : "Actualizado"}: ${result.kev_count} registros CISA KEV · ${result.nvd_count} CVE NVD · ${result.epss_enriched} enriquecidas con EPSS.${partialNote}`;
+    toast(result.partial ? "Actualización parcial de vulnerabilidades. Consulta el diagnóstico de fuentes." : "Inteligencia de vulnerabilidades actualizada.");
+  } catch(e) {
+    $("vulnMessage").textContent = "Error al actualizar: " + e.message + ". Se conserva la caché anterior.";
+    toast("No se pudo actualizar vulnerabilidades: " + e.message);
+  } finally { button.disabled = false; button.textContent = "↻ Actualizar vulnerabilidades"; }
+});
+$("vulnPeriod").addEventListener("change", () => {vulnDrillFilter=null;loadVulnerabilities();});
+$("vulnSort").addEventListener("change", loadVulnerabilities);
+let vulnSearchTimer;
+$("vulnSearch").addEventListener("input", () => { clearTimeout(vulnSearchTimer); vulnSearchTimer = setTimeout(loadVulnerabilities, 250); });
+document.addEventListener("click",event=>{
+  const button=event.target.closest(".vuln-open");
+  const row=event.target.closest(".vuln-click-row");
+  if(event.target.closest("[data-no-vuln-detail]"))return;
+  const cve=button?.dataset.cve||row?.dataset.cve;
+  if(cve)openVulnerabilityDetail(cve);
+});
+document.addEventListener("keydown",event=>{
+  if((event.key==="Enter"||event.key===" ")&&event.target.classList?.contains("vuln-click-row")){
+    event.preventDefault();openVulnerabilityDetail(event.target.dataset.cve);
+  }
+});
+loadVulnerabilities();
+
+// v1.8.1: módulo de inicio y navegación por tarjetas
+const moduleTitles={platforms:"Estado de plataformas",news:"Ataques y amenazas publicados",ransomware:"Ransomware tracker y mapa geográfico",vulns:"Vulnerability Intelligence",phishing:"Phishing URL Reporter"};
+function setActiveNavigation(name){
+  document.querySelectorAll(".soc-nav-item[data-nav]").forEach(item=>{
+    const active=item.dataset.nav===name;
+    item.classList.toggle("active",active);
+    if(active)item.setAttribute("aria-current","page");
+    else item.removeAttribute("aria-current");
+  });
+}
+function closeMobileSidebar(){
+  $("appShell").classList.remove("mobile-sidebar-open");
+  $("mobileMenuToggle").setAttribute("aria-expanded","false");
+}
+function showHome(){
+  $("moduleHome").hidden=false;
+  $("moduleNav").hidden=true;
+  document.querySelectorAll(".module-view").forEach(v=>v.hidden=true);
+  setActiveNavigation("home");
+  closeMobileSidebar();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function showModule(name){
+  if(!moduleTitles[name])return;
+  $("moduleHome").hidden=true;
+  $("moduleNav").hidden=false;
+  document.querySelectorAll(".module-view").forEach(v=>v.hidden=true);
+  const view=$("view-"+name); if(view) view.hidden=false;
+  $("activeModuleName").textContent=moduleTitles[name];
+  setActiveNavigation(name);
+  closeMobileSidebar();
+  window.scrollTo({top:0,behavior:"smooth"});
+  if(name==="ransomware" && rwMapInstance) setTimeout(()=>rwMapInstance.invalidateSize(),220);
+  if(name==="ransomware" && !rwItems.length) loadRansomware();
+}
+document.querySelectorAll(".soc-nav-item[data-nav]").forEach(item=>{
+  item.addEventListener("click",()=>{
+    const target=item.dataset.nav;
+    if(target==="home")showHome();
+    else showModule(target);
+  });
+});
+$("sidebarCollapse").addEventListener("click",()=>{
+  $("appShell").classList.toggle("sidebar-collapsed");
+});
+$("mobileMenuToggle").addEventListener("click",()=>{
+  const opened=$("appShell").classList.toggle("mobile-sidebar-open");
+  $("mobileMenuToggle").setAttribute("aria-expanded",String(opened));
+});
+$("sidebarScrim").addEventListener("click",closeMobileSidebar);
+document.addEventListener("keydown",event=>{
+  if(event.key==="Escape")closeMobileSidebar();
+});
+async function runGlobalRefresh() {
+  const button = $("homeRefresh");
+  const summary = $("homeRefreshSummary");
+  if (button.disabled) return;
+  button.disabled = true;
+  button.textContent = "Actualizando los cuatro módulos…";
+  summary.textContent = "Consultando plataformas, noticias, ransomware y vulnerabilidades en paralelo.";
+
+  const jobs = [
+    { key: "platforms", label: "Plataformas", url: "/api/poll" },
+    { key: "news", label: "Noticias", url: "/api/threat-intel/news/refresh" },
+    { key: "ransomware", label: "Ransomware", url: "/api/threat-intel/ransomware/refresh" },
+    { key: "vulnerabilities", label: "Vulnerabilidades", url: "/api/threat-intel/vulnerabilities/refresh" }
+  ];
+
+  const results = await Promise.all(jobs.map(async job => {
+    try {
+      const response = await fetch(job.url, {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Accept": "application/json" }
+      });
+      let payload;
+      try { payload = await response.json(); }
+      catch { throw new Error(`HTTP ${response.status}: respuesta no válida`); }
+      if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+      const successful = payload.ok !== false;
+      const failureMessage = job.key === "platforms"
+        ? "Ninguna fuente automática de plataformas respondió correctamente."
+        : job.key === "news"
+          ? "Ninguna fuente RSS respondió correctamente."
+          : job.key === "ransomware"
+            ? (payload.sources?.find(source => !source.ok)?.error || "Ninguna fuente ransomware respondió correctamente.")
+            : "La actualización no se completó.";
+      return { ...job, ok: successful, error: successful ? null : failureMessage, payload };
+    } catch (error) {
+      return { ...job, ok: false, error: error.message };
+    }
+  }));
+
+  // Each view is refreshed from its own cache, even if another source failed.
+  const reloads = await Promise.allSettled([
+    load(),
+    loadIntelNews(),
+    loadRansomware(),
+    loadVulnerabilities()
+  ]);
+
+  const byKey = Object.fromEntries(results.map(item => [item.key, item]));
+  const platform = byKey.platforms;
+  const news = byKey.news;
+  const ransom = byKey.ransomware;
+  const vulns = byKey.vulnerabilities;
+
+  const platformErrors = Number(platform.payload?.errors || 0);
+  const platformText = platform.ok
+    ? `${Number(platform.payload.success || 0)} con respuesta · ${platformErrors} con error · ${Number(platform.payload.manual || 0)} manuales`
+    : `Error: ${platform.error || "sin respuesta válida"}`;
+  const platformState = !platform.ok ? "error" : (platformErrors ? "parcial" : "completo");
+  const newsTotal = Number(news.payload?.sources?.length || 0);
+  const newsGood = Number(news.payload?.successful_sources || 0);
+  const newsText = news.ok
+    ? `${newsGood}/${newsTotal} fuentes RSS respondieron`
+    : `Error: ${news.error || "ninguna fuente respondió"}`;
+  const newsState = !news.ok || !newsGood ? "error" : (newsGood < newsTotal ? "parcial" : "completo");
+  const ransomGood = Number(ransom.payload?.successful_sources || 0);
+  const ransomTotal = Number(ransom.payload?.sources?.length || 0);
+  const ransomText = ransom.ok
+    ? (ransom.payload?.skipped
+        ? `Caché reutilizada · ${ransomGood}/${ransomTotal} fuentes disponibles`
+        : `${ransomGood}/${ransomTotal} fuentes respondieron`)
+    : `Error: ${ransom.error || "ninguna fuente respondió"}`;
+  const ransomState = !ransom.ok || !ransomGood ? "error" : (ransomGood < ransomTotal ? "parcial" : "completo");
+  const vulnText = vulns.ok
+    ? `${Number(vulns.payload.kev_count || 0)} CISA KEV · ${Number(vulns.payload.nvd_count || 0)} NVD · ${Number(vulns.payload.epss_enriched || 0)} EPSS`
+    : `Error: ${vulns.error || "fuentes no disponibles"}`;
+  const vulnState = !vulns.ok ? "error" : (vulns.payload?.partial ? "parcial" : "completo");
+
+  const states = [platformState, newsState, ransomState, vulnState];
+  await loadExecutiveDashboard();
+  const reloadErrors = reloads.filter(item => item.status === "rejected").length;
+  const summaryParts = [
+    `Plataformas: ${platformText} [${platformState}]`,
+    `Noticias: ${newsText} [${newsState}]`,
+    `Ransomware: ${ransomText} [${ransomState}]`,
+    `Vulnerabilidades: ${vulnText} [${vulnState}]`
+  ];
+  const completedCount = states.filter(state => state === "completo").length;
+  const partialCount = states.filter(state => state === "parcial").length;
+  const failedCount = states.filter(state => state === "error").length;
+  const completedAt = new Date().toLocaleTimeString("es-CL");
+  summary.textContent = `Última actualización global (${completedAt}) · ${completedCount}/4 completos · ${partialCount} parciales · ${failedCount} con error. ${summaryParts.join(" | ")}`;
+  summary.classList.toggle("has-errors", partialCount > 0 || failedCount > 0 || reloadErrors > 0);
+  if (partialCount || failedCount || reloadErrors) {
+    toast(`Actualización finalizada con resultados parciales. ${completedCount} completos, ${partialCount} parciales y ${failedCount} con error.`);
+  } else {
+    toast("Actualización global completada. Los cuatro módulos y sus fuentes respondieron.");
+  }
+
+  button.disabled = false;
+  button.textContent = "↻ Actualizar todos los módulos";
+}
+$("homeRefresh").addEventListener("click", runGlobalRefresh);
+
+
+// ---------------------------------------------------------------------------
+// v1.9.0 Phase 1 — SOC Executive Dashboard (cache-backed summary)
+// ---------------------------------------------------------------------------
+const execStatusLabels = {
+  operational: "Operativas", info: "Avisos", degraded: "Degradadas",
+  outage: "Indisponibles", maintenance: "Mantenimiento",
+  manual: "Consulta manual", unknown: "Sin información"
+};
+const execStatusColors = {
+  operational: "#35c99a", info: "#5daaf5", degraded: "#efbd5d",
+  outage: "#ef777d", maintenance: "#9b8be9", manual: "#8796aa",
+  unknown: "#56677b"
+};
+const execCategoryLabels = {
+  ransomware: "Ransomware", espionage: "Espionaje", leaks: "Filtraciones",
+  ddos: "DDoS", malware: "Malware", vulnerabilities: "Vulnerabilidades"
+};
+const execNumber = value => Number(value || 0).toLocaleString("es-CL");
+const execTime = value => value ? date(value) : "Sin actualización";
+
+function renderExecPlatformChart(platforms) {
+  const counts = platforms.counts || {};
+  const keys = ["operational","info","degraded","outage","maintenance","manual","unknown"];
+  const total = Number(platforms.total || 0);
+  $("execPlatformDonutTotal").textContent = execNumber(total);
+  if (!total) {
+    $("execPlatformDonut").style.background = "conic-gradient(#27384c 0 100%)";
+    $("execPlatformLegend").innerHTML = '<span class="exec-empty">No hay estados almacenados. Actualiza el módulo de plataformas.</span>';
+    $("execPlatformNote").textContent = "El catálogo está disponible, pero todavía no hay resultados de consulta.";
+    return;
+  }
+  let cursor = 0;
+  const segments = [];
+  keys.forEach(key => {
+    const value = Number(counts[key] || 0);
+    if (!value) return;
+    const start = cursor;
+    cursor += value / total * 100;
+    segments.push(`${execStatusColors[key]} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`);
+  });
+  $("execPlatformDonut").style.background = `conic-gradient(${segments.join(",")})`;
+  $("execPlatformLegend").innerHTML = keys.map(key => {
+    const value = Number(counts[key] || 0);
+    if (!value) return "";
+    const pct = (value / total * 100).toFixed(0);
+    return `<div class="exec-legend-row"><i style="background:${execStatusColors[key]}"></i><span>${execStatusLabels[key]}</span><b>${execNumber(value)}</b><small>${pct}%</small></div>`;
+  }).join("");
+  $("execPlatformNote").textContent =
+    `${execNumber(platforms.stale)} plataformas automáticas con datos de 60 minutos o más · ${execNumber(platforms.manual)} requieren revisión manual.`;
+}
+
+function renderExecBars(targetId, values, labels, color) {
+  const node = $(targetId);
+  const entries = Object.entries(values || {})
+    .map(([key,value]) => ({key, label:labels[key] || key, count:Number(value || 0)}))
+    .sort((a,b) => b.count - a.count);
+  const max = Math.max(1, ...entries.map(x => x.count));
+  const nonzero = entries.filter(x => x.count > 0);
+  if (!nonzero.length) {
+    node.innerHTML = '<span class="exec-empty">Sin registros en la ventana consultada.</span>';
+    return;
+  }
+  node.innerHTML = nonzero.map(item => {
+    const width = Math.max(2, item.count / max * 100);
+    return `<div class="exec-bar-row">
+      <div class="exec-bar-label"><span>${esc(item.label)}</span><b>${execNumber(item.count)}</b></div>
+      <div class="exec-bar-track"><i style="width:${width.toFixed(1)}%;background:${color}"></i></div>
+    </div>`;
+  }).join("");
+}
+
+function renderExecRankList(targetId, items, keyName) {
+  const node = $(targetId);
+  if (!items || !items.length) {
+    node.innerHTML = '<span class="exec-empty">Sin ubicaciones identificadas.</span>';
+    return;
+  }
+  node.innerHTML = items.slice(0,5).map(item => {
+    const label = item.name || item.country_name || item[keyName] || "No identificado";
+    const count = Number(item.count || 0);
+    return `<div class="exec-rank-row"><span>${esc(label)}</span><b>${execNumber(count)}</b></div>`;
+  }).join("");
+}
+
+function renderExecModuleStatus(data) {
+  const entries = [
+    {name:"Estado de plataformas", stamp:data.platforms.latest_check, detail:`${execNumber(data.platforms.total)} servicios · ${execNumber(data.platforms.stale)} datos antiguos`, state:data.platforms.latest_check?"Datos disponibles":"Pendiente"},
+    {name:"Ataques y amenazas", stamp:data.news.last_refresh, detail:`${execNumber(data.news.sources_ok)}/${execNumber(data.news.sources_total)} fuentes RSS respondieron`, state:data.news.last_refresh?"Caché disponible":"Pendiente"},
+    {name:"Ransomware tracker", stamp:data.ransomware.last_refresh, detail:`${execNumber(data.ransomware.sources_ok)}/${execNumber(data.ransomware.sources_total)} fuentes consultadas`, state:data.ransomware.last_refresh?"Caché disponible":"Pendiente"},
+    {name:"Vulnerability Intelligence", stamp:data.vulnerabilities.last_refresh, detail:`${execNumber(data.vulnerabilities.kev_count)} registros KEV · ${execNumber(data.vulnerabilities.nvd_count)} NVD`, state:data.vulnerabilities.last_refresh?"Caché disponible":"Pendiente"}
+  ];
+  $("execModuleStatus").innerHTML = entries.map(item => `
+    <div class="exec-status-item">
+      <div class="exec-status-name"><i class="${item.stamp?"is-ready":"is-pending"}"></i><b>${esc(item.name)}</b></div>
+      <span>${esc(item.detail)}</span>
+      <small>${esc(item.stamp ? execTime(item.stamp) : item.state)}</small>
+    </div>`).join("");
+}
+
+function renderExecutiveDashboard(data) {
+  const p = data.platforms || {}, n = data.news || {}, r = data.ransomware || {}, v = data.vulnerabilities || {};
+  $("execSnapshot").textContent = `Resumen consultado: ${execTime(data.generated_at)}`;
+  $("execGeneratedAt").textContent = `Actualizado: ${execTime(data.generated_at)}`;
+
+  $("execPlatformsTotal").textContent = execNumber(p.total);
+  $("execPlatformsFoot").textContent = `${execNumber(p.counts?.operational || 0)} operativas · ${execNumber(p.counts?.degraded || 0)} degradadas · ${execNumber(p.counts?.outage || 0)} indisponibles`;
+  $("execNewsTotal").textContent = execNumber(n.count);
+  $("execNewsFoot").textContent = `${execNumber(n.sources_ok)}/${execNumber(n.sources_total)} fuentes respondieron · 7 días`;
+  $("execRansomTotal").textContent = execNumber(r.processed);
+  $("execRansomFoot").textContent = `${execNumber(r.groups_count)} grupos · ${execNumber(r.countries_count)} países identificados`;
+  $("execKevTotal").textContent = execNumber(v.kev_count);
+  $("execKevFoot").textContent = `${execNumber(v.visible)} registros en vista 30 días + KEV`;
+
+  renderExecPlatformChart(p);
+  renderExecBars("execThreatBars", n.categories, execCategoryLabels, "#5daaf5");
+  $("execThreatNote").textContent = `${execNumber(n.count)} noticias publicadas en los últimos 7 días. Una noticia puede tener varias etiquetas.`;
+
+  $("execRansomCountries").textContent = execNumber(r.countries_count);
+  $("execRansomGroups").textContent = execNumber(r.groups_count);
+  $("execRansomVisible").textContent = execNumber(r.listed);
+  renderExecRankList("execTopGroups", r.top_groups, "name");
+  renderExecRankList("execTopCountries", r.top_countries, "name");
+  $("execRansomNote").textContent = `${execNumber(r.processed)} observaciones procesadas por las fuentes; ${execNumber(r.listed)} filas individuales visibles. Son publicaciones, no incidentes confirmados.`;
+
+  renderExecBars("execVulnBars", v.severity, {
+    CRITICAL:"Crítica", HIGH:"Alta", MEDIUM:"Media", LOW:"Baja", OTHER:"Otra / sin clasificación"
+  }, "#b18af0");
+  $("execEpssHigh").textContent = execNumber(v.epss_50_plus);
+  $("execNvdCount").textContent = execNumber(v.nvd_count);
+  renderExecModuleStatus(data);
+}
+
+function healthStateLabel(state) {
+  return ({healthy:"Correcto",partial:"Parcial",error:"Error",stale:"Antiguo",pending:"Pendiente",warning:"Última consulta falló"})[state] || "Sin estado";
+}
+function healthTime(value) {
+  return value ? new Date(value).toLocaleString("es-CL") : "Sin consulta exitosa";
+}
+function renderHealthDiagnostics(data) {
+  const labels = {platforms:"Plataformas",news:"Noticias",ransomware:"Ransomware",vulnerabilities:"Vulnerabilidades"};
+  const overall = data.overall || "pending";
+  const badge = $("execHealthBadge");
+  badge.textContent = healthStateLabel(overall);
+  badge.className = `health-badge ${overall}`;
+  const modules = data.modules || {};
+  const allSources = Object.values(modules).flatMap(module => module.sources || []);
+  const healthy = allSources.filter(x => x.status === "healthy").length;
+  const failed = allSources.filter(x => x.status === "error").length;
+  const stale = allSources.filter(x => x.status === "stale").length;
+  const warnings = allSources.filter(x => x.status === "warning").length;
+  const pending = allSources.filter(x => x.status === "pending").length;
+  $("execHealthSummary").innerHTML = [
+    [healthy,"Fuentes correctas","healthy"],[warnings+failed,"Con errores recientes","error"],
+    [stale,"Datos antiguos","stale"],[pending,"Pendientes","pending"]
+  ].map(([value,label,state]) => `<div class="exec-health-kpi ${state}"><b>${execNumber(value)}</b><span>${label}</span></div>`).join("");
+  $("execHealthModules").innerHTML = Object.entries(labels).map(([key,label]) => {
+    const module = modules[key] || {};
+    const sources = module.sources || [];
+    const sourceRows = sources.map(source => `<div class="exec-health-source">
+      <span class="health-dot ${esc(source.status || "pending")}"></span>
+      <span class="exec-health-source-name">${esc(source.source || source.name || "Fuente")}</span>
+      <span class="exec-health-source-state">${esc(healthStateLabel(source.status))}</span>
+      <small>${esc(source.last_success ? healthTime(source.last_success) : (source.checked_at ? `Intento: ${healthTime(source.checked_at)}` : "Sin consulta registrada"))}</small>
+      ${source.error ? `<em title="${esc(source.error)}">${esc(source.error)}</em>` : ""}
+    </div>`).join("");
+    return `<details class="exec-health-module"><summary><span>${esc(label)}</span><b class="health-badge ${esc(module.status || "pending")}">${esc(healthStateLabel(module.status))}</b><small>${execNumber(module.healthy)}/${execNumber(sources.length)} fuentes correctas${module.manual ? ` · ${execNumber(module.manual)} manuales` : ""}</small></summary>
+      <div class="exec-health-source-list">${sourceRows || '<span class="exec-empty">Todavía no existen resultados de consulta.</span>'}</div></details>`;
+  }).join("");
+  const runs = data.recent_refreshes || [];
+  $("execRefreshHistory").innerHTML = runs.length ? runs.map(run => `<div class="exec-refresh-run"><span class="health-dot ${run.ok ? "healthy" : "error"}"></span><b>${esc(labels[run.module] || run.module)}</b><span>${esc(run.summary || "")}</span><small>${esc(healthTime(run.attempted_at))}</small></div>`).join("") : '<span class="exec-empty">Todavía no hay actualizaciones manuales registradas.</span>';
+  $("execPersistenceWarning").textContent = data.database?.warning || "No fue posible determinar la persistencia de los datos.";
+}
+
+async function loadExecutiveDashboard() {
+  const [summaryResult, healthResult] = await Promise.allSettled([
+    fetch("/api/executive-summary", {cache:"no-store"}),
+    fetch("/api/health", {cache:"no-store"})
+  ]);
+  let loaded = false;
+  try {
+    if (summaryResult.status !== "fulfilled") throw summaryResult.reason;
+    const response = summaryResult.value;
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    renderExecutiveDashboard(data);
+    loaded = true;
+  } catch (error) {
+    $("execSnapshot").textContent = `No se pudo cargar el resumen: ${error.message}`;
+    $("execModuleStatus").innerHTML = '<span class="exec-empty">El resumen ejecutivo no está disponible. Los módulos individuales siguen funcionando.</span>';
+  }
+  try {
+    if (healthResult.status !== "fulfilled") throw healthResult.reason;
+    const response = healthResult.value;
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    renderHealthDiagnostics(data);
+  } catch (error) {
+    $("execHealthBadge").textContent = "No disponible";
+    $("execHealthBadge").className = "health-badge error";
+    $("execHealthSummary").innerHTML = `<span class="exec-empty">No se pudo consultar el diagnóstico: ${esc(error.message)}</span>`;
+    $("execHealthModules").innerHTML = "";
+  }
+  return loaded;
+}
+
+loadExecutiveDashboard();
+
+// v1.9.4 — Phishing URL Reporter (asistente de campos y deep-links verificados)
+(() => {
+  const $p = id => document.getElementById(id);
+  const vendorNames = {
+    virustotal: "VirusTotal", fortiguard: "FortiGuard", google: "Google Safe Browsing",
+    netcraft: "Netcraft", eset: "ESET", cloudflare: "Cloudflare",
+    urlabuse: "URLAbuse", watchguard: "WatchGuard"
+  };
+  const vendorTemplates = {
+    virustotal: {
+      subject: "Análisis de reputación de URL — VirusTotal",
+      purpose: "Solicitar análisis de reputación y revisar las detecciones disponibles para el indicador. VirusTotal es una plataforma de análisis y agregación; esta acción no equivale a reportar el sitio directamente a cada motor.",
+      guidance: "Antes de enviar, revisa la política de compartición de VirusTotal. No remitas URLs con tokens, credenciales, identificadores personales ni parámetros sensibles."
+    },
+    fortiguard: {
+      subject: "Solicitud de revisión de categoría — FortiGuard Web Filter",
+      purpose: "Solicitar revisión de la clasificación Web Filter cuando la URL esté sin categorizar o tenga una categoría incorrecta.",
+      guidance: "Revisa la clasificación actual y utiliza la opción de revisión del portal. Selecciona una categoría relacionada con phishing o sitios maliciosos solo si la evidencia lo respalda. Generalmente se tramita una URL por solicitud."
+    },
+    google: {
+      subject: "Reporte de sitio de phishing — Google Safe Browsing",
+      purpose: "Informar una página que aparenta suplantar una organización o servicio, o que intenta obtener credenciales o información sensible mediante engaño.",
+      guidance: "Describe qué organización se suplanta, qué solicita la página y cómo se evidencia el comportamiento de phishing. Incluye únicamente URLs y evidencia necesarias."
+    },
+    netcraft: {
+      subject: "Reporte de sitio sospechoso — Netcraft",
+      purpose: "Reportar URLs asociadas a phishing, robo de credenciales, fraude o distribución de malware para que sean revisadas.",
+      guidance: "Netcraft permite reportar más de una URL desde su formulario. Aporta contexto verificable y explica la relación entre el dominio y la marca suplantada."
+    },
+    eset: {
+      subject: "Reporte de sitio fraudulento — ESET",
+      purpose: "Enviar al laboratorio de ESET una página sospechosa para revisión por posible phishing, fraude o distribución de contenido malicioso.",
+      guidance: "Completa los campos que solicite el formulario oficial. Si requiere una sola URL, envía cada dirección individualmente. Describe el comportamiento observado sin incluir secretos."
+    },
+    cloudflare: {
+      subject: "Reporte de abuso por phishing — Cloudflare",
+      purpose: "Informar contenido abusivo relacionado con servicios de Cloudflare cuando exista fundamento para asociar el sitio reportado con su infraestructura.",
+      guidance: "Selecciona la categoría de abuso apropiada y aporta evidencia específica. Cloudflare puede reenviar el reporte al operador correspondiente; no uses este canal como sustituto de reportar al proveedor de hosting o al registrador cuando no corresponda."
+    },
+    urlabuse: {
+      subject: "Reporte de URL maliciosa — URLAbuse",
+      purpose: "Reportar URLs sospechosas asociadas a phishing, fraude, malware u otra actividad maliciosa.",
+      guidance: "Completa los datos solicitados por el portal. Revisa qué información del reportante puede quedar visible públicamente antes de enviar el formulario."
+    },
+    watchguard: {
+      subject: "Solicitud de revisión de categoría — WatchGuard",
+      purpose: "Solicitar revisión de la categoría de una URL cuando esté sin clasificar o se encuentre categorizada incorrectamente.",
+      guidance: "Utiliza el portal de URL Categorization y solicita una categoría de phishing o sitios maliciosos únicamente cuando la evidencia lo justifique. El portal puede requerir autenticación o reCAPTCHA."
+    }
+  };
+  const vendorPortals = {
+    virustotal:"https://www.virustotal.com/gui/home/url",
+    fortiguard:"https://www.fortiguard.com/webfilter",
+    google:"https://www.google.com/safebrowsing/report_phish/",
+    netcraft:"https://report.netcraft.com/report",
+    eset:"https://phishing.eset.com/es-cl/report",
+    cloudflare:"https://abuse.cloudflare.com/",
+    urlabuse:"https://urlabuse.com/report",
+    watchguard:"https://www.watchguard.com/securityportal/UrlCategorization.aspx"
+  };
+  const HISTORY_KEY = "soc_service_status_monitor_phishing_history_v1";
+  const MAX_HISTORY_RECORDS = 2000;
+  const MAX_HISTORY_CHARS = 1700000; // Keep localStorage use below typical browser quotas.
+  const statuses = {
+    prepared: "Preparado · pendiente",
+    portal_opened: "Portal abierto · pendiente de confirmación",
+    confirmed: "Confirmado por analista",
+    cancelled: "Descartado / cancelado"
+  };
+  let preparedPayload = null;
+  let assistantPayload = null;
+  let vendorStates = {};
+  let activity = [];
+  let storageStatusMessage = "Historial local de este navegador; no se sincroniza entre analistas.";
+  let historyRecords = loadHistory();
+  const cards = [...document.querySelectorAll(".phishing-vendor-card")];
+
+  function escapeHTML(value) {
+    return String(value ?? "").replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+  }
+  function makeId() {
+    return window.crypto?.randomUUID ? window.crypto.randomUUID() : `ph-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+  }
+  function validUrl(raw) {
+    try {
+      const input = String(raw || "").trim();
+      if (!input || input.length > 2048) return null;
+      const parsed = new URL(input);
+      if (!["http:","https:"].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password) return null;
+      return {url: parsed.href, host: parsed.hostname.toLowerCase()};
+    } catch { return null; }
+  }
+  function loadHistory() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map(cleanRecord).filter(Boolean).slice(0, MAX_HISTORY_RECORDS);
+    } catch (error) {
+      console.warn("No se pudo leer el historial local de Phishing URL Reporter:", error);
+      return [];
+    }
+  }
+  function cleanRecord(record) {
+    if (!record || typeof record !== "object" || !vendorNames[record.vendor]) return null;
+    const urlSeen = new Set();
+    const urls = (Array.isArray(record.urls) ? record.urls : []).slice(0,20).map(item => validUrl(typeof item === "string" ? item : item?.url)).filter(item => {
+      if (!item || urlSeen.has(item.url)) return false;
+      urlSeen.add(item.url); return true;
+    });
+    if (!urls.length) return null;
+    const allowed = Object.keys(statuses);
+    return {
+      id: String(record.id || makeId()).slice(0,100),
+      batchId: String(record.batchId || "").slice(0,100),
+      createdAt: Number.isFinite(Date.parse(record.createdAt)) ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: Number.isFinite(Date.parse(record.updatedAt)) ? new Date(record.updatedAt).toISOString() : new Date().toISOString(),
+      vendor: record.vendor,
+      vendorName: vendorNames[record.vendor],
+      portalUrl: vendorPortals[record.vendor],
+      workflowType: String(record.workflowType || "report").slice(0,40),
+      status: allowed.includes(record.status) ? record.status : "prepared",
+      urls,
+      brand: String(record.brand || "").slice(0,120),
+      analyst: String(record.analyst || "").slice(0,80),
+      category: String(record.category || "").slice(0,80),
+      reference: String(record.reference || "").slice(0,100),
+      description: String(record.description || "").slice(0,1200),
+      copiedAt: record.copiedAt || null,
+      openedAt: record.openedAt || null,
+      openedUrls: Array.isArray(record.openedUrls) ? record.openedUrls.map(value => validUrl(value)?.url).filter(Boolean).slice(0,20) : [],
+      confirmedAt: record.confirmedAt || null,
+      note: String(record.note || "").slice(0,500)
+    };
+  }
+  function saveHistory() {
+    historyRecords = historyRecords.slice().sort((a,b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)).slice(0, MAX_HISTORY_RECORDS);
+    try {
+      let serialized = JSON.stringify(historyRecords);
+      let trimmed = 0;
+      while (serialized.length > MAX_HISTORY_CHARS && historyRecords.length > 1) {
+        historyRecords.pop(); trimmed += 1; serialized = JSON.stringify(historyRecords);
+      }
+      localStorage.setItem(HISTORY_KEY, serialized);
+      storageStatusMessage = `Historial guardado en este navegador · ${historyRecords.length} registros${trimmed ? ` · ${trimmed} registros antiguos retirados por límite de espacio` : ""}`;
+      if ($p("phishingStorageStatus")) $p("phishingStorageStatus").textContent = storageStatusMessage;
+      return true;
+    } catch (error) {
+      console.error("No se pudo guardar el historial local:", error);
+      storageStatusMessage = "No se pudo guardar el historial: revisa el almacenamiento disponible del navegador y exporta un respaldo.";
+      if ($p("phishingStorageStatus")) $p("phishingStorageStatus").textContent = storageStatusMessage;
+      toast("No se pudo guardar el historial local. Exporta un respaldo y revisa el espacio del navegador.");
+      return false;
+    }
+  }
+  function formatDate(value) {
+    if (!value) return "—";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("es-CL", {hour12:false});
+  }
+  function selectedVendors() {
+    return cards.filter(card => card.querySelector('input[type="checkbox"]').checked);
+  }
+  function getHistoryRecord(vendor) {
+    const id = vendorStates[vendor]?.historyId;
+    return id ? historyRecords.find(record => record.id === id) : null;
+  }
+  function updateSummary() {
+    $p("phishingSummaryUrls").textContent = preparedPayload ? preparedPayload.urls.length : 0;
+    $p("phishingSummaryOpened").textContent = Object.values(vendorStates).filter(state => state.opened).length;
+    $p("phishingSummarySent").textContent = Object.values(vendorStates).filter(state => state.confirmed).length;
+    $p("phishingCopyAll").disabled = !preparedPayload || selectedVendors().every(card => !(preparedPayload.vendorUrls[card.dataset.vendor] || []).length);
+    renderHistoryStats();
+  }
+  function addActivity(vendor, action, status) {
+    activity.unshift({time:new Date().toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit",second:"2-digit"}),vendor,action,status});
+    activity = activity.slice(0,100);
+    renderActivity();
+  }
+  function renderActivity() {
+    const body = $p("phishingActivityRows");
+    if (!activity.length) {
+      body.innerHTML = '<tr><td colspan="4">Todavía no hay actividad en esta sesión.</td></tr>';
+      return;
+    }
+    body.innerHTML = activity.map(item => `<tr><td>${escapeHTML(item.time)}</td><td>${escapeHTML(item.vendor)}</td><td>${escapeHTML(item.action)}</td><td>${escapeHTML(item.status)}</td></tr>`).join("");
+  }
+  function urlsFor(vendor) { return preparedPayload?.vendorUrls?.[vendor] || []; }
+  function actionLabel(vendor) {
+    if (vendor === "fortiguard" || vendor === "watchguard") return "Confirmar gestión realizada";
+    if (vendor === "virustotal") return "Confirmar análisis realizado";
+    return "Confirmar reporte realizado";
+  }
+  function updateVendorCard(card) {
+    const key = card.dataset.vendor;
+    const state = vendorStates[key] || {};
+    const urls = urlsFor(key);
+    const status = card.querySelector(".phishing-vendor-status");
+    const confirm = card.querySelector(".phishing-confirm");
+    const duplicateCount = Number(state.duplicateCount || 0);
+    const openedUrls = Array.isArray(state.openedUrls) ? [...new Set(state.openedUrls)] : [];
+    const needsOneByOne = singleUrlVendors.has(key);
+    const allSelectedUrlsOpened = needsOneByOne && urls.length > 0 && urls.every(item => openedUrls.includes(item.url));
+    const picker = card.querySelector(".phishing-vendor-url-picker");
+    const pickerSelect = card.querySelector(".vendor-url-select");
+    if (picker && pickerSelect) {
+      if (needsOneByOne && urls.length > 1) {
+        const previous = pickerSelect.value;
+        pickerSelect.innerHTML = urls.map((item,index) => `<option value="${escapeHTML(item.url)}">${index + 1}. ${escapeHTML(item.host)}${openedUrls.includes(item.url) ? " · portal abierto" : " · pendiente"}</option>`).join("");
+        if (urls.some(item => item.url === previous)) pickerSelect.value = previous;
+        picker.hidden = false;
+      } else {
+        picker.hidden = true;
+        pickerSelect.innerHTML = "";
+      }
+    }
+    if (state.confirmed) status.textContent = `Confirmado por analista · ${state.confirmedAt || ""}`;
+    else if (needsOneByOne && openedUrls.length) status.textContent = `Portal preparado para ${openedUrls.length}/${urls.length} URL(s) · completa cada gestión antes de confirmar`;
+    else if (state.opened) status.textContent = "Portal abierto · pendiente de confirmación manual";
+    else if (state.blocked) status.textContent = "El navegador bloqueó la pestaña · intenta nuevamente";
+    else if (!urls.length && duplicateCount) status.textContent = `Sin URLs nuevas · ${duplicateCount} repetida(s) omitida(s)`;
+    else if (state.copied) status.textContent = `Datos copiados · sin enviar${duplicateCount ? ` · ${duplicateCount} repetida(s) omitida(s)` : ""}`;
+    else if (urls.length) status.textContent = `Preparado · ${urls.length} URL(s)${duplicateCount ? ` nueva(s), ${duplicateCount} repetida(s) omitida(s)` : ""}`;
+    else status.textContent = "Prepara un lote para comenzar";
+    status.classList.toggle("is-confirmed", !!state.confirmed);
+    status.classList.toggle("is-opened", (!!state.opened || openedUrls.length > 0) && !state.confirmed);
+    confirm.disabled = needsOneByOne ? (!allSelectedUrlsOpened || !!state.confirmed) : (!state.opened || !!state.confirmed);
+    confirm.textContent = state.confirmed ? "Gestión confirmada" : actionLabel(key);
+    const isSelected = card.querySelector('input[type="checkbox"]').checked;
+    card.querySelector(".vendor-copy").disabled = !preparedPayload || !isSelected || !urls.length;
+    card.querySelector(".vendor-open").disabled = !preparedPayload || !isSelected || !urls.length;
+    card.querySelector(".vendor-preview").disabled = !preparedPayload || !isSelected || !urls.length;
+  }
+  function resetVendorStates(message) {
+    vendorStates = {};
+    cards.forEach(card => {
+      const status = card.querySelector(".phishing-vendor-status");
+      status.textContent = message || "Sin iniciar";
+      status.className = "phishing-vendor-status";
+      const isSelected = card.querySelector('input[type="checkbox"]').checked;
+      card.querySelector(".vendor-copy").disabled = !preparedPayload || !isSelected;
+      card.querySelector(".vendor-open").disabled = !preparedPayload || !isSelected;
+      card.querySelector(".vendor-preview").disabled = !preparedPayload || !isSelected;
+      card.querySelector(".phishing-confirm").disabled = true;
+      card.querySelector(".phishing-confirm").textContent = actionLabel(card.dataset.vendor);
+    });
+    updateSummary();
+  }
+  function updateRecord(id, patch) {
+    const record = historyRecords.find(item => item.id === id);
+    if (!record) return null;
+    Object.assign(record, patch, {updatedAt:new Date().toISOString()});
+    saveHistory(); renderHistory();
+    return record;
+  }
+  function invalidateCurrentBatch(reason) {
+    if (!preparedPayload) return;
+    for (const state of Object.values(vendorStates)) {
+      const record = state.historyId ? historyRecords.find(item => item.id === state.historyId) : null;
+      if (record && record.status === "prepared" && !record.copiedAt && !record.openedAt) {
+        record.status = "cancelled"; record.note = reason; record.updatedAt = new Date().toISOString();
+      }
+    }
+    saveHistory(); renderHistory();
+    preparedPayload = null;
+    resetVendorStates("Datos modificados · vuelve a preparar el lote");
+  }
+  const singleUrlVendors = new Set(["virustotal","fortiguard","google","eset","cloudflare","urlabuse"]);
+  function workflowType(vendor) {
+    if (vendor === "virustotal") return "analysis";
+    if (vendor === "fortiguard" || vendor === "watchguard") return "category-review";
+    if (vendor === "cloudflare") return "abuse-report";
+    return "phishing-report";
+  }
+  function payloadUrls(vendorKey, payload, selectedUrl = null) {
+    const all = (payload?.vendorUrls?.[vendorKey] || []).map(item => typeof item === "string" ? item : item.url).filter(Boolean);
+    return selectedUrl && singleUrlVendors.has(vendorKey) ? [selectedUrl] : all;
+  }
+  function reportContext(p) {
+    return [
+      p.brand ? `Marca/organización suplantada: ${p.brand}.` : "",
+      p.category ? `Actividad observada: ${p.category}.` : "",
+      p.description || "Se identificó una página sospechosa durante el monitoreo SOC/MDR y se solicita revisión por posible phishing."
+    ].filter(Boolean).join(" ");
+  }
+  function buildVendorFields(vendorKey, selectedUrl = null, payload = preparedPayload) {
+    if (!payload || !vendorNames[vendorKey]) return [];
+    const urls = payloadUrls(vendorKey, payload, selectedUrl);
+    const urlText = urls.join("\n");
+    const context = reportContext(payload);
+    const add = (label, value, options = {}) => ({label, value:String(value ?? ""), copy:options.copy !== false, autoCopy:!!options.autoCopy, manual:!!options.manual, hint:options.hint || ""});
+    if (vendorKey === "virustotal") return [
+      add("URL para analizar", urlText, {autoCopy:true, hint:"Pega la URL en VirusTotal para iniciar el análisis. Esto consulta reputación; no es un reporte directo a cada motor."})
+    ];
+    if (vendorKey === "fortiguard") return [
+      add("URL consultada", urlText, {hint:"Se incluye en el enlace de búsqueda q=; verifica que el resultado corresponda a esta URL."}),
+      add("Categoría sugerida", "Security Risk → Phishing", {autoCopy:true, hint:"FortiGuard clasifica Phishing dentro de Security Risk. En Request a Review, elige la categoría disponible que corresponda."}),
+      add("Justificación de revisión", context, {hint:"Pega este texto en el campo de explicación si aparece en el formulario de revisión."})
+    ];
+    if (vendorKey === "google") {
+      const details = [payload.brand ? `Posible suplantación de: ${payload.brand}.` : "", payload.category ? `Tipo de actividad observada: ${payload.category}.` : "", payload.description || "Se identificó una página sospechosa durante el monitoreo SOC/MDR; se solicita revisión por posible phishing."].filter(Boolean).join(" ").slice(0,800);
+      return [
+        add("URL a denunciar", urlText, {hint:"La URL se transmite en el enlace del formulario; comprueba que el campo aparezca completo."}),
+        add("Tipo de amenaza", "Ingeniería social", {copy:false, manual:true, hint:"Seleccionar manualmente en el formulario de Google."}),
+        add("Categoría de amenaza", "Phishing bancario o financiero", {copy:false, manual:true, hint:"Seleccionar manualmente en el formulario de Google."}),
+        add("Información adicional", details, {autoCopy:true, hint:"Campo limitado a 800 caracteres. Pega este contenido en Información adicional."})
+      ];
+    }
+    if (vendorKey === "netcraft") return [
+      add("URL(s) del sitio · Report in bulk", urlText, {autoCopy:true, hint:"Netcraft dispone de una opción Report in bulk. Pega las URLs en el campo de URLs; una por línea."}),
+      add("Detalles adicionales", context, {hint:"Pega en Add further details. Si deseas recibir resultados, completa manualmente tu correo en With Email."})
+    ];
+    if (vendorKey === "eset") return [
+      add("URL de la página fraudulenta", urlText, {autoCopy:true, hint:"El formulario de ESET solicita una URL por envío."}),
+      add("Organización simulada por la página fraudulenta", payload.brand || "", {hint:"Pega el nombre de la marca u organización suplantada."}),
+      add("Comentarios", context, {hint:"Pega en Comentarios. Describe la suplantación y comportamiento observado."})
+    ];
+    if (vendorKey === "cloudflare") return [
+      add("Categoría de abuso", "Phishing & Malware", {copy:false, manual:true, hint:"Selecciona manualmente Phishing & Malware en el formulario de Cloudflare."}),
+      add("Domain in question", (() => { try { return new URL(urls[0]).hostname; } catch { return ""; } })(), {autoCopy:true, hint:"Cloudflare solicita el dominio en cuestión."}),
+      add("Specific phishing link", urlText, {hint:"Cloudflare solicita también el enlace específico de la página de phishing."}),
+      add("Marca / organización afectada", payload.brand || "", {hint:"Pega si el formulario ofrece un campo para la organización afectada."}),
+      add("Descripción y evidencia", context, {hint:"Pega en la descripción del abuso. Reporta aquí solo contenido relacionado con servicios de Cloudflare."})
+    ];
+    if (vendorKey === "urlabuse") return [
+      add("Malicious URL", urlText, {autoCopy:true, hint:"URLAbuse acepta una URL por formulario."}),
+      add("Target / brand", payload.brand || "", {hint:"Marca u organización objetivo del phishing."}),
+      add("Your name or nickname", payload.analyst || "Completar manualmente con un alias autorizado", {copy:false, manual:true, hint:"ATENCIÓN: URLAbuse indica que este nombre se muestra públicamente como remitente. No pegues el nombre personal del analista si no está autorizado."}),
+      add("Type of abuse", "Phishing", {copy:false, manual:true, hint:"Marca manualmente la opción Phishing."})
+    ];
+    if (vendorKey === "watchguard") return [
+      add("URLs y categoría sugerida", urls.map(url => `${url}, Phishing and Other Frauds`).join("\n"), {autoCopy:true, hint:"Pega en Enter uncategorized/miscategorized URLs. La documentación de WatchGuard permite varias URLs, una por línea, con categoría sugerida."}),
+      add("Categoría oficial sugerida", "Phishing and Other Frauds", {hint:"Categoría de WebBlocker documentada por WatchGuard. El analista debe verificar que esté disponible en el portal y que corresponda a la evidencia."})
+    ];
+    return [add("URL(s)", urlText, {autoCopy:true}), add("Descripción", context)];
+  }
+  function buildReportText(vendorKey, singleUrl = null) {
+    const fields = buildVendorFields(vendorKey, singleUrl);
+    return fields.map(field => `${field.label}:\n${field.value}${field.hint ? `\n${field.hint}` : ""}`).join("\n\n");
+  }
+  function buildVendorPortalUrl(vendorKey, selectedUrl = null) {
+    const card = cards.find(item => item.dataset.vendor === vendorKey);
+    const base = card?.querySelector(".vendor-open")?.dataset.url || vendorPortals[vendorKey];
+    if (selectedUrl && (vendorKey === "google" || vendorKey === "fortiguard")) {
+      const target = new URL(base);
+      if (vendorKey === "google") target.searchParams.set("hl", "es");
+      if (vendorKey === "fortiguard") target.searchParams.set("q", selectedUrl);
+      else target.searchParams.set("url", selectedUrl);
+      return target.toString();
+    }
+    return base;
+  }
+  function buildRecordDetails(record) {
+    const payload = {...record, vendorUrls:{[record.vendor]:record.urls}};
+    return buildVendorFields(record.vendor, singleUrlVendors.has(record.vendor) ? record.urls[0]?.url : null, payload)
+      .map(field => `${field.label}:\n${field.value}`).join("\n\n");
+  }
+  function showVendorAssistant(vendorKey, selectedUrl = null, payload = preparedPayload) {
+    assistantPayload = payload;
+    const fields = buildVendorFields(vendorKey, selectedUrl, payload);
+    if (!fields.length) return;
+    $p("phishingTemplateTitle").textContent = `Campos para completar · ${vendorNames[vendorKey]}`;
+    const guidance = vendorTemplates[vendorKey]?.guidance || "Copia cada dato y pégalo en el campo equivalente del portal externo.";
+    let extra = "El portal se abrió en otra pestaña. Copia cada campo por separado y pégalo en su campo equivalente; el envío siempre se realiza y confirma en el sitio del proveedor.";
+    if (vendorKey === "fortiguard") extra += " La URL va precargada en la búsqueda; después de revisar el rating, utiliza Request a Review si corresponde.";
+    if (vendorKey === "google") extra += " La URL va en el enlace; debes seleccionar manualmente Ingeniería social y Phishing bancario o financiero.";
+    if (vendorKey === "cloudflare") extra += " Cloudflare solicita dominio y enlace específico; informa solo sitios que resuelvan hacia IPs o servicios de Cloudflare.";
+    if (vendorKey === "urlabuse") extra += " El nombre del reportante puede quedar visible públicamente.";
+    $p("phishingTemplateBody").textContent = `${guidance} ${extra}`;
+    $p("phishingTemplateFields").innerHTML = fields.map((field,index) => `<section class="phishing-template-field ${field.manual ? "manual" : ""}"><div class="phishing-template-field-head"><strong>${escapeHTML(field.label)}</strong>${field.copy ? `<button type="button" class="phishing-btn secondary" data-template-field-copy="${index}">Copiar</button>` : `<span class="manual-tag">Selección manual</span>`}</div><pre>${escapeHTML(field.value || (field.manual ? "Completar manualmente en el portal" : "—"))}</pre>${field.hint ? `<small>${escapeHTML(field.hint)}</small>` : ""}</section>`).join("");
+    $p("phishingTemplateCopy").dataset.templateVendor = vendorKey;
+    $p("phishingTemplateCopy").dataset.templateUrl = selectedUrl || "";
+    $p("phishingTemplateDialog").showModal();
+    return fields;
+  }
+  function selectedUrlForCard(card) {
+    const key = card.dataset.vendor;
+    const picker = card.querySelector(".vendor-url-select");
+    return singleUrlVendors.has(key) ? (picker?.value || urlsFor(key)[0]?.url || null) : null;
+  }
+  async function copyPrimaryVendorField(vendorKey, selectedUrl = null, payload = preparedPayload) {
+    const fields = buildVendorFields(vendorKey, selectedUrl, payload);
+    const target = fields.find(field => field.autoCopy && field.copy) || fields.find(field => field.copy);
+    if (!target) return false;
+    return copyText(target.value, `${target.label}: copiado. Pégalo en el campo indicado del portal.`);
+  }
+  async function copyText(text, successMessage) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+      else {
+        const temp = document.createElement("textarea");
+        temp.value = text; temp.style.position = "fixed"; temp.style.opacity = "0";
+        document.body.appendChild(temp); temp.select();
+        const copied = document.execCommand("copy"); temp.remove();
+        if (!copied) throw new Error("El navegador no permitió copiar al portapapeles.");
+      }
+      toast(successMessage || "Datos copiados al portapapeles.");
+      return true;
+    } catch (error) {
+      toast("No se pudo copiar. Selecciona y copia los datos manualmente.");
+      return false;
+    }
+  }
+  function findPrevious(vendor, url) {
+    return historyRecords.find(record => record.vendor === vendor && record.status !== "cancelled" && record.urls.some(item => item.url === url));
+  }
+  function validateAndPrepare() {
+    const rawLines = $p("phishingUrls").value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    const feedback = $p("phishingUrlFeedback");
+    if (!rawLines.length) {
+      feedback.textContent = "Ingresa al menos una URL."; feedback.className = "phishing-feedback error";
+      return;
+    }
+    const selected = selectedVendors();
+    if (!selected.length) {
+      feedback.textContent = "Selecciona al menos un vendor antes de preparar el lote."; feedback.className = "phishing-feedback error";
+      return;
+    }
+    const valid = [], invalid = [], seen = new Set();
+    rawLines.forEach(raw => {
+      const parsed = validUrl(raw);
+      if (!parsed) invalid.push(raw);
+      else if (!seen.has(parsed.url)) { seen.add(parsed.url); valid.push(parsed); }
+    });
+    if (invalid.length) {
+      feedback.textContent = `${invalid.length} línea(s) no válida(s). Usa URLs completas con http:// o https:// y sin credenciales embebidas. No se preparó el lote.`;
+      feedback.className = "phishing-feedback error";
+      $p("phishingUrlCount").textContent = `${valid.length} / 20 válidas`;
+      return;
+    }
+    if (valid.length > 20) {
+      feedback.textContent = `El lote contiene ${valid.length} URLs únicas. El máximo permitido es 20; divide el reporte en varios lotes.`;
+      feedback.className = "phishing-feedback error";
+      $p("phishingUrlCount").textContent = `${valid.length} / 20`;
+      return;
+    }
+    const allowDuplicates = $p("phishingAllowDuplicates").checked;
+    const vendorUrls = {}, duplicateCounts = {}, duplicatesFound = [];
+    selected.forEach(card => {
+      const vendor = card.dataset.vendor;
+      const newUrls = [];
+      let count = 0;
+      valid.forEach(item => {
+        const previous = findPrevious(vendor, item.url);
+        if (previous) {
+          count += 1;
+          duplicatesFound.push({vendor:vendorNames[vendor],url:item.url,previousStatus:statuses[previous.status]});
+          if (!allowDuplicates) return;
+        }
+        newUrls.push(item);
+      });
+      vendorUrls[vendor] = newUrls;
+      duplicateCounts[vendor] = count;
+    });
+    const batchId = makeId();
+    preparedPayload = {
+      batchId, urls:valid, vendorUrls, duplicateCounts, duplicatesFound, allowDuplicates,
+      brand:$p("phishingBrand").value.trim(), analyst:$p("phishingAnalyst").value.trim(),
+      category:$p("phishingCategory").value, reference:$p("phishingReference").value.trim(),
+      description:$p("phishingDescription").value.trim(), preparedAt:new Date().toISOString()
+    };
+    vendorStates = {};
+    selected.forEach(card => {
+      const vendor = card.dataset.vendor, vendorList = vendorUrls[vendor] || [];
+      const state = {duplicateCount:duplicateCounts[vendor] || 0, skipped:vendorList.length === 0};
+      if (vendorList.length) {
+        const record = cleanRecord({
+          id:makeId(), batchId, createdAt:preparedPayload.preparedAt, updatedAt:preparedPayload.preparedAt,
+          vendor, portalUrl:card.querySelector(".vendor-open").dataset.url, workflowType:workflowType(vendor),
+          status:"prepared", urls:vendorList, brand:preparedPayload.brand, analyst:preparedPayload.analyst,
+          category:preparedPayload.category, reference:preparedPayload.reference, description:preparedPayload.description
+        });
+        if (record) { historyRecords.unshift(record); state.historyId = record.id; }
+      }
+      vendorStates[vendor] = state;
+    });
+    saveHistory();
+    const dupTotal = duplicatesFound.length;
+    if (dupTotal && !allowDuplicates) {
+      feedback.textContent = `${valid.length} URL(s) válidas. Se detectaron ${dupTotal} coincidencia(s) URL/vendor en el historial; se omitieron para evitar reportes duplicados. Revisa cada vendor. Activa “Permitir repetir” para una nueva gestión justificada.`;
+      feedback.className = "phishing-feedback warning";
+    } else {
+      feedback.textContent = `${valid.length} URL(s) válidas y listas. ${rawLines.length - valid.length} duplicado(s) idéntico(s) eliminado(s) del lote.${dupTotal ? ` Se incluyeron ${dupTotal} repetición(es) históricas por autorización del analista.` : ""}`;
+      feedback.className = "phishing-feedback success";
+    }
+    $p("phishingUrlCount").textContent = `${valid.length} / 20`;
+    cards.forEach(updateVendorCard);
+    updateSummary(); renderHistory();
+    toast("Lote validado y guardado en el historial local.");
+  }
+  function statusOptions(current) {
+    return Object.entries(statuses).map(([key,label]) => `<option value="${key}" ${key === current ? "selected" : ""}>${escapeHTML(label)}</option>`).join("");
+  }
+  function renderHistoryStats() {
+    const total = historyRecords.length;
+    const confirmed = historyRecords.filter(item => item.status === "confirmed").length;
+    const pending = historyRecords.filter(item => item.status === "prepared" || item.status === "portal_opened").length;
+    if ($p("phishingHistoryTotal")) $p("phishingHistoryTotal").textContent = total;
+    if ($p("phishingHistoryPending")) $p("phishingHistoryPending").textContent = pending;
+    if ($p("phishingHistoryConfirmed")) $p("phishingHistoryConfirmed").textContent = confirmed;
+  }
+  function renderHistory() {
+    const body = $p("phishingHistoryRows");
+    if (!body) return;
+    const term = $p("phishingHistorySearch").value.trim().toLowerCase();
+    const vendorFilter = $p("phishingHistoryVendor").value;
+    const statusFilter = $p("phishingHistoryStatus").value;
+    const rows = historyRecords.filter(record => {
+      const haystack = [record.vendorName,record.analyst,record.brand,record.reference,record.description,...record.urls.map(item=>item.url)].join(" ").toLowerCase();
+      return (!term || haystack.includes(term)) && (!vendorFilter || record.vendor === vendorFilter) && (!statusFilter || record.status === statusFilter);
+    }).slice(0,300);
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="6">No hay registros que coincidan con los filtros.</td></tr>';
+    } else {
+      body.innerHTML = rows.map(record => {
+        const urlPreview = record.urls.slice(0,2).map(item=>item.host).join(", ") + (record.urls.length > 2 ? ` +${record.urls.length-2}` : "");
+        const full = record.urls.map(item=>item.url).join("\n");
+        return `<tr>
+          <td>${escapeHTML(formatDate(record.createdAt))}</td>
+          <td class="phishing-history-url" title="${escapeHTML(full)}"><b>${escapeHTML(urlPreview)}</b><small>${record.urls.length} URL(s)</small></td>
+          <td>${escapeHTML(record.vendorName)}<small>${escapeHTML(record.analyst || "Analista no indicado")}</small></td>
+          <td>${escapeHTML(record.brand || "—")}<small>${escapeHTML(record.reference || "Sin referencia")}</small></td>
+          <td><select class="phishing-history-status" data-history-status="${escapeHTML(record.id)}" aria-label="Estado de ${escapeHTML(record.vendorName)}">${statusOptions(record.status)}</select></td>
+          <td class="phishing-history-actions"><button type="button" class="phishing-text-btn" data-history-copy="${escapeHTML(record.id)}">Copiar</button><button type="button" class="phishing-text-btn" data-history-open="${escapeHTML(record.id)}">Portal ↗</button><button type="button" class="phishing-text-btn danger" data-history-delete="${escapeHTML(record.id)}">Eliminar</button></td>
+        </tr>`;
+      }).join("");
+    }
+    renderHistoryStats();
+    if ($p("phishingStorageStatus")) $p("phishingStorageStatus").textContent = storageStatusMessage || `Historial local de este navegador · ${historyRecords.length} registros · no se sincroniza entre analistas`;
+  }
+  function updateHistoryStatus(id, newStatus) {
+    const record = historyRecords.find(item=>item.id===id);
+    if (!record || !Object.prototype.hasOwnProperty.call(statuses,newStatus)) return;
+    if (newStatus === "confirmed" && record.status !== "confirmed") {
+      if (!window.confirm("¿Confirmas que completaste el reporte, análisis o solicitud en el portal del proveedor? Esta confirmación queda registrada como declaración manual del analista; la plataforma no verifica el envío.")) { renderHistory(); return; }
+    }
+    const now = new Date().toISOString();
+    record.status = newStatus;
+    record.updatedAt = now;
+    if (newStatus === "portal_opened") record.openedAt = record.openedAt || now;
+    if (newStatus === "confirmed") record.confirmedAt = now;
+    if (newStatus !== "confirmed") record.confirmedAt = null;
+    if (newStatus === "cancelled") record.note = "Estado actualizado manualmente desde el historial.";
+    const activeState = vendorStates[record.vendor];
+    if (activeState?.historyId === id) {
+      activeState.opened = newStatus === "portal_opened" || newStatus === "confirmed";
+      activeState.confirmed = newStatus === "confirmed";
+      activeState.confirmedAt = newStatus === "confirmed" ? formatDate(now) : null;
+      const card = cards.find(item => item.dataset.vendor === record.vendor);
+      if (card) updateVendorCard(card);
+    }
+    saveHistory(); renderHistory(); updateSummary();
+    toast("Estado del registro actualizado.");
+  }
+  function csvCell(value) {
+    let text = String(value ?? "");
+    if (/^[\s]*[=+@-]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g,'""')}"`;
+  }
+  function downloadFile(name, content, mime) {
+    const blob = new Blob([content], {type:mime});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a"); link.href = url; link.download = name;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function exportJson() {
+    const payload = {format:"soc-phishing-reporter-history",schemaVersion:1,exportedAt:new Date().toISOString(),records:historyRecords};
+    downloadFile(`soc-phishing-history-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(payload,null,2), "application/json;charset=utf-8");
+    toast("Respaldo JSON generado.");
+  }
+  function exportCsv() {
+    const headers = ["id","batchId","createdAt","updatedAt","vendor","vendorName","portalUrl","workflowType","status","url","host","brand","analyst","category","reference","description","copiedAt","openedAt","openedUrls","confirmedAt","note"];
+    const rows = [headers.map(csvCell).join(",")];
+    historyRecords.forEach(record => record.urls.forEach(item => {
+      const row = {...record,url:item.url,host:item.host,openedUrls:(record.openedUrls || []).join(";")};
+      rows.push(headers.map(key=>csvCell(row[key])).join(","));
+    }));
+    downloadFile(`soc-phishing-history-${new Date().toISOString().slice(0,10)}.csv`, "\uFEFF"+rows.join("\r\n"), "text/csv;charset=utf-8");
+    toast("Historial CSV generado.");
+  }
+  function parseCsv(text) {
+    const rows=[]; let row=[], cell="", quoted=false;
+    for (let i=0;i<text.length;i++) {
+      const char=text[i], next=text[i+1];
+      if (quoted) {
+        if (char === '"' && next === '"') { cell+='"'; i++; }
+        else if (char === '"') quoted=false;
+        else cell+=char;
+      } else if (char === '"') quoted=true;
+      else if (char === ",") { row.push(cell); cell=""; }
+      else if (char === "\n") { row.push(cell.replace(/\r$/,"")); rows.push(row); row=[]; cell=""; }
+      else cell+=char;
+    }
+    if (cell.length || row.length) { row.push(cell.replace(/\r$/,"")); rows.push(row); }
+    if (!rows.length) return [];
+    const headers=rows.shift().map(value=>value.replace(/^\uFEFF/,"").trim());
+    return rows.filter(cells=>cells.some(value=>value.trim())).map(cells=>Object.fromEntries(headers.map((header,index)=>[header,cells[index] ?? ""])));
+  }
+  function importCsvRows(rows) {
+    const grouped = new Map();
+    rows.forEach(row => {
+      const vendor = String(row.vendor || "");
+      const parsedUrl = validUrl(row.url);
+      if (!vendorNames[vendor] || !parsedUrl) return;
+      const key = row.id || makeId();
+      if (!grouped.has(key)) grouped.set(key, {
+        id:key,batchId:row.batchId,createdAt:row.createdAt,updatedAt:row.updatedAt,vendor,
+        portalUrl:row.portalUrl,workflowType:row.workflowType,status:row.status,urls:[],brand:row.brand,
+        analyst:row.analyst,category:row.category,reference:row.reference,description:row.description,
+        copiedAt:row.copiedAt,openedAt:row.openedAt,openedUrls:row.openedUrls ? String(row.openedUrls).split(";") : [],confirmedAt:row.confirmedAt,note:row.note
+      });
+      grouped.get(key).urls.push(parsedUrl);
+    });
+    return [...grouped.values()].map(cleanRecord).filter(Boolean);
+  }
+  async function importHistory(file) {
+    if (!file) return;
+    try {
+      const content = await file.text();
+      let imported=[];
+      if (file.name.toLowerCase().endsWith(".csv") || file.type.includes("csv")) imported = importCsvRows(parseCsv(content));
+      else {
+        const parsed=JSON.parse(content);
+        const records=Array.isArray(parsed)?parsed:(parsed.records || parsed.history || []);
+        if (!Array.isArray(records)) throw new Error("El JSON no contiene una lista de registros.");
+        imported=records.map(cleanRecord).filter(Boolean);
+      }
+      const ids = new Set(historyRecords.map(item=>item.id));
+      const fresh = imported.filter(item=>!ids.has(item.id));
+      if (!fresh.length) { toast("No se encontraron registros nuevos válidos para importar."); return; }
+      historyRecords = [...fresh,...historyRecords].slice(0,MAX_HISTORY_RECORDS);
+      saveHistory(); renderHistory();
+      toast(`Importación completada: ${fresh.length} registro(s) añadido(s).`);
+    } catch (error) {
+      console.error(error); toast(`No se pudo importar el respaldo: ${error.message}`);
+    } finally { $p("phishingImportFile").value=""; }
+  }
+
+  $p("phishingPrepare").addEventListener("click", validateAndPrepare);
+  $p("phishingUrls").addEventListener("input", () => {
+    const count = $p("phishingUrls").value.split(/\r?\n/).filter(line => line.trim()).length;
+    $p("phishingUrlCount").textContent = `${count} / 20`;
+  });
+  ["phishingUrls","phishingBrand","phishingAnalyst","phishingCategory","phishingReference","phishingDescription","phishingAllowDuplicates"].forEach(id => {
+    const node=$p(id); const eventName=node.type === "checkbox" || node.tagName === "SELECT" ? "change" : "input";
+    node.addEventListener(eventName, () => {
+      if (!preparedPayload) return;
+      invalidateCurrentBatch("Datos o configuración modificados antes de iniciar; preparar nuevamente");
+      $p("phishingUrlFeedback").textContent = "Los datos cambiaron. Valida y prepara nuevamente antes de abrir un portal.";
+      $p("phishingUrlFeedback").className = "phishing-feedback warning";
+    });
+  });
+  $p("phishingClear").addEventListener("click", () => {
+    invalidateCurrentBatch("Lote limpiado por el analista");
+    ["phishingUrls","phishingBrand","phishingAnalyst","phishingReference","phishingDescription"].forEach(id => $p(id).value = "");
+    $p("phishingCategory").value = "Phishing"; $p("phishingAllowDuplicates").checked=false;
+    $p("phishingUrlCount").textContent = "0 / 20";
+    $p("phishingUrlFeedback").textContent = "Ingresa una o más URLs para comenzar.";
+    $p("phishingUrlFeedback").className = "phishing-feedback";
+    preparedPayload = null; activity = []; renderActivity(); resetVendorStates("Sin iniciar");
+  });
+  $p("phishingSelectAll").addEventListener("click", () => {
+    if (preparedPayload) invalidateCurrentBatch("Selección de vendors modificada; preparar nuevamente");
+    cards.forEach(card => { card.querySelector('input[type="checkbox"]').checked = true; updateVendorCard(card); }); updateSummary();
+  });
+  $p("phishingSelectNone").addEventListener("click", () => {
+    if (preparedPayload) invalidateCurrentBatch("Selección de vendors modificada; preparar nuevamente");
+    cards.forEach(card => { card.querySelector('input[type="checkbox"]').checked = false; updateVendorCard(card); }); updateSummary();
+  });
+  cards.forEach(card => card.querySelector('input[type="checkbox"]').addEventListener("change", () => {
+    if (preparedPayload) invalidateCurrentBatch("Selección de vendors modificada; preparar nuevamente");
+    updateVendorCard(card); updateSummary();
+  }));
+  cards.forEach(card => {
+    const key = card.dataset.vendor;
+    card.querySelector(".vendor-preview").addEventListener("click", () => {
+      if (!preparedPayload || !urlsFor(key).length) return;
+      const selectedUrl = selectedUrlForCard(card);
+      showVendorAssistant(key, selectedUrl);
+    });
+    card.querySelector(".vendor-copy").addEventListener("click", async () => {
+      if (!preparedPayload || !urlsFor(key).length) return;
+      const selectedUrl = selectedUrlForCard(card);
+      const fields = showVendorAssistant(key, selectedUrl);
+      const target = fields?.find(field => field.autoCopy && field.copy) || fields?.find(field => field.copy);
+      const copied = target ? await copyText(target.value, `${target.label}: copiado. Pégalo en el campo indicado.`) : false;
+      if (copied) {
+        vendorStates[key] = {...vendorStates[key],copied:true};
+        const record=getHistoryRecord(key); if(record) updateRecord(record.id,{copiedAt:new Date().toISOString()});
+        updateVendorCard(card);
+        addActivity(vendorNames[key], `Campo preparado: ${target.label}`, "Copiado; no enviado");
+      }
+    });
+    const pickerSelect = card.querySelector(".vendor-url-select");
+    if (pickerSelect) pickerSelect.addEventListener("change", () => {
+      const selectedUrl = pickerSelect.value;
+      const opened = vendorStates[key]?.openedUrls || [];
+      const record=getHistoryRecord(key);
+      if (record && opened.includes(selectedUrl)) {
+        const host = urlsFor(key).find(item => item.url === selectedUrl)?.host || selectedUrl;
+        addActivity(vendorNames[key], `URL seleccionada: ${host}`, "Ya se abrió el portal para esta URL");
+      }
+    });
+    card.querySelector(".vendor-open").addEventListener("click", async () => {
+      if (!preparedPayload || !urlsFor(key).length) return;
+      const selectedUrl = selectedUrlForCard(card);
+      const target = buildVendorPortalUrl(key, selectedUrl);
+      // Abrir el portal o copiar este texto no confirma un reporte.
+      // Open the external site synchronously from the click gesture; cross-origin form fields stay outside our control.
+      const opened = window.open(target, "_blank");
+      if (opened) opened.opener = null;
+      const record=getHistoryRecord(key);
+      if (opened) {
+        const current = vendorStates[key] || {};
+        const openedUrls = singleUrlVendors.has(key) ? [...new Set([...(current.openedUrls || []), selectedUrl])] : (current.openedUrls || []);
+        const allUrlsOpened = !singleUrlVendors.has(key) || urlsFor(key).every(item => openedUrls.includes(item.url));
+        vendorStates[key] = {...current,opened:singleUrlVendors.has(key) ? allUrlsOpened : true,openedUrls,blocked:false,confirmed:false};
+        if (record) updateRecord(record.id,{
+          status:"portal_opened",
+          openedAt:new Date().toISOString(),
+          openedUrls:singleUrlVendors.has(key) ? openedUrls : (record.openedUrls || [])
+        });
+        showVendorAssistant(key, selectedUrl);
+        const copied = await copyPrimaryVendorField(key, selectedUrl);
+        if (copied) {
+          vendorStates[key] = {...vendorStates[key],copied:true};
+          if (record) updateRecord(record.id,{copiedAt:new Date().toISOString()});
+        }
+      } else {
+        vendorStates[key] = {...vendorStates[key],opened:false,blocked:true,confirmed:false};
+      }
+      updateVendorCard(card); updateSummary();
+      const action = (key === "google" || key === "fortiguard") ? "Apertura de enlace con URL precargada" : "Apertura de portal + preparación de campo";
+      addActivity(vendorNames[key], action, opened ? "Portal abierto; campos listos para pegar; envío pendiente" : "Apertura bloqueada por el navegador");
+      if (!opened) toast("El navegador bloqueó la pestaña. Permite ventanas emergentes e intenta nuevamente.");
+    });
+    card.querySelector(".phishing-confirm").addEventListener("click", () => {
+      if (!vendorStates[key]?.opened || vendorStates[key]?.confirmed) return;
+      const verb = key === "fortiguard" || key === "watchguard" ? "la gestión" : (key === "virustotal" ? "el análisis" : "el reporte");
+      const detail = singleUrlVendors.has(key) ? `¿Confirmas que completaste ${verb} para TODAS las URLs preparadas de ${vendorNames[key]}? Abrir el portal no cuenta como envío ni análisis.` : `¿Confirmas que completaste ${verb} en el portal de ${vendorNames[key]}?`;
+      if (!window.confirm(`${detail} Esta confirmación es manual; la plataforma no puede verificar la gestión.`)) return;
+      const time = new Date().toLocaleString("es-CL");
+      vendorStates[key] = {...vendorStates[key],confirmed:true,confirmedAt:time};
+      const record=getHistoryRecord(key); if(record) updateRecord(record.id,{status:"confirmed",confirmedAt:new Date().toISOString()});
+      updateVendorCard(card); updateSummary();
+      addActivity(vendorNames[key], "Confirmación manual del analista", "Confirmado por analista");
+    });
+  });
+  $p("phishingCopyAll").addEventListener("click", async () => {
+    if (!preparedPayload) return;
+    const selected=selectedVendors().filter(card=>(urlsFor(card.dataset.vendor)||[]).length);
+    if (!selected.length) { toast("Selecciona al menos un vendor con URLs nuevas."); return; }
+    const text = ["SOC / MDR — RESUMEN DE PREPARACIÓN DE REPORTES", ...selected.map(card => `\n===== ${vendorNames[card.dataset.vendor]} =====\n${buildReportText(card.dataset.vendor)}`)].join("\n");
+    if (await copyText(text,"Resumen de datos copiado.")) {
+      selected.forEach(card=>{
+        const key=card.dataset.vendor; vendorStates[key]={...vendorStates[key],copied:true};
+        const record=getHistoryRecord(key); if(record) updateRecord(record.id,{copiedAt:new Date().toISOString()});
+        updateVendorCard(card);
+      });
+      addActivity("Varios vendors","Resumen de datos copiado","Preparado; no enviado");
+    }
+  });
+  $p("phishingClearActivity").addEventListener("click", () => {activity=[];renderActivity();});
+  $p("phishingHistorySearch").addEventListener("input", renderHistory);
+  $p("phishingHistoryVendor").addEventListener("change", renderHistory);
+  $p("phishingHistoryStatus").addEventListener("change", renderHistory);
+  $p("phishingHistoryRows").addEventListener("change", event => {
+    const select=event.target.closest("[data-history-status]"); if(select) updateHistoryStatus(select.dataset.historyStatus,select.value);
+  });
+  $p("phishingHistoryRows").addEventListener("click", async event => {
+    const copy=event.target.closest("[data-history-copy]");
+    const open=event.target.closest("[data-history-open]");
+    const remove=event.target.closest("[data-history-delete]");
+    if(open) {
+      const record=historyRecords.find(item=>item.id===open.dataset.historyOpen); if(!record)return;
+      const selectedUrl=singleUrlVendors.has(record.vendor) ? record.urls[0]?.url : null;
+      const target=buildVendorPortalUrl(record.vendor,selectedUrl);
+      const opened=window.open(target,"_blank"); if(opened)opened.opener=null;
+      if(opened) {
+        updateHistoryStatus(record.id,"portal_opened");
+        const payload={...record,vendorUrls:{[record.vendor]:record.urls}};
+        showVendorAssistant(record.vendor,selectedUrl,payload);
+        await copyPrimaryVendorField(record.vendor,selectedUrl,payload);
+      } else toast("El navegador bloqueó la pestaña del portal.");
+    }
+    if(copy) {
+      const record=historyRecords.find(item=>item.id===copy.dataset.historyCopy); if(!record)return;
+      const copied=await copyText(buildRecordDetails(record),`Datos del formulario de ${record.vendorName} copiados.`);
+      if(copied) updateRecord(record.id,{copiedAt:new Date().toISOString()});
+    }
+    if(remove) {
+      if(!window.confirm("¿Eliminar este registro del historial local? Esta acción no se puede deshacer."))return;
+      historyRecords=historyRecords.filter(item=>item.id!==remove.dataset.historyDelete);
+      Object.keys(vendorStates).forEach(vendor=>{if(vendorStates[vendor].historyId===remove.dataset.historyDelete)vendorStates[vendor]={};});
+      saveHistory(); renderHistory(); cards.forEach(updateVendorCard); updateSummary();
+    }
+  });
+  $p("phishingExportJson").addEventListener("click", exportJson);
+  $p("phishingExportCsv").addEventListener("click", exportCsv);
+  $p("phishingImportButton").addEventListener("click", ()=>$p("phishingImportFile").click());
+  $p("phishingImportFile").addEventListener("change", event => importHistory(event.target.files?.[0]));
+  $p("phishingClearHistory").addEventListener("click", () => {
+    if(!historyRecords.length)return;
+    if(!window.confirm("¿Borrar todo el historial guardado en este navegador? Exporta un respaldo antes si necesitas conservarlo."))return;
+    historyRecords=[]; preparedPayload=null; vendorStates={};
+    saveHistory(); renderHistory(); cards.forEach(updateVendorCard); updateSummary(); toast("Historial local eliminado.");
+  });
+  $p("phishingTemplateClose").addEventListener("click", ()=>$p("phishingTemplateDialog").close());
+  $p("phishingTemplateCloseBottom").addEventListener("click", ()=>$p("phishingTemplateDialog").close());
+  $p("phishingTemplateFields").addEventListener("click", async event => {
+    const button=event.target.closest("[data-template-field-copy]");
+    if(!button)return;
+    const vendor=$p("phishingTemplateCopy").dataset.templateVendor;
+    const selectedUrl=$p("phishingTemplateCopy").dataset.templateUrl || null;
+    const payload=assistantPayload;
+    const field=buildVendorFields(vendor,selectedUrl,payload)[Number(button.dataset.templateFieldCopy)];
+    if(field?.copy) await copyText(field.value,`${field.label}: copiado.`);
+  });
+  $p("phishingTemplateCopy").addEventListener("click", async () => {
+    const vendor=$p("phishingTemplateCopy").dataset.templateVendor;
+    const selectedUrl=$p("phishingTemplateCopy").dataset.templateUrl || null;
+    if(!vendor)return;
+    const text=buildVendorFields(vendor,selectedUrl,assistantPayload).filter(field=>field.copy).map(field=>`${field.label}:\n${field.value}`).join("\n\n");
+    await copyText(text,`Resumen de campos de ${vendorNames[vendor]} copiado. Pega cada bloque en el campo correspondiente.`);
+  });
+  $p("phishingTemplateDialog").addEventListener("click",event=>{if(event.target===$p("phishingTemplateDialog"))$p("phishingTemplateDialog").close();});
+  $p("phishingUrlCount").textContent="0 / 20";
+  saveHistory(); renderActivity(); renderHistory();
+  updateSummary(); cards.forEach(updateVendorCard);
+})();

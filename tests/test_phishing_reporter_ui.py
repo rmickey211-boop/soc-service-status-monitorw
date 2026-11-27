@@ -19,7 +19,7 @@ def test_reporter_is_browser_only_and_does_not_add_backend_routes_or_dependencie
     base, _, js = _sources()
     main = (base / "app/main.py").read_text(encoding="utf-8")
     requirements = (base / "requirements.txt").read_text(encoding="utf-8")
-    marker = "// v1.9.3 — Phishing URL Reporter"
+    marker = "// v1.9.4 — Phishing URL Reporter"
     assert marker in js
     assert "localStorage" in js[js.index(marker):]
     assert "fetch(" not in js[js.index(marker):]
@@ -75,12 +75,62 @@ def test_google_portal_url_is_prefilled_and_details_are_copied():
     assert 'class="vendor-url-select"' in html
     assert 'target.searchParams.set("url", selectedUrl)' in js
     assert 'target.searchParams.set("hl", "es")' in js
-    assert 'copyText(buildReportText(key, selectedUrl)' in js
+    assert 'copyPrimaryVendorField(key, selectedUrl)' in js
     assert 'El formulario es de una URL por envío' in html or 'Google admite una URL por envío' in html
 
 
 def test_google_report_text_is_short_and_vendor_specific():
     _, _, js = _sources()
-    assert 'details.slice(0,800)' in js
-    assert 'URL preparada en el enlace de Google' in js
+    assert '.slice(0,800)' in js
+    assert 'La URL va en el enlace' in js
     assert 'el botón de envío siguen siendo manuales' not in js  # documented in README
+
+
+def test_vendor_assistant_copies_fields_separately_and_opens_single_url_vendors_individually():
+    _, html, js = _sources()
+    assert 'id="phishingTemplateFields"' in html
+    assert 'data-template-field-copy' in js
+    for vendor in ("virustotal", "fortiguard", "google", "eset", "cloudflare", "urlabuse"):
+        assert vendor in js[js.index("const singleUrlVendors"):js.index("function workflowType")]
+        assert f'data-vendor="{vendor}"' in html
+    assert 'Portal preparado para ${openedUrls.length}/${urls.length} URL(s)' in js
+
+
+def test_fortiguard_and_watchguard_have_vendor_supported_prefill_workflows():
+    _, html, js = _sources()
+    assert 'target.searchParams.set("q", selectedUrl)' in js
+    assert 'Security Risk → Phishing' in js
+    assert 'Phishing and Other Frauds' in js
+    assert 'class="phishing-vendor-url-picker"' in html
+
+
+def test_cloudflare_eset_netcraft_and_urlabuse_fields_follow_their_official_forms():
+    _, html, js = _sources()
+    assert 'Phishing & Malware' in js
+    assert 'Domain in question' in js and 'Specific phishing link' in js
+    assert 'Organización simulada por la página fraudulenta' in js
+    assert 'Report in bulk' in js
+    assert 'Your name or nickname' in js
+    assert 'se muestra públicamente' in js
+
+
+def test_v194_fortiguard_link_is_prefilled_and_google_choices_remain_explicitly_manual():
+    _, _, js = _sources()
+    assert 'target.searchParams.set("q", selectedUrl)' in js
+    assert 'target.searchParams.set("url", selectedUrl)' in js
+    assert 'Ingeniería social' in js
+    assert 'Phishing bancario o financiero' in js
+    assert 'Seleccionar manualmente en el formulario de Google' in js
+
+
+def test_v194_confirmation_requires_the_vendor_portal_to_have_been_opened():
+    _, _, js = _sources()
+    assert 'if (!vendorStates[key]?.opened || vendorStates[key]?.confirmed) return;' in js
+    assert 'confirm.disabled = needsOneByOne ? (!allSelectedUrlsOpened || !!state.confirmed)' in js
+
+
+def test_v194_watchguard_batch_and_cloudflare_domain_specific_link_are_both_prepared():
+    _, _, js = _sources()
+    assert 'urls.map(url => `${url}, Phishing and Other Frauds`).join("\\n")' in js
+    assert 'new URL(urls[0]).hostname' in js
+    assert 'Specific phishing link' in js

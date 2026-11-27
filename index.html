@@ -1,11 +1,141 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.8.0-part2"></head>
+<title>SOC | Service Status Monitor</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="/static/style.css?v=1.9.4-phishing-vendor-assistant"></head>
 <body>
-<header class="topbar"><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · MDR OPERATIONS</small></div></div>
+<header class="topbar"><button type="button" id="mobileMenuToggle" class="mobile-menu-toggle" aria-label="Abrir menú de módulos" aria-expanded="false">☰</button><div class="brand"><div class="shield">⬡</div><div><b>SOC SERVICE STATUS</b><small>MONITOR · THREAT INTELLIGENCE</small></div></div>
 <div class="top-right"><span class="live-dot"></span><span>CONSULTA A DEMANDA</span><span id="clock">--:--:--</span></div></header>
 <main>
-<section class="hero"><div><div class="eyebrow">CENTRO DE VISIBILIDAD DE SERVICIOS</div><h1>Estado de plataformas</h1><p>Consulta las fuentes públicas oficiales durante el checklist de inicio, intermedio y término de turno.</p></div>
+<div id="appShell" class="app-shell">
+ <aside id="socSidebar" class="soc-sidebar" aria-label="Navegación principal">
+  <div class="sidebar-top">
+   <div class="sidebar-section-label">NAVEGACIÓN</div>
+   <button type="button" id="sidebarCollapse" class="sidebar-collapse" aria-label="Contraer menú" title="Contraer menú">‹</button>
+  </div>
+  <nav class="soc-sidebar-nav">
+   <button type="button" class="soc-nav-item active" data-nav="home" title="Inicio ejecutivo" aria-current="page">
+    <span class="soc-nav-icon">⌂</span><span class="soc-nav-label">Inicio ejecutivo</span>
+   </button>
+   <div class="sidebar-section-label modules-label">MÓDULOS</div>
+   <button type="button" class="soc-nav-item" data-nav="platforms" title="Estado de plataformas">
+    <span class="soc-nav-icon">◉</span><span class="soc-nav-label">Estado de plataformas</span>
+   </button>
+   <button type="button" class="soc-nav-item" data-nav="news" title="Ataques y amenazas publicados">
+    <span class="soc-nav-icon">⌁</span><span class="soc-nav-label">Ataques y amenazas</span>
+   </button>
+   <button type="button" class="soc-nav-item" data-nav="ransomware" title="Ransomware tracker">
+    <span class="soc-nav-icon">⌖</span><span class="soc-nav-label">Ransomware tracker</span>
+   </button>
+   <button type="button" class="soc-nav-item" data-nav="vulns" title="Vulnerability Intelligence">
+    <span class="soc-nav-icon">⌘</span><span class="soc-nav-label">Vulnerability Intelligence</span>
+   </button>
+   <button type="button" class="soc-nav-item" data-nav="phishing" title="Phishing URL Reporter">
+    <span class="soc-nav-icon">⌁</span><span class="soc-nav-label">Phishing URL Reporter</span>
+   </button>
+  </nav>
+  <div class="sidebar-footer">
+   <span class="sidebar-footer-dot"></span>
+   <span class="soc-nav-label">SOC Operations Center</span>
+  </div>
+ </aside>
+ <button type="button" id="sidebarScrim" class="sidebar-scrim" aria-label="Cerrar menú"></button>
+ <div class="app-content">
+
+<section id="moduleHome" class="module-home">
+ <div class="module-home-heading">
+  <div><div class="eyebrow">SOC OPERATIONS CENTER</div><h1>Centro de inteligencia</h1><p>Selecciona un módulo para consultar su información.</p></div>
+  <div class="home-refresh-wrap">
+   <button type="button" id="homeRefresh" class="refresh">↻ Actualizar todos los módulos</button>
+   <span id="homeRefreshSummary" class="home-refresh-summary" role="status" aria-live="polite">Actualización manual de los cuatro módulos.</span>
+  </div>
+ </div>
+ <section id="executiveDashboard" class="exec-dashboard" aria-label="Resumen ejecutivo SOC">
+  <div class="exec-dashboard-heading">
+   <div>
+    <div class="exec-eyebrow">VISIÓN GENERAL · DATOS EN CACHÉ</div>
+    <h2>Panorama ejecutivo</h2>
+    <p>Resumen de plataformas, amenazas, ransomware y vulnerabilidades.</p>
+   </div>
+   <div class="exec-snapshot" id="execSnapshot">Leyendo datos disponibles…</div>
+  </div>
+  <div class="exec-kpis">
+   <article class="exec-kpi exec-kpi-platforms">
+    <div class="exec-kpi-top"><span>PLATAFORMAS MONITOREADAS</span><span class="exec-kpi-icon">◉</span></div>
+    <strong id="execPlatformsTotal">—</strong>
+    <div class="exec-kpi-foot"><span id="execPlatformsFoot">Estados aún no consultados</span></div>
+   </article>
+   <article class="exec-kpi exec-kpi-news">
+    <div class="exec-kpi-top"><span>AMENAZAS PUBLICADAS</span><span class="exec-kpi-icon">⌁</span></div>
+    <strong id="execNewsTotal">—</strong>
+    <div class="exec-kpi-foot"><span id="execNewsFoot">Ventana: últimos 7 días</span></div>
+   </article>
+   <article class="exec-kpi exec-kpi-ransom">
+    <div class="exec-kpi-top"><span>OBSERVACIONES RANSOMWARE</span><span class="exec-kpi-icon">⌖</span></div>
+    <strong id="execRansomTotal">—</strong>
+    <div class="exec-kpi-foot"><span id="execRansomFoot">RansomLook + Ransomware.live</span></div>
+   </article>
+   <article class="exec-kpi exec-kpi-vuln">
+    <div class="exec-kpi-top"><span>VULNERABILIDADES CISA KEV</span><span class="exec-kpi-icon">⌘</span></div>
+    <strong id="execKevTotal">—</strong>
+    <div class="exec-kpi-foot"><span id="execKevFoot">Catálogo KEV · CISA</span></div>
+   </article>
+  </div>
+  <div class="exec-chart-grid">
+   <article class="exec-panel">
+    <div class="exec-panel-heading"><div><h3>Estado de plataformas</h3><p>Distribución por estado informado</p></div><span class="exec-period">Catálogo actual</span></div>
+    <div class="exec-platform-chart">
+     <div id="execPlatformDonut" class="exec-donut"><div><strong id="execPlatformDonutTotal">—</strong><small>servicios</small></div></div>
+     <div id="execPlatformLegend" class="exec-legend"><span class="exec-empty">Sin datos de estado todavía.</span></div>
+    </div>
+    <div id="execPlatformNote" class="exec-panel-note">Los estados se obtienen de las últimas consultas guardadas.</div>
+   </article>
+   <article class="exec-panel">
+    <div class="exec-panel-heading"><div><h3>Amenazas por categoría</h3><p>Etiquetas asignadas a noticias de los últimos 7 días</p></div><span class="exec-period">7 días</span></div>
+    <div id="execThreatBars" class="exec-bar-list"><span class="exec-empty">Aún no hay noticias en caché.</span></div>
+    <div id="execThreatNote" class="exec-panel-note">Una noticia puede pertenecer a más de una categoría.</div>
+   </article>
+   <article class="exec-panel">
+    <div class="exec-panel-heading"><div><h3>Actividad ransomware</h3><p>Observaciones agregadas por ambas fuentes</p></div><span class="exec-period">7 días</span></div>
+    <div class="exec-ransom-summary">
+     <div><strong id="execRansomCountries">—</strong><span>Países identificados</span></div>
+     <div><strong id="execRansomGroups">—</strong><span>Grupos identificados</span></div>
+     <div><strong id="execRansomVisible">—</strong><span>Filas individuales visibles</span></div>
+    </div>
+    <div class="exec-mini-columns">
+     <div><h4>Grupos destacados</h4><div id="execTopGroups" class="exec-rank-list"><span class="exec-empty">Sin datos.</span></div></div>
+     <div><h4>Países asociados</h4><div id="execTopCountries" class="exec-rank-list"><span class="exec-empty">Sin datos.</span></div></div>
+    </div>
+    <div id="execRansomNote" class="exec-panel-note">Son observaciones de publicaciones, no incidentes confirmados ni víctimas únicas.</div>
+   </article>
+   <article class="exec-panel">
+    <div class="exec-panel-heading"><div><h3>Vulnerabilidades por severidad</h3><p>CVE almacenadas en la ventana de 30 días + KEV</p></div><span class="exec-period">NVD + KEV</span></div>
+    <div id="execVulnBars" class="exec-bar-list"><span class="exec-empty">Aún no hay vulnerabilidades en caché.</span></div>
+    <div class="exec-vuln-footer">
+     <div><strong id="execEpssHigh">—</strong><span>EPSS ≥ 50%</span></div>
+     <div><strong id="execNvdCount">—</strong><span>CVE NVD últimos 30 días</span></div>
+    </div>
+    <div id="execVulnNote" class="exec-panel-note">CVSS indica severidad; KEV indica explotación conocida; EPSS estima probabilidad.</div>
+   </article>
+  </div>
+  <div class="exec-module-status">
+   <div class="exec-module-status-head"><div><h3>Actualización de módulos</h3><p>Última información guardada en cada módulo</p></div><span id="execGeneratedAt">—</span></div>
+   <div id="execModuleStatus" class="exec-status-grid">
+    <span class="exec-empty">Consultando resúmenes…</span>
+   </div>
+  </div>
+  <section class="exec-health-panel" aria-labelledby="execHealthTitle">
+   <div class="exec-module-status-head"><div><h3 id="execHealthTitle">Diagnóstico de fuentes y almacenamiento</h3><p>Última respuesta conocida por proveedor; este panel consulta solo la caché y no genera tráfico externo.</p></div><span id="execHealthBadge" class="health-badge pending">Pendiente</span></div>
+   <div id="execHealthSummary" class="exec-health-summary"><span class="exec-empty">Consultando diagnóstico…</span></div>
+   <div id="execHealthModules" class="exec-health-modules"><span class="exec-empty">Esperando diagnóstico.</span></div>
+   <details class="exec-refresh-history"><summary>Últimas actualizaciones manuales</summary><div id="execRefreshHistory" class="exec-refresh-runs"><span class="exec-empty">Sin ejecuciones registradas.</span></div></details>
+   <p id="execPersistenceWarning" class="exec-persistence-warning">El historial local puede perderse al reiniciar o redesplegar el servicio gratuito.</p>
+  </section>
+ </section>
+
+</section>
+<nav id="moduleNav" class="module-nav" hidden><span class="module-nav-kicker">MÓDULO SELECCIONADO</span><span id="activeModuleName"></span></nav>
+
+<div class="module-view" id="view-platforms" hidden>
+<section class="hero"><div><div class="eyebrow">CENTRO DE VISIBILIDAD DE SERVICIOS</div><h1>Estado de plataformas</h1><p>Consulta el estado publicado por las fuentes oficiales y revisa los incidentes y mantenimientos vigentes.</p></div>
 <button id="refresh" class="refresh">↻ Actualizar ahora</button></section>
 <section class="metrics">
 <button type="button" class="metric metric-filter" data-filter="operational" aria-pressed="false" title="Filtrar plataformas operativas"><span>OPERATIVOS</span><strong id="operational">—</strong><i class="green"></i></button>
@@ -18,10 +148,31 @@
 <button type="button" class="metric metric-filter" data-filter="stale" aria-pressed="false" title="Filtrar plataformas con datos antiguos"><span>DATOS ANTIGUOS (+60 MIN)</span><strong id="stale">—</strong><i class="yellow"></i></button>
 </section>
 <section class="freshness"><div><span class="eyebrow">FRESCURA DE DATOS</span><b id="updated">Aún no consultado</b></div><div class="freshness-right"><span id="freshSummary">Presiona «Actualizar ahora» para consultar las fuentes.</span><span class="muted">La antigüedad se calcula desde la última respuesta exitosa.</span></div></section>
+<section class="module-visuals platform-visuals" aria-label="Gráficos de estado de plataformas">
+ <div class="module-visuals-heading"><div><h2>Analítica de plataformas</h2><p>Distribución actual y cambios registrados por las consultas.</p></div><span class="chart-window-label">ESTADO ACTUAL + HISTORIAL DISPONIBLE</span></div>
+ <div class="module-chart-grid platform-chart-grid">
+  <article class="module-chart-panel">
+   <div class="module-chart-heading"><div><h3>Distribución por estado</h3><p>Catálogo completo de plataformas</p></div></div>
+   <div class="module-donut-layout"><div id="platformStateDonut" class="module-donut"><div><strong id="platformStateTotal">—</strong><small>servicios</small></div></div><div id="platformStateLegend" class="module-chart-legend"><span class="module-chart-empty">Esperando datos.</span></div></div>
+  </article>
+  <article class="module-chart-panel module-chart-wide">
+   <div class="module-chart-heading"><div><h3>Estado por categoría</h3><p>Comparación de proveedores y servicios agrupados</p></div></div>
+   <div id="platformCategoryBars" class="module-horizontal-bars"><span class="module-chart-empty">Esperando datos.</span></div>
+  </article>
+  <article class="module-chart-panel">
+   <div class="module-chart-heading"><div><h3>Transiciones de estado</h3><p>Cambios detectados en las consultas</p></div><span class="chart-window-label">ÚLTIMOS 7 DÍAS</span></div>
+   <div id="platformEventTrend" class="module-timeline"><span class="module-chart-empty">Sin historial suficiente.</span></div>
+   <div id="platformEventNote" class="module-chart-note">El gráfico contabiliza cambios registrados, no sondeos periódicos.</div>
+  </article>
+ </div>
+</section>
+<div id="platformDrillFilter" class="drill-filter" role="status" aria-live="polite"></div>
 <section class="section-head"><div><h2>Plataformas monitoreadas</h2><p>Las fuentes manuales requieren abrir el portal oficial; no se presentan como operativas.</p></div></section>
 <div class="toolbar"><input id="search" type="search" placeholder="Buscar plataforma…" aria-label="Buscar plataforma"><select id="category" aria-label="Filtrar categoría"><option value="">Todas las categorías</option></select><select id="state" aria-label="Filtrar estado"><option value="">Todos los estados</option><option value="operational">Operativo</option><option value="info">Aviso</option><option value="degraded">Degradado</option><option value="outage">Indisponibilidad</option><option value="maintenance">Mantenimiento</option><option value="manual">Consulta manual</option><option value="unknown">Sin información</option></select><select id="freshFilter" aria-label="Filtrar antigüedad"><option value="">Cualquier antigüedad</option><option value="fresh">Actualizados (menos de 60 min)</option><option value="stale">Antiguos (60 min o más)</option><option value="never">Nunca consultados</option></select></div>
 <section id="services" class="services"><div class="loading">Aún no se ha realizado una consulta. Presiona «Actualizar ahora».</div></section>
 
+</div>
+<div class="module-view" id="view-news" hidden>
 <section class="intel-module" id="global-threat-intel">
  <div class="intel-heading">
   <div>
@@ -32,9 +183,17 @@
   <button type="button" id="refreshIntel" class="refresh intel-refresh">↻ Actualizar inteligencia</button>
  </div>
  <div class="intel-toolbar">
-  <div class="intel-period" role="group" aria-label="Período de publicaciones">
-   <button type="button" class="intel-period-btn" data-period="24h">Últimas 24 horas</button>
-   <button type="button" class="intel-period-btn active" data-period="7d">Últimos 7 días</button>
+  <div class="intel-toolbar-controls">
+   <div class="intel-period" role="group" aria-label="Período de publicaciones">
+    <button type="button" class="intel-period-btn" data-period="24h">Últimas 24 horas</button>
+    <button type="button" class="intel-period-btn active" data-period="7d">Últimos 7 días</button>
+   </div>
+   <label class="intel-source-filter" for="intelSourceFilter">
+    <span>Filtrar por fuente</span>
+    <select id="intelSourceFilter" aria-label="Filtrar noticias por fuente">
+     <option value="all">Todas las fuentes</option>
+    </select>
+   </label>
   </div>
   <div class="intel-last-refresh" id="intelLastRefresh">Sin actualización registrada</div>
  </div>
@@ -46,12 +205,31 @@
   <button type="button" class="intel-category" data-intel-category="leaks">Filtraciones</button>
   <button type="button" class="intel-category" data-intel-category="ddos">DDoS</button>
   <button type="button" class="intel-category" data-intel-category="malware">Malware</button>
+  <button type="button" class="intel-category" data-intel-category="vulnerabilities">Vulnerabilidades</button>
  </div>
  <div class="intel-meta">
   <span id="intelCount">0 publicaciones</span>
-  <span id="intelSourceSummary" aria-live="polite">La actualización es manual; los resultados se conservan en caché.</span>
+  <span id="intelSourceSummary" aria-live="polite">Nueve fuentes públicas · actualización manual · resultados en caché.</span>
  </div>
- <div id="intelNewsList" class="intel-news-grid">
+ <section class="module-visuals intel-visuals" aria-label="Gráficos de amenazas publicadas">
+  <div class="module-visuals-heading"><div><h2>Analítica de amenazas</h2><p>Actividad de publicaciones, clasificación temática y aporte de fuentes.</p></div><span id="intelChartWindow" class="chart-window-label">ÚLTIMOS 7 DÍAS</span></div>
+  <div class="module-chart-grid news-chart-grid">
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Evolución de publicaciones</h3><p>Volumen según fecha publicada</p></div></div>
+    <div id="intelTrendChart" class="module-timeline"><span class="module-chart-empty">Aún no hay publicaciones.</span></div>
+   </article>
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Publicaciones por categoría</h3><p>Una noticia puede tener más de una etiqueta</p></div></div>
+    <div id="intelCategoryChart" class="module-horizontal-bars"><span class="module-chart-empty">Aún no hay publicaciones.</span></div>
+   </article>
+   <article class="module-chart-panel module-chart-wide">
+    <div class="module-chart-heading"><div><h3>Actividad por fuente</h3><p>Noticias incluidas en los filtros seleccionados</p></div></div>
+    <div id="intelSourceChart" class="module-source-bars"><span class="module-chart-empty">Aún no hay publicaciones.</span></div>
+   </article>
+  </div>
+ </section>
+ <div id="intelDrillFilter" class="drill-filter" role="status" aria-live="polite"></div>
+<div id="intelNewsList" class="intel-news-grid">
   <div class="intel-empty">
    <b>Aún no hay noticias en caché</b>
    <span>Presiona «Actualizar inteligencia» para consultar las fuentes públicas.</span>
@@ -63,10 +241,12 @@
    <span class="muted">Todavía no se ha ejecutado una actualización.</span>
   </div>
  </details>
- <div class="intel-disclaimer">Los titulares y extractos proceden de publicaciones externas. La clasificación temática es automática y orientativa; no confirma por sí sola que un incidente haya ocurrido ni atribuye responsabilidad.</div>
+ <div class="intel-disclaimer">Los titulares y extractos breves proceden de publicaciones externas y enlazan al artículo original. Fuentes: The Record, BleepingComputer, CISA, Cisco Talos, Google Threat Intelligence, Cyber Security News, SecurityWeek Vulnerabilities, The Hacker News y CSIRT Chile. La clasificación temática es automática y orientativa; no confirma por sí sola que un incidente haya ocurrido ni atribuye responsabilidad.</div>
 </section>
 
 
+</div>
+<div class="module-view" id="view-ransomware" hidden>
 <section class="ransomware-module" id="ransomware-tracker">
  <div class="rw-heading">
   <div>
@@ -83,28 +263,60 @@
   </div>
   <span id="rwLastRefresh" class="intel-last-refresh">Sin actualización registrada</span>
  </div>
+ <section class="rw-sources-overview" aria-label="Estado de fuentes ransomware">
+  <div class="rw-sources-overview-head">
+   <div><b>Fuentes de inteligencia</b><small>Conteo separado de publicaciones procesadas y filas que se muestran en la tabla.</small></div>
+   <span id="rwSourceQueryTime" class="rw-source-query-time">Sin consulta registrada</span>
+  </div>
+  <div id="rwSources" class="rw-sources-grid">
+   <div class="rw-source-card"><b>RansomLook</b><span class="muted">Pendiente de consulta</span></div>
+   <div class="rw-source-card"><b>Ransomware.live</b><span class="muted">Pendiente de consulta</span></div>
+  </div>
+ </section>
  <div class="rw-kpis">
-  <div class="rw-kpi"><span>PUBLICACIONES</span><b id="rwVictimCount">—</b></div>
+  <div class="rw-kpi"><span>PUBLICACIONES PROCESADAS · AMBAS FUENTES</span><b id="rwVictimCount">—</b><small>Observaciones de fuentes; pueden existir coincidencias entre proveedores.</small></div>
   <div class="rw-kpi"><span>GRUPOS IDENTIFICADOS</span><b id="rwGroupCount">—</b></div>
   <div class="rw-kpi"><span>PAÍSES ASOCIADOS</span><b id="rwCountryCount">—</b></div>
   <div class="rw-kpi"><span>SIN PAÍS ASIGNABLE</span><b id="rwUnknownCount">—</b></div>
  </div>
- <div class="rw-map-layout">
+ <section class="module-visuals ransomware-visuals" aria-label="Gráficos de actividad ransomware">
+  <div class="module-visuals-heading"><div><h2>Analítica de ransomware</h2><p>Observaciones por fecha y concentración por grupo. Incluye aportes agregados de ambas fuentes.</p></div><span id="rwChartWindow" class="chart-window-label">ÚLTIMOS 7 DÍAS</span></div>
+  <div class="module-chart-grid ransomware-chart-grid">
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Evolución de observaciones</h3><p>Publicaciones procesadas por fecha</p></div></div>
+    <div id="rwTimelineChart" class="module-timeline"><span class="module-chart-empty">Aún no hay observaciones.</span></div>
+    <div class="module-chart-note">Son observaciones de fuentes, no incidentes confirmados ni víctimas únicas.</div>
+   </article>
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Grupos con mayor actividad</h3><p>Observaciones agrupadas por proveedor</p></div></div>
+    <div id="rwGroupChart" class="module-horizontal-bars"><span class="module-chart-empty">Aún no hay grupos.</span></div>
+   </article>
+  </div>
+ </section>
+ <div id="rwDrillFilter" class="drill-filter" role="status" aria-live="polite"></div>
+<div class="rw-map-layout">
   <div class="rw-map-panel">
    <div class="rw-panel-heading"><div><b>Distribución geográfica</b><small>Marcadores agrupados por país mencionado en el contexto público</small></div><span id="rwMapStatus" class="rw-map-status">Esperando datos</span></div>
    <div id="rwMap" role="img" aria-label="Mapa mundial de países asociados a publicaciones ransomware"></div>
+   <div class="rw-map-legend"><span><i class="rw-legend-dot rwl"></i>RansomLook</span><span><i class="rw-legend-dot rwlive"></i>Ransomware.live</span><span><i class="rw-legend-dot mixed"></i>Ambas fuentes</span></div>
    <div class="rw-map-attribution">Mapa base © OpenStreetMap contributors · Los puntos representan país asociado, no ubicación del atacante.</div>
   </div>
   <aside class="rw-side-panel">
-   <div class="rw-panel-heading"><b>Países con más publicaciones</b></div>
+   <div class="rw-panel-heading"><b>Países con más publicaciones</b><small>Desglose por proveedor debajo de cada país</small></div>
    <div id="rwCountryList" class="rw-ranked-list"><span class="muted">Aún no hay datos geográficos.</span></div>
-   <div class="rw-panel-heading rw-top-groups-heading"><b>Grupos más activos</b></div>
+   <div class="rw-panel-heading rw-top-groups-heading"><b>Grupos más activos</b><small>Observaciones por fuente; puede haber duplicados</small></div>
    <div id="rwGroupList" class="rw-ranked-list"><span class="muted">Aún no hay publicaciones.</span></div>
   </aside>
  </div>
  <div class="rw-list-heading">
-  <div><b>Publicaciones recientes</b><small>Registros observados por RansomLook; no son incidentes confirmados.</small></div>
-  <span id="rwVisibleCount">0 registros</span>
+  <div class="rw-list-heading-copy">
+   <b>Publicaciones individuales · RansomLook</b>
+   <small>Esta tabla contiene publicaciones individuales de RansomLook. Los indicadores de Ransomware.live se consultan en sus tarjetas superiores.</small>
+  </div>
+  <div class="rw-list-heading-actions">
+   <span id="rwVisibleCount">0 filas individuales</span>
+   <a class="rw-external-source-btn" href="https://www.ransomware.live/" target="_blank" rel="noopener noreferrer" aria-label="Abrir publicaciones originales en Ransomware.live">Consultar Ransomware.live ↗</a>
+  </div>
  </div>
  <div class="rw-filters">
   <input id="rwSearch" type="search" placeholder="Buscar organización o grupo…" aria-label="Buscar publicación ransomware">
@@ -115,36 +327,136 @@
    <tbody id="rwItems"><tr><td colspan="6" class="rw-empty-cell">Aún no hay publicaciones en caché. Presiona «Actualizar ransomware».</td></tr></tbody>
   </table>
  </div>
- <details class="intel-source-panel rw-source-panel">
-  <summary>Estado de la fuente consultada</summary>
-  <div id="rwSources" class="intel-sources"><span class="muted">Todavía no se ha ejecutado una actualización.</span></div>
- </details>
  <div class="rw-disclaimer"><b>Advertencia de interpretación:</b> estos registros reflejan afirmaciones publicadas por grupos criminales y no demuestran por sí solos una intrusión, exfiltración o afectación real. «Observado» corresponde al momento en que la fuente detectó la publicación, no necesariamente a la fecha del ataque. El país solo se asigna cuando el texto descriptivo incluye una mención reconocible y no ambigua; los registros sin evidencia suficiente quedan sin geolocalizar. No se consulta ni descarga información filtrada.</div>
- <div class="rw-attribution">Fuente: <a href="https://www.ransomlook.io/recent" target="_blank" rel="noopener noreferrer">RansomLook</a> · API pública documentada · Atribución CC BY 4.0 · La disponibilidad y el contenido dependen de la fuente externa.</div>
+ <div class="rw-attribution">Fuentes: <a href="https://www.ransomlook.io/recent" target="_blank" rel="noopener noreferrer">RansomLook</a> (CC BY 4.0) · <a href="https://www.ransomware.live/" target="_blank" rel="noopener noreferrer">Ransomware.live</a> (indicadores agregados; uso no comercial con atribución según sus condiciones). No se redistribuyen públicamente nombres individuales de víctimas de Ransomware.live.</div>
 </section>
 
-<section class="section-head history-head"><div><h2>Checklist MDR</h2><p>Registra las verificaciones realizadas en inicio, intermedio y término de turno.</p></div></section>
-<section class="checklist-panel">
- <div class="checklist-grid">
-  <label>Analista<input id="analyst" maxlength="80" placeholder="Nombre o identificador"></label>
-  <label>Turno<select id="shift"><option value="">Seleccionar turno</option><option>Turno día</option><option>Turno tarde</option><option>Turno noche</option><option>Otro</option></select></label>
-  <label>Momento de revisión<select id="checkpoint"><option value="inicio">Inicio de turno</option><option value="intermedio">Intermedio</option><option value="termino">Término de turno</option></select></label>
+</div>
+<div class="module-view" id="view-vulns" hidden>
+<section class="section-head"><div><h2>Vulnerability Intelligence</h2><p>Priorización pública de CVE mediante explotación conocida, severidad técnica y probabilidad EPSS.</p></div>
+ <div class="intel-actions"><button id="refreshVulns" class="refresh">↻ Actualizar vulnerabilidades</button></div></section>
+<section class="vuln-panel">
+ <div class="vuln-kpis">
+  <div><span>Registros visibles</span><b id="vulnCount">0</b></div>
+  <div><span>CISA KEV</span><b id="vulnKevCount">—</b></div>
+  <div><span>NVD últimos 30 días</span><b id="vulnNvdCount">—</b></div>
+  <div><span>Última actualización</span><b id="vulnLastRefresh">Pendiente</b></div>
  </div>
- <div class="checklist-tools"><b>Plataformas verificadas</b><div><button type="button" class="small-btn" id="selectAll">Marcar todas</button><button type="button" class="small-btn" id="clearAll">Limpiar</button></div></div>
- <div id="checklistServices" class="checklist-services"><span class="muted">Cargando plataformas…</span></div>
- <label class="notes-label">Observaciones (opcional)<textarea id="checkNotes" maxlength="1000" rows="2" placeholder="Anota novedades generales sin incluir información sensible de clientes."></textarea></label>
- <div class="checklist-submit"><span class="muted">Se registra fecha/hora, analista, turno y plataformas marcadas.</span><button id="saveChecklist" class="refresh">Registrar revisión</button></div>
- <div id="checkMsg" class="check-msg" role="status"></div>
+ <section class="module-visuals vuln-visuals" aria-label="Gráficos de vulnerabilidades">
+  <div class="module-visuals-heading"><div><h2>Analítica de vulnerabilidades</h2><p>Distribución de los registros visibles según severidad, EPSS y explotación conocida.</p></div><span id="vulnChartWindow" class="chart-window-label">30 DÍAS + KEV</span></div>
+  <div class="module-chart-grid vuln-chart-grid">
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Severidad CVSS</h3><p>Distribución de los registros visibles</p></div></div>
+    <div id="vulnSeverityChart" class="module-horizontal-bars"><span class="module-chart-empty">Aún no hay CVE en caché.</span></div>
+   </article>
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Bandas de probabilidad EPSS</h3><p>Estimación de explotación en los próximos 30 días</p></div></div>
+    <div id="vulnEpssChart" class="module-horizontal-bars"><span class="module-chart-empty">Aún no hay puntajes EPSS.</span></div>
+   </article>
+   <article class="module-chart-panel">
+    <div class="module-chart-heading"><div><h3>Explotación conocida · CISA KEV</h3><p>Presencia en el catálogo de vulnerabilidades explotadas</p></div></div>
+    <div id="vulnKevChart" class="module-donut-breakdown"><span class="module-chart-empty">Aún no hay CVE en caché.</span></div>
+   </article>
+  </div>
+  <div id="vulnChartNote" class="module-chart-note">Las visualizaciones se calculan sobre los registros devueltos por el filtro actual; no representan todos los CVE existentes en NVD.</div>
+ </section>
+ <div id="vulnDrillFilter" class="drill-filter" role="status" aria-live="polite"></div>
+<div class="vuln-tools">
+  <input id="vulnSearch" type="search" placeholder="Buscar CVE, proveedor o producto…">
+  <select id="vulnPeriod" aria-label="Filtrar período"><option value="30d">Últimos 30 días + KEV</option><option value="7d">Últimos 7 días + KEV</option><option value="all">Todos los almacenados</option></select>
+  <label class="vuln-sort-label" for="vulnSort">Ordenar por
+   <select id="vulnSort" aria-label="Ordenar vulnerabilidades">
+    <option value="modified_desc" selected>Última modificación NVD · más reciente</option>
+    <option value="published_desc">Publicación NVD · más reciente</option>
+    <option value="epss_desc">EPSS · mayor probabilidad</option>
+    <option value="cvss_desc">CVSS · mayor severidad</option>
+    <option value="kev_desc">CISA KEV · primero</option>
+   </select>
+  </label>
+ </div>
+ <div class="vuln-table-wrap"><table class="vuln-table"><thead><tr><th>CVE</th><th>VULNERABILIDAD</th><th>CVSS</th><th>EPSS</th><th>CISA KEV</th><th>NVD PUBLISHED DATE</th><th>NVD LAST MODIFIED</th><th>ALTA CISA KEV</th><th>FUENTE</th></tr></thead>
+ <tbody id="vulnRows"><tr><td colspan="9">Aún no hay datos. Pulsa «Actualizar vulnerabilidades».</td></tr></tbody></table></div>
+ <div id="vulnMessage" class="vuln-message" role="status">Fuentes pendientes de primera consulta.</div>
+ <div class="vuln-disclaimer">Interpretación: CISA KEV identifica vulnerabilidades con explotación conocida; CVSS expresa severidad técnica; EPSS estima la probabilidad de explotación en los próximos 30 días y no confirma explotación. La ausencia de una CVE en KEV no demuestra que no esté siendo explotada. Los resultados son inteligencia pública y no se correlacionan con activos internos ni indican exposición de la organización.</div>
+ <div class="vuln-attribution">Fuentes: <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener">CISA KEV</a> · <a href="https://nvd.nist.gov/developers/vulnerabilities" target="_blank" rel="noopener">NVD</a> · <a href="https://www.first.org/epss/" target="_blank" rel="noopener">FIRST EPSS</a></div>
 </section>
-<section class="section-head"><div><h2>Historial de revisiones MDR</h2><p>Últimos registros disponibles en esta instancia.</p></div></section>
-<section class="table-wrap"><table><thead><tr><th>FECHA / HORA</th><th>ANALISTA</th><th>TURNO</th><th>MOMENTO</th><th>PLATAFORMAS REVISADAS</th><th>OBSERVACIONES</th></tr></thead><tbody id="checkHistory"><tr><td colspan="6">Sin revisiones registradas.</td></tr></tbody></table></section>
 <section class="section-head history-head"><div><h2>Historial de cambios de estado</h2><p>Transiciones detectadas entre consultas manuales.</p></div></section>
 <section class="table-wrap"><table><thead><tr><th>FECHA (UTC)</th><th>PLATAFORMA</th><th>CAMBIO</th><th>DETALLE</th></tr></thead><tbody id="events"><tr><td colspan="4">Sin cambios de estado registrados.</td></tr></tbody></table></section>
-<footer><span>SOC SERVICE STATUS MONITOR · FASE 1.8.0 · PARTE 2</span><span>Consulta manual · Fuentes públicas · Checklist MDR piloto</span></footer>
-</main><dialog id="detailDialog" class="detail-dialog" aria-labelledby="detailTitle">
+</div>
+<div class="module-view" id="view-phishing" hidden>
+ <section class="phishing-hero">
+  <div><div class="eyebrow">SOC OPERATIONS · THREAT REPORTING</div><h1>Phishing URL Reporter</h1><p>Prepara reportes, evita duplicados y conserva el seguimiento local de las gestiones realizadas.</p></div>
+  <div class="phishing-hero-tag"><span class="phishing-live-dot"></span> MODO WEB · SIN API NI EXTENSIONES</div>
+ </section>
+ <div class="phishing-notice"><strong>Importante:</strong> la página puede precargar datos solo cuando el portal externo admite parámetros de URL. Google recibe la URL mediante un enlace de precarga y copiamos los detalles para pegarlos en el campo correspondiente. Los demás portales pueden requerir ingreso manual. El envío final siempre se confirma en el sitio del proveedor.</div>
+ <section class="phishing-workspace">
+  <div class="phishing-form-panel">
+   <div class="phishing-panel-heading"><div><span class="phishing-step">01 · PREPARACIÓN</span><h2>Datos del reporte</h2><p>Ingresa una URL por línea. Puedes preparar hasta 20 URLs por lote.</p></div><span class="phishing-count" id="phishingUrlCount">0 / 20</span></div>
+   <label class="phishing-field"><span>URLs sospechosas <b>*</b></span><textarea id="phishingUrls" rows="5" placeholder="https://dominio-sospechoso.example/login&#10;https://otro-dominio.example/validacion" spellcheck="false"></textarea><small>Se aceptan direcciones HTTP y HTTPS. Se eliminan duplicados del lote y se comparan con el historial de cada vendor.</small></label>
+   <div id="phishingUrlFeedback" class="phishing-feedback" role="status" aria-live="polite">Ingresa una o más URLs para comenzar.</div>
+   <div class="phishing-form-grid">
+    <label class="phishing-field"><span>Marca suplantada</span><input id="phishingBrand" type="text" maxlength="120" placeholder="Ej. BancoEstado, Microsoft"></label>
+    <label class="phishing-field"><span>Analista</span><input id="phishingAnalyst" type="text" maxlength="80" placeholder="Nombre del analista"></label>
+    <label class="phishing-field"><span>Tipo de amenaza</span><select id="phishingCategory"><option value="Phishing">Phishing / robo de credenciales</option><option value="Malware">Distribución de malware</option><option value="Scam">Fraude / estafa</option><option value="Compromised website">Sitio comprometido</option><option value="Other suspicious activity">Otra actividad sospechosa</option></select></label>
+    <label class="phishing-field"><span>Referencia interna (opcional)</span><input id="phishingReference" type="text" maxlength="100" placeholder="Ticket / caso SOC"></label>
+   </div>
+   <label class="phishing-field"><span>Descripción / evidencia</span><textarea id="phishingDescription" rows="3" maxlength="1200" placeholder="Describe qué se observó, cómo se identificó y qué comportamiento malicioso presenta..."></textarea><small>Evita incluir contraseñas, tokens, datos personales o secretos en las URLs y observaciones.</small></label>
+   <label class="phishing-repeat-option"><input type="checkbox" id="phishingAllowDuplicates"><span><b>Permitir repetir URLs ya registradas</b><small>Úsalo solo cuando exista una nueva evidencia, actualización o motivo justificado para volver a reportar la misma URL al mismo vendor.</small></span></label>
+   <div class="phishing-form-actions"><button type="button" class="phishing-btn primary" id="phishingPrepare">Validar y preparar reporte</button><button type="button" class="phishing-btn secondary" id="phishingClear">Limpiar formulario</button></div>
+  </div>
+  <aside class="phishing-summary-panel">
+   <span class="phishing-step">02 · RESUMEN</span><h2>Lote de reporte</h2>
+   <div class="phishing-summary-number"><strong id="phishingSummaryUrls">0</strong><span>URLs válidas</span></div>
+   <div class="phishing-summary-line"><span>Vendors disponibles</span><b>8</b></div>
+   <div class="phishing-summary-line"><span>Portales abiertos</span><b id="phishingSummaryOpened">0</b></div>
+   <div class="phishing-summary-line"><span>Gestiones confirmadas</span><b id="phishingSummarySent">0</b></div>
+   <div class="phishing-summary-hint">El historial se conserva en el almacenamiento local de este navegador. No se envía al servidor ni se sincroniza con otros analistas.</div>
+   <button type="button" class="phishing-btn secondary full" id="phishingCopyAll" disabled>Copiar resumen completo</button>
+  </aside>
+ </section>
+ <section class="phishing-vendors-section">
+  <div class="phishing-section-heading"><div><span class="phishing-step">03 · PORTALES DE PROVEEDORES</span><h2>Selecciona y gestiona los vendors</h2><p>El lote admite hasta 20 URLs, pero algunos vendors exigen una URL por formulario. Revisa las instrucciones antes de enviar.</p></div><div class="phishing-selection-tools"><button type="button" class="phishing-text-btn" id="phishingSelectAll">Seleccionar todos</button><button type="button" class="phishing-text-btn" id="phishingSelectNone">Quitar selección</button></div></div>
+  <div id="phishingVendorGrid" class="phishing-vendor-grid">
+   <article class="phishing-vendor-card" data-vendor="virustotal"><div class="phishing-vendor-top"><label class="phishing-vendor-select"><input type="checkbox" checked><span>VirusTotal</span></label><span class="phishing-vendor-type lookup">ANÁLISIS</span></div><p>Analiza la URL y revisa detecciones de múltiples motores. No equivale a enviar un reporte de phishing a cada motor.</p><div class="phishing-vendor-note">El portal no admite una precarga pública documentada en este flujo. Al abrir, copiamos la URL para pegarla en el cuadro de análisis. Las URLs enviadas pueden compartirse con partners.</div><label class="phishing-vendor-url-picker" hidden><span>URL para analizar</span><select class="vendor-url-select" aria-label="Seleccionar URL para virustotal"></select></label><div class="phishing-vendor-actions"><button type="button" class="phishing-btn secondary vendor-preview">Ver datos</button><button type="button" class="phishing-btn secondary vendor-copy">Preparar campos</button><button type="button" class="phishing-btn primary vendor-open" data-url="https://www.virustotal.com/gui/home/url" disabled>Abrir VirusTotal + copiar URL ↗</button></div><div class="phishing-vendor-status" aria-live="polite">Sin iniciar</div><button type="button" class="phishing-confirm" disabled>Confirmar reporte realizado</button></article>
+   <article class="phishing-vendor-card" data-vendor="fortiguard"><div class="phishing-vendor-top"><label class="phishing-vendor-select"><input type="checkbox" checked><span>FortiGuard</span></label><span class="phishing-vendor-type review">REVISIÓN</span></div><p>Consulta la clasificación Web Filter. Si corresponde, utiliza “Request a Review” para solicitar revisión de categoría.</p><div class="phishing-vendor-note">La consulta admite la URL en el parámetro q. Se abre el resultado precargado; desde allí debes elegir “Request a Review” y completar la revisión de categoría.</div><label class="phishing-vendor-url-picker" hidden><span>URL para consultar / revisar</span><select class="vendor-url-select" aria-label="Seleccionar URL para fortiguard"></select></label><div class="phishing-vendor-actions"><button type="button" class="phishing-btn secondary vendor-preview">Ver datos</button><button type="button" class="phishing-btn secondary vendor-copy">Preparar revisión</button><button type="button" class="phishing-btn primary vendor-open" data-url="https://www.fortiguard.com/webfilter" disabled>Consultar URL precargada ↗</button></div><div class="phishing-vendor-status" aria-live="polite">Sin iniciar</div><button type="button" class="phishing-confirm" disabled>Confirmar gestión realizada</button></article>
+   <article class="phishing-vendor-card" data-vendor="google"><div class="phishing-vendor-top"><label class="phishing-vendor-select"><input type="checkbox" checked><span>Google Safe Browsing</span></label><span class="phishing-vendor-type report">REPORTE</span></div><p>Formulario público para reportar páginas de phishing a Google Safe Browsing.</p><div class="phishing-vendor-note">La URL se pasa mediante el parámetro url. Google admite una URL por envío. Copiamos los detalles para “Información adicional”; selecciona manualmente “Ingeniería social” y “Phishing bancario o financiero”.</div><label class="phishing-vendor-url-picker" hidden><span>URL para abrir en Google</span><select class="vendor-url-select" aria-label="Seleccionar URL para Google"></select></label><div class="phishing-vendor-actions"><button type="button" class="phishing-btn secondary vendor-preview">Ver datos</button><button type="button" class="phishing-btn secondary vendor-copy">Preparar campos</button><button type="button" class="phishing-btn primary vendor-open" data-url="https://www.google.com/safebrowsing/report_phish/" disabled>Abrir Google con URL ↗</button></div><div class="phishing-vendor-status" aria-live="polite">Sin iniciar</div><button type="button" class="phishing-confirm" disabled>Confirmar reporte realizado</button></article>
+   <article class="phishing-vendor-card" data-vendor="netcraft"><div class="phishing-vendor-top"><label class="phishing-vendor-select"><input type="checkbox" checked><span>Netcraft</span></label><span class="phishing-vendor-type report">REPORTE</span></div><p>Formulario para reportar sitios de phishing, malware y otros sitios sospechosos. Admite reportes en lote.</p><div class="phishing-vendor-note">Netcraft ofrece “Report in bulk”. Al abrir, copiamos todas las URLs en líneas separadas; usa ese contenido en el campo de URLs y completa el correo si deseas recibir resultados.</div><div class="phishing-vendor-actions"><button type="button" class="phishing-btn secondary vendor-preview">Ver datos</button><button type="button" class="phishing-btn secondary vendor-copy">Preparar campos</button><button type="button" class="phishing-btn primary vendor-open" data-url="https://report.netcraft.com/report" disabled>Abrir Netcraft + copiar lote ↗</button></div><div class="phishing-vendor-status" aria-live="polite">Sin iniciar</div><button type="button" class="phishing-confirm" disabled>Confirmar reporte realizado</button></article>
+   <article class="phishing-vendor-card" data-vendor="eset"><div class="phishing-vendor-top"><label class="phishing-vendor-select"><input type="checkbox" checked><span>ESET</span></label><span class="phishing-vendor-type report">REPORTE</span></div><p>Formulario oficial en español para informar una página fraudulenta y suplantación de identidad.</p><div class="phishing-vendor-note">Formulario oficial de phishing con campos separados: URL, organización simulada y comentarios. No documenta precarga por enlace; copiamos la URL al abrir y puedes copiar cada campo desde el asistente.</div><label class="phishing-vendor-url-picker" hidden><span>URL para reportar</span><select class="vendor-url-select" aria-label="Seleccionar URL para eset"></select></label><div class="phishing-vendor-actions"><button type="button" class="phishing-btn secondary vendor-preview">Ver datos</button><button type="button" class="phishing-btn secondary vendor-copy">Preparar campos</button><button type="button" class="phishing-btn primary vendor-open" data-url="https://phishing.eset.com/es-cl/report" disabled>Abrir ESET + copiar URL ↗</button></div><div class="phishing-vendor-status" aria-live="polite">Sin iniciar</div><button type="button" class="phishing-confirm" disabled>Confirmar reporte realizado</button></article>
+   <article class="phishing-vendor-card" data-vendor="cloudflare"><div class="phishing-vendor-top"><label class="phishing-vendor-select"><input type="checkbox" checked><span>Cloudflare</span></label><span class="phishing-vendor-type report">ABUSE</span></div><p>Formulario público para denunciar contenido abusivo alojado o servido mediante servicios Cloudflare.</p><div class="phishing-vendor-note">El formulario solicita la categoría “Phishing & Malware”, el dominio y el enlace específico. Úsalo si el sitio resuelve hacia IPs/servicios de Cloudflare; la empresa no es el hosting de todos los sitios que pasan por su proxy.</div><label class="phishing-vendor-url-picker" hidden><span>URL del contenido abusivo</span><select class="vendor-url-select" aria-label="Seleccionar URL para cloudflare"></select></label><div class="phishing-vendor-actions"><button type="button" class="phishing-btn secondary vendor-preview">Ver datos</button><button type="button" class="phishing-btn secondary vendor-copy">Preparar campos</button><button type="button" class="phishing-btn primary vendor-open" data-url="https://abuse.cloudflare.com/" disabled>Abrir Cloudflare + copiar URL ↗</button></div><div class="phishing-vendor-status" aria-live="polite">Sin iniciar</div><button type="button" class="phishing-confirm" disabled>Confirmar reporte realizado</button></article>
+   <article class="phishing-vendor-card" data-vendor="urlabuse"><div class="phishing-vendor-top"><label class="phishing-vendor-select"><input type="checkbox" checked><span>URLAbuse</span></label><span class="phishing-vendor-type report">REPORTE</span></div><p>Formulario comunitario para reportar URLs maliciosas y phishing. Solicita URL, marca objetivo y nombre del reportante.</p><div class="phishing-vendor-note">Formulario de una URL: URL maliciosa, marca objetivo, nombre o alias del reportante y tipo de abuso. Selecciona Phishing. URLAbuse indica que el nombre del reportante se muestra públicamente.</div><label class="phishing-vendor-url-picker" hidden><span>URL maliciosa</span><select class="vendor-url-select" aria-label="Seleccionar URL para urlabuse"></select></label><div class="phishing-vendor-actions"><button type="button" class="phishing-btn secondary vendor-preview">Ver datos</button><button type="button" class="phishing-btn secondary vendor-copy">Preparar campos</button><button type="button" class="phishing-btn primary vendor-open" data-url="https://urlabuse.com/report" disabled>Abrir URLAbuse + copiar URL ↗</button></div><div class="phishing-vendor-status" aria-live="polite">Sin iniciar</div><button type="button" class="phishing-confirm" disabled>Confirmar reporte realizado</button></article>
+   <article class="phishing-vendor-card" data-vendor="watchguard"><div class="phishing-vendor-top"><label class="phishing-vendor-select"><input type="checkbox" checked><span>WatchGuard</span></label><span class="phishing-vendor-type review">CATEGORÍA</span></div><p>Consulta categorías y solicita cambios para URLs no categorizadas o mal categorizadas.</p><div class="phishing-vendor-note">Admite varias URLs con una categoría sugerida por línea. Preparamos “Phishing and Other Frauds” para cada URL. El portal puede requerir inicio de sesión y reCAPTCHA.</div><div class="phishing-vendor-actions"><button type="button" class="phishing-btn secondary vendor-preview">Ver datos</button><button type="button" class="phishing-btn secondary vendor-copy">Preparar campos</button><button type="button" class="phishing-btn primary vendor-open" data-url="https://www.watchguard.com/securityportal/UrlCategorization.aspx" disabled>Abrir WatchGuard + copiar lote ↗</button></div><div class="phishing-vendor-status" aria-live="polite">Sin iniciar</div><button type="button" class="phishing-confirm" disabled>Confirmar gestión realizada</button></article>
+  </div>
+ </section>
+ <section class="phishing-history-section">
+  <div class="phishing-section-heading"><div><span class="phishing-step">04 · TRAZABILIDAD LOCAL</span><h2>Historial de reportes</h2><p>Consulta, filtra y administra las gestiones guardadas en este navegador.</p></div>
+   <div class="phishing-history-tools"><button type="button" class="phishing-btn secondary" id="phishingExportJson">Exportar JSON</button><button type="button" class="phishing-btn secondary" id="phishingExportCsv">Exportar CSV</button><button type="button" class="phishing-btn secondary" id="phishingImportButton">Importar respaldo</button><button type="button" class="phishing-text-btn danger" id="phishingClearHistory">Borrar historial</button><input type="file" id="phishingImportFile" accept=".json,.csv,application/json,text/csv" hidden></div>
+  </div>
+  <div class="phishing-history-stats"><div><b id="phishingHistoryTotal">0</b><span>Registros</span></div><div><b id="phishingHistoryPending">0</b><span>Pendientes</span></div><div><b id="phishingHistoryConfirmed">0</b><span>Confirmados</span></div></div>
+  <div class="phishing-history-filters"><input type="search" id="phishingHistorySearch" placeholder="Buscar URL, dominio, marca, analista o ticket..."><select id="phishingHistoryVendor"><option value="">Todos los vendors</option><option value="virustotal">VirusTotal</option><option value="fortiguard">FortiGuard</option><option value="google">Google Safe Browsing</option><option value="netcraft">Netcraft</option><option value="eset">ESET</option><option value="cloudflare">Cloudflare</option><option value="urlabuse">URLAbuse</option><option value="watchguard">WatchGuard</option></select><select id="phishingHistoryStatus"><option value="">Todos los estados</option><option value="prepared">Preparado · pendiente</option><option value="portal_opened">Portal abierto</option><option value="confirmed">Confirmado por analista</option><option value="cancelled">Descartado / cancelado</option></select></div>
+  <div class="phishing-history-wrap"><table class="phishing-history-table"><thead><tr><th>FECHA</th><th>URL / DOMINIO</th><th>VENDOR / ANALISTA</th><th>MARCA / REFERENCIA</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="phishingHistoryRows"><tr><td colspan="6">Todavía no hay registros en el historial.</td></tr></tbody></table></div>
+  <div class="phishing-storage-status" id="phishingStorageStatus" role="status">Historial guardado localmente en este navegador; no se sincroniza entre analistas.</div>
+  <div class="phishing-history-note">El historial reside en el almacenamiento del navegador y puede perderse al borrar los datos del sitio, cambiar de navegador o usar otro equipo. Exporta respaldos JSON o CSV periódicamente. Evita registrar URLs con tokens, credenciales, datos personales o secretos.</div>
+ </section>
+ <section class="phishing-activity-section"><div class="phishing-section-heading"><div><span class="phishing-step">05 · CONTROL DE LA GESTIÓN</span><h2>Actividad reciente de esta sesión</h2><p>Acciones realizadas desde que se abrió esta página; el historial persistente está arriba.</p></div><button type="button" class="phishing-text-btn" id="phishingClearActivity">Limpiar actividad</button></div><div class="phishing-activity-wrap"><table class="phishing-activity-table"><thead><tr><th>HORA</th><th>VENDOR</th><th>ACCIÓN</th><th>ESTADO</th></tr></thead><tbody id="phishingActivityRows"><tr><td colspan="4">Todavía no hay actividad.</td></tr></tbody></table></div></section>
+ <div class="phishing-disclaimer">Uso operativo: verifica que cada URL sea realmente maliciosa antes de reportarla. Los portales externos pueden compartir la información recibida según sus propias políticas. No incluyas URLs con tokens de sesión, credenciales, datos personales u otros secretos. El módulo no transmite URLs automáticamente ni verifica el envío al proveedor. El historial permanece en el navegador desde el que se generó.</div>
+</div>
+
+<footer><span>SOC SERVICE STATUS MONITOR · v1.9.4 · PHISHING REPORTER</span><span>Consulta de fuentes públicas · Inteligencia de amenazas</span></footer>
+ </div>
+</div>
+</main><dialog id="phishingTemplateDialog" class="phishing-template-dialog" aria-labelledby="phishingTemplateTitle">
+ <div class="phishing-template-shell"><div class="phishing-template-header"><div><span class="eyebrow">PHISHING URL REPORTER · ASISTENTE DE FORMULARIO</span><h2 id="phishingTemplateTitle">Campos para completar</h2><p id="phishingTemplateIntro">Copia cada dato y pégalo en el campo equivalente del portal que se abrió en otra pestaña.</p></div><button type="button" id="phishingTemplateClose" class="close-detail" aria-label="Cerrar">×</button></div><div id="phishingTemplateBody" class="phishing-template-guidance"></div><div id="phishingTemplateFields" class="phishing-template-fields"></div><div class="phishing-template-actions"><button type="button" class="phishing-btn secondary" id="phishingTemplateCloseBottom">Cerrar</button><button type="button" class="phishing-btn secondary" id="phishingTemplateCopy">Copiar resumen de campos</button></div></div>
+</dialog>
+<dialog id="vulnDetailDialog" class="vuln-detail-dialog" aria-labelledby="vulnDetailTitle">
+ <div class="vuln-detail-shell">
+  <div class="vuln-detail-header"><div><span class="eyebrow">VULNERABILITY INTELLIGENCE · FICHA TÉCNICA</span><h2 id="vulnDetailTitle">Vulnerabilidad</h2><p id="vulnDetailSubtitle"></p></div><button type="button" id="closeVulnDetail" class="close-detail" aria-label="Cerrar detalle">×</button></div>
+  <div id="vulnDetailBody" class="vuln-detail-body"><div class="loading">Selecciona una CVE para consultar su ficha.</div></div>
+ </div>
+</dialog>
+<dialog id="detailDialog" class="detail-dialog" aria-labelledby="detailTitle">
  <div class="detail-shell">
   <div class="detail-header"><div><span class="eyebrow">DETALLE DE PLATAFORMA</span><h2 id="detailTitle">Plataforma</h2><p id="detailSubtitle"></p></div><button id="closeDetail" class="close-detail" aria-label="Cerrar detalle">×</button></div>
   <div id="detailBody" class="detail-body"><div class="loading">Consultando información de la fuente…</div></div>
  </div>
 </dialog>
-<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.8.0-part2"></script></body></html>
+<div id="toast" class="toast"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="/static/app.js?v=1.9.4-phishing-vendor-assistant"></script></body></html>

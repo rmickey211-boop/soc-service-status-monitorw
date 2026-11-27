@@ -1,23 +1,36 @@
-SOC Service Status Monitor v1.9.3 — QA results
+SOC Service Status Monitor v1.9.4 — QA results
 
-Base: full project ZIP v1.9.2 supplied by the user.
+Base: full project ZIP v1.9.3 validated by the user (including the live Google URL prefill check).
 
 Automated tests
-- pytest: 87 passed, 0 failed.
+- pytest: 93 passed, 0 failed.
 - JavaScript syntax: node --check app/static/app.js passed.
+- Version health endpoint test: reports 1.9.4-phishing-vendor-assistant.
 
-Chromium UI flow (isolated local page with external navigation stubbed)
-- Phishing URL Reporter navigation and batch preparation: passed.
-- Two URLs displayed in the Google one-URL-at-a-time selector: passed.
-- Generated Google link includes hl=es and the selected URL encoded in the `url` query parameter: passed.
-- Google additional-details text copied to clipboard: passed.
-- Confirmation remains disabled until every URL in the lot has been opened: passed.
+Vendor-specific workflows
+- VirusTotal: opens the official URL-analysis page and copies the selected URL. Correctly described as reputation analysis, not a direct submission to every engine; UI warns about potential sharing with partners.
+- FortiGuard: opens Web Filter with the selected URL in the q query parameter; prepares Security Risk → Phishing guidance and asks the analyst to use Request a Review where appropriate.
+- Google Safe Browsing: retains the URL prefill pattern verified by the user's live screenshot; threat type and category remain manual selections; additional details are copied separately.
+- Netcraft: prepares URLs one per line for Report in bulk and supplies additional details separately.
+- ESET: separates URL, impersonated organization and comments for the official phishing form.
+- Cloudflare: separates the abuse category Phishing & Malware, domain in question, specific phishing link, affected brand and explanation; warns to report only where Cloudflare service/IP involvement is established.
+- URLAbuse: separates malicious URL, target/brand, abuse type and reporter name; warns that reporter name/nickname may be publicly displayed and must be completed with an approved alias.
+- WatchGuard: prepares the URL list with the suggested WebBlocker category Phishing and Other Frauds per line; warns that portal login/CAPTCHA may be required.
+
+Workflow safeguards
+- Single-URL vendors (VirusTotal, FortiGuard, Google, ESET, Cloudflare and URLAbuse) expose a per-URL selector for multi-URL batches.
+- Netcraft and WatchGuard retain batch workflows.
+- Manual confirmation is blocked until all individual URL portals have been opened, or the batch portal has been opened for batch vendors.
+- Opening a portal or copying fields never marks a report as submitted; status remains pending until the analyst confirms manually.
+- No vendor API calls, browser extensions, third-party automation, new Python dependencies, backend routes or database migrations were added.
+- External form fields remain under the vendor site’s control; the SOC page cannot set cross-origin fields or press external Submit buttons. Where an official prefill parameter is not verified, the assistant copies fields individually instead of inventing a URL parameter.
 
 Scope and limitations
-- Google parameter `url` is based on a historical browser integration pattern; Google currently documents the base reporting URL, not this prefill parameter. The real vendor form's acceptance of the parameter was not verified from this environment and must be checked after deployment.
-- Google threat type/category selections and final Submit remain manual.
-- No access to or automation of cross-origin form internals; no CAPTCHA/authentication bypass.
-- No vendor APIs, browser extensions, new Python dependencies, backend routes, or database changes.
+- Browser-only assistant; the per-analyst history continues to use local browser storage from v1.9.2.
+- Google selectors remain manual. FortiGuard preloads its search URL; category review must be requested on the result page. Other fields must be pasted into the corresponding external form fields.
+- Authentication, CAPTCHA and final submission remain manual.
+- Vendor site layouts can change; verify each form in the live portal after deployment.
 
 Warnings
-- Two FastAPI deprecation warnings for the project's existing startup event handler remain; unrelated to this release.
+- Existing FastAPI startup-event deprecation warnings remain unrelated to this release.
+- Chromium end-to-end navigation to the local Uvicorn host was blocked by the execution environment's browser policy; no claim of full live-browser E2E verification is made in this package.

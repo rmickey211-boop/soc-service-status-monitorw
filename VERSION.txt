@@ -1,4 +1,4 @@
 SOC Service Status Monitor
-Version: 1.9.3-phishing-reporter-prefill
-Release: Phishing URL Reporter — asistencia de formularios y precarga de URL Google
-Base: v1.9.2 confirmed by user
+Version: 1.9.4-phishing-vendor-assistant
+Release: Phishing URL Reporter — asistente de campos por vendor, precargas verificadas y seguimiento individual
+Base: v1.9.3 validada por el usuario
